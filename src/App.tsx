@@ -8,7 +8,7 @@ import { SettingsSheet } from './Settings'
 import { RecipesSheet } from './RecipesView'
 import { QuickAddSheet } from './QuickAdd'
 import { RefineSheet } from './RefineView'
-import { setPrice as savePrice } from './catalog'
+import { setPrice as savePrice, setFavoriteByKey } from './catalog'
 import { Sheet } from './Sheet'
 
 type View = 'list' | 'backlog'
@@ -36,6 +36,10 @@ export default function App() {
       new Map(
         catalog.filter((c) => c.price != null).map((c) => [c.canonicalKey, c.price as number]),
       ),
+    [catalog],
+  )
+  const favSet = useMemo(
+    () => new Set(catalog.filter((c) => c.favorite).map((c) => c.canonicalKey)),
     [catalog],
   )
 
@@ -315,7 +319,15 @@ export default function App() {
         />
       )}
 
-      {quickAddOpen && <QuickAddSheet onClose={() => setQuickAddOpen(false)} />}
+      {quickAddOpen && (
+        <QuickAddSheet
+          onClose={() => setQuickAddOpen(false)}
+          onAddNew={() => {
+            setQuickAddOpen(false)
+            setSheet('new')
+          }}
+        />
+      )}
 
       {refineOpen && <RefineSheet onClose={() => setRefineOpen(false)} />}
 
@@ -340,6 +352,7 @@ export default function App() {
           initial={sheet === 'new' ? null : sheet}
           defaultBacklog={view === 'backlog'}
           catalogPrice={sheet !== 'new' ? priceMap.get(sheet.canonicalKey) : undefined}
+          catalogFavorite={sheet !== 'new' ? favSet.has(sheet.canonicalKey) : false}
           onClose={() => setSheet(null)}
         />
       )}
@@ -351,11 +364,13 @@ function ItemSheet({
   initial,
   defaultBacklog,
   catalogPrice,
+  catalogFavorite,
   onClose,
 }: {
   initial: Item | null
   defaultBacklog: boolean
   catalogPrice?: number
+  catalogFavorite?: boolean
   onClose: () => void
 }) {
   const [name, setName] = useState(initial?.displayName ?? '')
@@ -363,8 +378,16 @@ function ItemSheet({
   const [unit, setUnit] = useState(initial?.unit ?? '')
   const [section, setSection] = useState<Section>(initial?.section ?? 'other')
   const [priceStr, setPriceStr] = useState(catalogPrice != null ? String(catalogPrice) : '')
+  const [fav, setFav] = useState(Boolean(catalogFavorite))
 
   const editing = initial != null
+
+  const toggleFav = async () => {
+    if (!editing) return
+    const next = !fav
+    setFav(next)
+    await setFavoriteByKey(initial!.canonicalKey, name.trim() || initial!.displayName, section, next)
+  }
 
   const save = async () => {
     const trimmed = name.trim()
@@ -467,14 +490,23 @@ function ItemSheet({
         </button>
 
         {editing && (
-          <div className="edit-actions">
-            <button className="ghost" onClick={moveBacklog}>
-              {initial!.backlog ? '↑ Move to list' : '↓ Save for next time'}
+          <>
+            <button
+              className={fav ? 'ghost fav-btn on' : 'ghost fav-btn'}
+              onClick={toggleFav}
+              style={{ marginTop: 10 }}
+            >
+              {fav ? '★ Favorited — shows in Quick add' : '☆ Add to favorites'}
             </button>
-            <button className="ghost danger" onClick={remove}>
-              🗑 Delete
-            </button>
-          </div>
+            <div className="edit-actions">
+              <button className="ghost" onClick={moveBacklog}>
+                {initial!.backlog ? '↑ Move to list' : '↓ Save for next time'}
+              </button>
+              <button className="ghost danger" onClick={remove}>
+                🗑 Delete
+              </button>
+            </div>
+          </>
         )}
     </Sheet>
   )

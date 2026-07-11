@@ -797,6 +797,16 @@ button {
 }
 
 /* ---- Quick add ---- */
+.qa-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.qa-header .sheet-title {
+  margin: 0;
+}
 .qa-head {
   margin: 16px 2px 8px;
   font-size: 0.82rem;
@@ -804,6 +814,11 @@ button {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
+}
+.fav-btn.on {
+  color: #b8860b;
+  border-color: #e0a419;
+  background: #fff8e6;
 }
 .qa-grid {
   display: flex;

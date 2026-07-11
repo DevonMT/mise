@@ -2,25 +2,23 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type CatalogEntry } from './db'
 import { addItem } from './list'
-import { toggleFavorite, removeFromCatalog } from './catalog'
+import { toggleFavorite } from './catalog'
 import { SECTION_META } from './sections'
 import { Sheet } from './Sheet'
 
-export function QuickAddSheet({ onClose }: { onClose: () => void }) {
+export function QuickAddSheet({
+  onClose,
+  onAddNew,
+}: {
+  onClose: () => void
+  onAddNew: () => void
+}) {
   const catalog = useLiveQuery(() => db.catalog.toArray(), []) ?? []
   const [added, setAdded] = useState<Set<string>>(new Set())
-  const [q, setQ] = useState('')
-
-  const query = q.trim().toLowerCase()
-  const match = (c: CatalogEntry) => !query || c.displayName.toLowerCase().includes(query)
 
   const favorites = catalog
-    .filter((c) => c.favorite && match(c))
+    .filter((c) => c.favorite)
     .sort((a, b) => a.displayName.localeCompare(b.displayName))
-  const frequent = catalog
-    .filter((c) => !c.favorite && match(c))
-    .sort((a, b) => b.count - a.count || b.lastAdded - a.lastAdded)
-    .slice(0, 24)
 
   const add = async (c: CatalogEntry) => {
     await addItem({
@@ -41,64 +39,39 @@ export function QuickAddSheet({ onClose }: { onClose: () => void }) {
     )
   }
 
-  const Chip = ({ c }: { c: CatalogEntry }) => (
-    <div className={added.has(c.canonicalKey) ? 'qa-chip added' : 'qa-chip'}>
-      <button className="qa-add" onClick={() => add(c)}>
-        <span className="qa-emoji">{SECTION_META[c.section].emoji}</span>
-        <span className="qa-name">{c.displayName}</span>
-        <span className="qa-hint">{added.has(c.canonicalKey) ? '✓ added' : '＋'}</span>
-      </button>
-      <button
-        className={c.favorite ? 'qa-star on' : 'qa-star'}
-        aria-label="favorite"
-        onClick={() => toggleFavorite(c)}
-        onDoubleClick={() => removeFromCatalog(c)}
-      >
-        {c.favorite ? '★' : '☆'}
-      </button>
-    </div>
-  )
-
   return (
     <Sheet className="quickadd" onClose={onClose}>
-      <h3 className="sheet-title">⭐ Quick add</h3>
-      {catalog.length === 0 ? (
+      <div className="qa-header">
+        <h3 className="sheet-title">⭐ Quick add</h3>
+        <button className="add-btn" onClick={onAddNew}>
+          ＋ New
+        </button>
+      </div>
+
+      {favorites.length === 0 ? (
         <p className="review-hint">
-          Nothing here yet. As you add items they'll collect here for one-tap re-adding —
-          tap ☆ to keep favorites at the top.
+          No favorites yet. Open any item on your list and tap the ☆ to keep it here for
+          one-tap adding — or use ＋ New to add something.
         </p>
       ) : (
-        <>
-          <input
-            className="field"
-            placeholder="Filter…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          {favorites.length > 0 && (
-            <>
-              <h4 className="qa-head">Favorites</h4>
-              <div className="qa-grid">
-                {favorites.map((c) => (
-                  <Chip key={c.id} c={c} />
-                ))}
-              </div>
-            </>
-          )}
-          {frequent.length > 0 && (
-            <>
-              <h4 className="qa-head">Frequently bought</h4>
-              <div className="qa-grid">
-                {frequent.map((c) => (
-                  <Chip key={c.id} c={c} />
-                ))}
-              </div>
-            </>
-          )}
-          <p className="review-hint qa-foot">
-            Tap to add · ☆ to favorite · double-tap ★ to forget an item
-          </p>
-        </>
+        <div className="qa-grid">
+          {favorites.map((c) => (
+            <div key={c.id} className={added.has(c.canonicalKey) ? 'qa-chip added' : 'qa-chip'}>
+              <button className="qa-add" onClick={() => add(c)}>
+                <span className="qa-emoji">{SECTION_META[c.section].emoji}</span>
+                <span className="qa-name">{c.displayName}</span>
+                <span className="qa-hint">{added.has(c.canonicalKey) ? '✓ added' : '＋'}</span>
+              </button>
+              <button
+                className="qa-star on"
+                aria-label="Unfavorite"
+                onClick={() => toggleFavorite(c)}
+              >
+                ★
+              </button>
+            </div>
+          ))}
+        </div>
       )}
     </Sheet>
   )

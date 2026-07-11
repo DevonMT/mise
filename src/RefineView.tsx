@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { db, type Item } from './db'
-import { setPrice } from './catalog'
+import { applyRefinement } from './catalog'
 import { refineItems, type RefineOption } from './parse'
 import { Sheet } from './Sheet'
 
@@ -45,7 +45,7 @@ export function RefineSheet({ onClose }: { onClose: () => void }) {
 
   const apply = async (item: Item, opt: RefineOption) => {
     await db.items.update(item.id!, { displayName: opt.label, unit: opt.unit })
-    await setPrice(item.canonicalKey, opt.label, item.section, opt.price)
+    await applyRefinement(item.canonicalKey, opt.label, opt.unit, item.section, opt.price)
     setApplied((a) => ({ ...a, [item.canonicalKey]: opt.label }))
   }
 

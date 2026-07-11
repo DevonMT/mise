@@ -35,8 +35,55 @@ export async function toggleFavorite(entry: CatalogEntry): Promise<void> {
   if (entry.id != null) await db.catalog.update(entry.id, { favorite: !entry.favorite })
 }
 
+/** Set favorite on/off by key (upserts a catalog entry if the item is new). */
+export async function setFavoriteByKey(
+  canonicalKey: string,
+  displayName: string,
+  section: Section,
+  favorite: boolean,
+): Promise<void> {
+  const existing = await db.catalog.where('canonicalKey').equals(canonicalKey).first()
+  if (existing?.id != null) {
+    await db.catalog.update(existing.id, { favorite })
+  } else {
+    await db.catalog.add({
+      canonicalKey,
+      displayName,
+      section,
+      count: 0,
+      favorite,
+      lastAdded: Date.now(),
+    })
+  }
+}
+
 export async function removeFromCatalog(entry: CatalogEntry): Promise<void> {
   if (entry.id != null) await db.catalog.delete(entry.id)
+}
+
+/** Sync a catalog entry to a refined choice: specific name, unit, and price. */
+export async function applyRefinement(
+  canonicalKey: string,
+  displayName: string,
+  unit: string | undefined,
+  section: Section,
+  price: number,
+): Promise<void> {
+  const existing = await db.catalog.where('canonicalKey').equals(canonicalKey).first()
+  if (existing?.id != null) {
+    await db.catalog.update(existing.id, { displayName, unit, price })
+  } else {
+    await db.catalog.add({
+      canonicalKey,
+      displayName,
+      unit,
+      section,
+      count: 0,
+      favorite: false,
+      lastAdded: Date.now(),
+      price,
+    })
+  }
 }
 
 /** Set a remembered price for one item (upserts a catalog entry if needed). */
