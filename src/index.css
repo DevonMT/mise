@@ -74,9 +74,11 @@ button {
   align-items: center;
   gap: 8px;
 }
-.brand .logo {
-  color: var(--accent);
-  font-size: 1.25rem;
+.logo-img {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: block;
 }
 .icon-btn {
   width: 44px;
@@ -264,6 +266,7 @@ button {
 }
 .row-main {
   flex: 1;
+  min-width: 0;
   text-align: left;
   padding: 16px 14px 16px 0;
   display: flex;
@@ -275,6 +278,7 @@ button {
 }
 .name {
   font-weight: 600;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

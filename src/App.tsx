@@ -146,7 +146,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="logo">◍</span> Mise
+          <img className="logo-img" src={`${import.meta.env.BASE_URL}icon.svg`} alt="" /> Mise
         </div>
         <div className="topbar-actions">
           <button
