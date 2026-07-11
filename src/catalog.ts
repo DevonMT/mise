@@ -71,6 +71,24 @@ export async function estimateStorePrices(
   store: string,
   mode: 'missing' | 'all',
 ): Promise<number> {
+  // Make sure everything currently on the list can be priced, even if it
+  // predates the catalog — add any missing list items as catalog entries.
+  const listItems = await db.items.toArray()
+  for (const it of listItems) {
+    const existing = await db.catalog.where('canonicalKey').equals(it.canonicalKey).first()
+    if (!existing) {
+      await db.catalog.add({
+        canonicalKey: it.canonicalKey,
+        displayName: it.displayName,
+        unit: it.unit,
+        section: it.section,
+        count: 0,
+        favorite: false,
+        lastAdded: Date.now(),
+      })
+    }
+  }
+
   const all = await db.catalog.toArray()
   const targets = mode === 'all' ? all : all.filter((c) => c.price == null)
   if (targets.length === 0) return 0

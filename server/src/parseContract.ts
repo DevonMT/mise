@@ -54,7 +54,7 @@ Return ONLY structured data matching the schema. Rules:
 - sourceType: "recipe" if the input is clearly a single recipe (title + ingredients, maybe steps), otherwise "list".
 - recipeTitle: the recipe's name when sourceType is "recipe", else null.
 - servings: the number of servings/yield when clearly stated for a recipe, else null.
-- instructions: when sourceType is "recipe" and cooking steps are present, the steps as readable text (number them "1. ... \n2. ..." if they aren't already). Null for a plain list, or a recipe with no steps given.
+- instructions: when sourceType is "recipe" and cooking steps are present, capture the COMPLETE steps as readable numbered text ("1. ...\n2. ..."). Preserve every concrete detail exactly: temperatures (e.g. 375°F), times/durations (e.g. 25 minutes), pan/dish sizes, and the amounts used in each step (e.g. "add 2 tbsp of the butter"). Do not summarize, shorten, or omit steps — reproduce the method in full so it can be cooked from memory. Null only for a plain list, or a recipe that genuinely has no method given.
 
 Be thorough but do not duplicate the same canonicalKey+unit within your output — merge those yourself and sum quantities.`
 

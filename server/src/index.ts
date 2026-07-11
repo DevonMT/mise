@@ -80,7 +80,7 @@ app.post('/api/parse', async (c) => {
   try {
     const message = await client.messages.create({
       model: 'claude-sonnet-5',
-      max_tokens: 4096,
+      max_tokens: 8000,
       thinking: { type: 'disabled' },
       system: SYSTEM_PROMPT,
       output_config: { format: { type: 'json_schema', schema: PARSE_SCHEMA } },

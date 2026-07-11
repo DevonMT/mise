@@ -635,18 +635,40 @@ button {
   font-size: 0.85rem;
   color: var(--muted);
 }
-.link-back {
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.icon-back {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  font-size: 1.6rem;
+  line-height: 1;
   color: var(--accent);
-  font-weight: 700;
-  font-size: 0.95rem;
-  padding: 2px 0 8px;
+  background: var(--accent-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.detail-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .scaler {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin: 6px 2px 14px;
+  margin: 2px 2px 14px;
 }
 .scaler-label {
   font-weight: 700;

@@ -95,10 +95,12 @@ function RecipeDetail({
 
   return (
     <>
-      <button className="link-back" onClick={onBack}>
-        ‹ Recipes
-      </button>
-      <h3 className="sheet-title">{recipe.title}</h3>
+      <div className="detail-head">
+        <button className="icon-back" onClick={onBack} aria-label="Back to recipes">
+          ‹
+        </button>
+        <h3 className="detail-title">{recipe.title}</h3>
+      </div>
 
       <div className="scaler">
         <span className="scaler-label">{base ? 'Servings' : 'Batch ×'}</span>
@@ -110,7 +112,7 @@ function RecipeDetail({
           <button onClick={() => setN((v) => +(v + step).toFixed(2))}>＋</button>
         </div>
         {base > 0 && n !== base && (
-          <span className="scaler-note">({factor.toFixed(2)}× the recipe)</span>
+          <span className="scaler-note">{factor.toFixed(2)}×</span>
         )}
       </div>
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Item, type Section } from './db'
 import { SECTIONS, SECTION_META } from './sections'
@@ -81,6 +81,44 @@ export default function App() {
     await db.items.bulkDelete([...selected])
     exitSelect()
   }
+
+  const closeAll = () => {
+    setMenuOpen(false)
+    setAddMenuOpen(false)
+    setCapture(null)
+    setSettingsOpen(false)
+    setRecipesOpen(false)
+    setQuickAddOpen(false)
+    setSheet(null)
+    setSelectMode(false)
+    setSelected(new Set())
+  }
+
+  // Android back button: close any open overlay instead of leaving the app.
+  const anyOverlay =
+    menuOpen ||
+    addMenuOpen ||
+    capture !== null ||
+    settingsOpen ||
+    recipesOpen ||
+    quickAddOpen ||
+    sheet !== null ||
+    selectMode
+  useEffect(() => {
+    if (!anyOverlay) return
+    let poppedByBack = false
+    window.history.pushState({ miseOverlay: true }, '')
+    const onPop = () => {
+      poppedByBack = true
+      closeAll()
+    }
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      if (!poppedByBack) window.history.back()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anyOverlay])
 
   const shown =
     view === 'list' ? groups : [{ section: 'other' as Section, items: backlog }]
