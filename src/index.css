@@ -815,6 +815,7 @@ button {
 .qa-chip {
   display: flex;
   align-items: stretch;
+  min-height: 54px;
   border: 1.5px solid var(--line);
   border-radius: 14px;
   overflow: hidden;
@@ -829,23 +830,27 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 13px 14px;
+  padding: 0 14px; /* centered by flex + chip min-height; no vertical padding */
   text-align: left;
   font-size: 1.02rem;
-  min-height: 52px;
+  line-height: 1;
 }
 .qa-emoji {
-  font-size: 1.1rem;
+  flex: 0 0 auto;
+  font-size: 1.15rem;
+  line-height: 1;
 }
 .qa-name {
   flex: 1;
   font-weight: 600;
+  line-height: 1.15;
 }
 .qa-hint {
   flex: 0 0 auto;
   color: var(--accent);
   font-weight: 800;
   font-size: 1.1rem;
+  line-height: 1;
 }
 .qa-chip.added .qa-hint {
   font-size: 0.85rem;
@@ -853,7 +858,11 @@ button {
 .qa-star {
   flex: 0 0 auto;
   width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 1.3rem;
+  line-height: 1;
   color: var(--muted);
   border-left: 1.5px solid var(--line);
 }
