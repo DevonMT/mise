@@ -1,0 +1,73 @@
+import Dexie, { type Table } from 'dexie'
+
+/** Fixed store-section taxonomy — drives the aisle grouping order. */
+export type Section =
+  | 'produce'
+  | 'meat'
+  | 'dairy'
+  | 'bakery'
+  | 'frozen'
+  | 'pantry'
+  | 'household'
+  | 'other'
+
+export interface Item {
+  id?: number
+  displayName: string
+  /** Normalized key used to merge duplicates across sources (e.g. "onion"). */
+  canonicalKey: string
+  quantity?: number
+  unit?: string
+  section: Section
+  checked: boolean
+  /** true = parked in the "next time" backlog, not on the active trip. */
+  backlog: boolean
+  createdAt: number
+}
+
+/** A saved recipe (Phase 3 — table defined now so the schema is stable). */
+export interface Recipe {
+  id?: number
+  title: string
+  servings: number
+  ingredients: Array<Pick<Item, 'displayName' | 'canonicalKey' | 'quantity' | 'unit' | 'section'>>
+  source?: string
+  createdAt: number
+}
+
+/** A staple you always have — filtered out of the list (Phase 2). */
+export interface Staple {
+  id?: number
+  canonicalKey: string
+  displayName: string
+}
+
+export class MiseDB extends Dexie {
+  items!: Table<Item, number>
+  recipes!: Table<Recipe, number>
+  staples!: Table<Staple, number>
+
+  constructor() {
+    super('mise')
+    this.version(1).stores({
+      items: '++id, canonicalKey, section, checked, backlog',
+      recipes: '++id, title',
+      staples: '++id, &canonicalKey',
+    })
+  }
+}
+
+export const db = new MiseDB()
+
+/** Normalize a free-text name into a merge key: lowercase, singular-ish, trimmed. */
+export function canonicalize(name: string): string {
+  let k = name.trim().toLowerCase()
+  // strip a leading article
+  k = k.replace(/^(a|an|the)\s+/, '')
+  // naive singularization for common cases
+  if (k.endsWith('ies')) k = k.slice(0, -3) + 'y'
+  else if (k.endsWith('oes')) k = k.slice(0, -2)
+  else if (k.endsWith('ses')) k = k.slice(0, -2)
+  else if (k.endsWith('s') && !k.endsWith('ss')) k = k.slice(0, -1)
+  return k
+}
