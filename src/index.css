@@ -163,13 +163,77 @@ button {
   border-radius: 16px;
   overflow: hidden;
 }
+.rows > li {
+  border-bottom: 1px solid var(--line);
+}
+.rows > li:last-child {
+  border-bottom: none;
+}
 .row {
   display: flex;
   align-items: stretch;
-  border-bottom: 1px solid var(--line);
 }
-.row:last-child {
-  border-bottom: none;
+
+/* ---- Swipe row ---- */
+.swipe-row {
+  position: relative;
+}
+.swipe-content {
+  position: relative;
+  background: var(--surface);
+  touch-action: pan-y;
+}
+.swipe-bg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+}
+.swipe-bg.show-fav {
+  background: #fbeecb;
+}
+.swipe-bg.show-del {
+  background: #fbe0dc;
+}
+.swipe-bg.commit-fav {
+  background: #e0a419;
+}
+.swipe-bg.commit-del {
+  background: var(--danger);
+}
+.swipe-act {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+.swipe-act.fav {
+  color: #b8860b;
+}
+.swipe-act.del {
+  color: var(--danger);
+}
+.swipe-bg.commit-fav .swipe-act.fav,
+.swipe-bg.commit-del .swipe-act.del {
+  color: #fff;
+}
+.row-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.row-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.row-fav {
+  flex: 0 0 auto;
+  color: #e0a419;
+  font-size: 0.9rem;
 }
 .check {
   position: relative;
@@ -211,6 +275,9 @@ button {
 }
 .name {
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .row.done .name {
   color: var(--muted);

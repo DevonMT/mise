@@ -10,6 +10,7 @@ import { QuickAddSheet } from './QuickAdd'
 import { RefineSheet } from './RefineView'
 import { setPrice as savePrice, setFavoriteByKey, syncCatalogName } from './catalog'
 import { Sheet } from './Sheet'
+import { SwipeRow } from './SwipeRow'
 
 type View = 'list' | 'backlog'
 
@@ -212,6 +213,7 @@ export default function App() {
                   <ul className="rows">
                     {g.items.map((item) => {
                       const sel = selected.has(item.id!)
+                      const isFav = favSet.has(item.canonicalKey)
                       const cls = selectMode
                         ? sel
                           ? 'row selected'
@@ -219,8 +221,9 @@ export default function App() {
                         : item.checked
                           ? 'row done'
                           : 'row'
-                      return (
-                        <li key={item.id} className={cls}>
+                      const p = priceMap.get(item.canonicalKey)
+                      const content = (
+                        <>
                           <button
                             className="check"
                             aria-label={
@@ -238,18 +241,45 @@ export default function App() {
                               selectMode ? toggleSelect(item.id!) : setSheet(item)
                             }
                           >
-                            <span className="name">{item.displayName}</span>
-                            {(() => {
-                              const p = priceMap.get(item.canonicalKey)
-                              return p != null ? (
+                            <span className="row-name-wrap">
+                              {isFav && <span className="row-fav">★</span>}
+                              <span className="name">{item.displayName}</span>
+                            </span>
+                            <span className="row-meta">
+                              {p != null && (
                                 <span className="price">
                                   ${(p * (item.quantity ?? 1)).toFixed(2)}
                                 </span>
-                              ) : null
-                            })()}
-                            {formatQty(item) && <span className="qty">{formatQty(item)}</span>}
+                              )}
+                              {formatQty(item) && <span className="qty">{formatQty(item)}</span>}
+                            </span>
                           </button>
-                        </li>
+                        </>
+                      )
+                      if (selectMode) {
+                        return (
+                          <li key={item.id} className={cls}>
+                            {content}
+                          </li>
+                        )
+                      }
+                      return (
+                        <SwipeRow
+                          key={item.id}
+                          rowClassName={cls}
+                          onDelete={() => db.items.delete(item.id!)}
+                          onFavorite={() =>
+                            setFavoriteByKey(
+                              item.canonicalKey,
+                              item.displayName,
+                              item.section,
+                              true,
+                              item.unit,
+                            )
+                          }
+                        >
+                          {content}
+                        </SwipeRow>
                       )
                     })}
                   </ul>
