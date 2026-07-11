@@ -17,11 +17,12 @@ export const SECTIONS = [
 export const PARSE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['sourceType', 'recipeTitle', 'servings', 'items'],
+  required: ['sourceType', 'recipeTitle', 'servings', 'instructions', 'items'],
   properties: {
     sourceType: { type: 'string', enum: ['recipe', 'list'] },
     recipeTitle: { type: ['string', 'null'] },
     servings: { type: ['integer', 'null'] },
+    instructions: { type: ['string', 'null'] },
     items: {
       type: 'array',
       items: {
@@ -53,5 +54,6 @@ Return ONLY structured data matching the schema. Rules:
 - sourceType: "recipe" if the input is clearly a single recipe (title + ingredients, maybe steps), otherwise "list".
 - recipeTitle: the recipe's name when sourceType is "recipe", else null.
 - servings: the number of servings/yield when clearly stated for a recipe, else null.
+- instructions: when sourceType is "recipe" and cooking steps are present, the steps as readable text (number them "1. ... \n2. ..." if they aren't already). Null for a plain list, or a recipe with no steps given.
 
 Be thorough but do not duplicate the same canonicalKey+unit within your output — merge those yourself and sum quantities.`

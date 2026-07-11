@@ -17,6 +17,7 @@ export interface ParseResult {
   sourceType: 'recipe' | 'list'
   recipeTitle: string | null
   servings: number | null
+  instructions: string | null
   items: ParsedItem[]
 }
 

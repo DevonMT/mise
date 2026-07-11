@@ -31,6 +31,8 @@ export interface Recipe {
   title: string
   servings: number
   ingredients: Array<Pick<Item, 'displayName' | 'canonicalKey' | 'quantity' | 'unit' | 'section'>>
+  /** Free-text cooking steps, if captured. */
+  instructions?: string
   source?: string
   createdAt: number
 }

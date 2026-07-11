@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, canonicalize } from './db'
 import { PARSE_URL } from './parse'
+import { Sheet } from './Sheet'
 
 export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const staples =
@@ -21,10 +22,8 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="backdrop" onClick={onClose}>
-      <div className="sheet settings" onClick={(e) => e.stopPropagation()}>
-        <div className="grab" />
-        <h3 className="sheet-title">Staples you always have</h3>
+    <Sheet className="settings" onClose={onClose}>
+      <h3 className="sheet-title">Staples you always have</h3>
         <p className="review-hint">
           These are skipped when parsing lists and recipes, so they never clutter your list.
         </p>
@@ -59,8 +58,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        <p className="endpoint-note">Parse endpoint: {PARSE_URL}</p>
-      </div>
-    </div>
+      <p className="endpoint-note">Parse endpoint: {PARSE_URL}</p>
+    </Sheet>
   )
 }

@@ -3,8 +3,15 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Recipe } from './db'
 import { addRecipeToList } from './recipes'
 import { formatQty } from './list'
+import { Sheet } from './Sheet'
 
-export function RecipesSheet({ onClose }: { onClose: () => void }) {
+export function RecipesSheet({
+  onClose,
+  onAddRecipe,
+}: {
+  onClose: () => void
+  onAddRecipe?: () => void
+}) {
   const recipes =
     useLiveQuery(async () => {
       const all = await db.recipes.toArray()
@@ -13,43 +20,48 @@ export function RecipesSheet({ onClose }: { onClose: () => void }) {
   const [selected, setSelected] = useState<Recipe | null>(null)
 
   return (
-    <div className="backdrop" onClick={onClose}>
-      <div className="sheet recipes" onClick={(e) => e.stopPropagation()}>
-        <div className="grab" />
-        {selected ? (
-          <RecipeDetail
-            recipe={selected}
-            onBack={() => setSelected(null)}
-            onDone={onClose}
-          />
-        ) : (
-          <>
+    <Sheet className="recipes" onClose={onClose}>
+      {selected ? (
+        <RecipeDetail
+          recipe={selected}
+          onBack={() => setSelected(null)}
+          onDone={onClose}
+        />
+      ) : (
+        <>
+          <div className="recipes-head">
             <h3 className="sheet-title">📖 Recipes</h3>
-            {recipes.length === 0 ? (
-              <p className="review-hint">
-                No recipes yet. Paste or snap a recipe and it saves itself here.
-              </p>
-            ) : (
-              <div className="recipe-list">
-                {recipes.map((r) => (
-                  <button
-                    key={r.id}
-                    className="recipe-card"
-                    onClick={() => setSelected(r)}
-                  >
-                    <span className="recipe-title">{r.title}</span>
-                    <span className="recipe-sub">
-                      {r.servings ? `serves ${r.servings} · ` : ''}
-                      {r.ingredients.length} ingredients
-                    </span>
-                  </button>
-                ))}
-              </div>
+            {onAddRecipe && (
+              <button className="add-btn" onClick={onAddRecipe}>
+                ＋ Add
+              </button>
             )}
-          </>
-        )}
-      </div>
-    </div>
+          </div>
+          {recipes.length === 0 ? (
+            <p className="review-hint">
+              No recipes yet. Paste or snap a recipe and it saves itself here.
+            </p>
+          ) : (
+            <div className="recipe-list">
+              {recipes.map((r) => (
+                <button
+                  key={r.id}
+                  className="recipe-card"
+                  onClick={() => setSelected(r)}
+                >
+                  <span className="recipe-title">{r.title}</span>
+                  <span className="recipe-sub">
+                    {r.servings ? `serves ${r.servings} · ` : ''}
+                    {r.ingredients.length} ingredients
+                    {r.instructions ? ' · has steps' : ''}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </Sheet>
   )
 }
 
@@ -118,6 +130,13 @@ function RecipeDetail({
           </div>
         ))}
       </div>
+
+      {recipe.instructions && (
+        <div className="steps">
+          <h4 className="steps-head">Instructions</h4>
+          <p className="steps-body">{recipe.instructions}</p>
+        </div>
+      )}
 
       <button className="primary" onClick={add}>
         Add to list

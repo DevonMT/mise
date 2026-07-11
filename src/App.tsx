@@ -6,6 +6,7 @@ import { addItem, groupBySection, formatQty } from './list'
 import { AddMenu, CaptureSheet, type CaptureMode } from './Capture'
 import { SettingsSheet } from './Settings'
 import { RecipesSheet } from './RecipesView'
+import { Sheet } from './Sheet'
 
 type View = 'list' | 'backlog'
 
@@ -21,6 +22,8 @@ export default function App() {
   const [capture, setCapture] = useState<null | CaptureMode>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [recipesOpen, setRecipesOpen] = useState(false)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
 
   const active = useMemo(() => items.filter((i) => !i.backlog), [items])
   const backlog = useMemo(() => items.filter((i) => i.backlog), [items])
@@ -35,6 +38,26 @@ export default function App() {
     if (confirm('Clear the entire active list? (Backlog is kept.)'))
       await db.items.where('backlog').equals(0).delete()
     setMenuOpen(false)
+  }
+
+  const enterSelect = () => {
+    setSelected(new Set())
+    setSelectMode(true)
+    setMenuOpen(false)
+  }
+  const exitSelect = () => {
+    setSelectMode(false)
+    setSelected(new Set())
+  }
+  const toggleSelect = (id: number) =>
+    setSelected((s) => {
+      const next = new Set(s)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  const deleteSelected = async () => {
+    await db.items.bulkDelete([...selected])
+    exitSelect()
   }
 
   const shown =
@@ -100,21 +123,40 @@ export default function App() {
                     </h2>
                   )}
                   <ul className="rows">
-                    {g.items.map((item) => (
-                      <li key={item.id} className={item.checked ? 'row done' : 'row'}>
-                        <button
-                          className="check"
-                          aria-label={item.checked ? 'Uncheck' : 'Check off'}
-                          onClick={() => toggle(item)}
-                        >
-                          {item.checked ? '✓' : ''}
-                        </button>
-                        <button className="row-main" onClick={() => setSheet(item)}>
-                          <span className="name">{item.displayName}</span>
-                          {formatQty(item) && <span className="qty">{formatQty(item)}</span>}
-                        </button>
-                      </li>
-                    ))}
+                    {g.items.map((item) => {
+                      const sel = selected.has(item.id!)
+                      const cls = selectMode
+                        ? sel
+                          ? 'row selected'
+                          : 'row'
+                        : item.checked
+                          ? 'row done'
+                          : 'row'
+                      return (
+                        <li key={item.id} className={cls}>
+                          <button
+                            className="check"
+                            aria-label={
+                              selectMode ? 'Select' : item.checked ? 'Uncheck' : 'Check off'
+                            }
+                            onClick={() =>
+                              selectMode ? toggleSelect(item.id!) : toggle(item)
+                            }
+                          >
+                            {(selectMode ? sel : item.checked) ? '✓' : ''}
+                          </button>
+                          <button
+                            className="row-main"
+                            onClick={() =>
+                              selectMode ? toggleSelect(item.id!) : setSheet(item)
+                            }
+                          >
+                            <span className="name">{item.displayName}</span>
+                            {formatQty(item) && <span className="qty">{formatQty(item)}</span>}
+                          </button>
+                        </li>
+                      )
+                    })}
                   </ul>
                 </section>
               ),
@@ -123,36 +165,52 @@ export default function App() {
         <div className="bottom-space" />
       </main>
 
-      <button className="fab" aria-label="Add item" onClick={() => setAddMenuOpen(true)}>
-        ＋
-      </button>
+      {selectMode ? (
+        <div className="select-bar">
+          <button className="ghost" onClick={exitSelect}>
+            Cancel
+          </button>
+          <button
+            className="danger-btn"
+            onClick={deleteSelected}
+            disabled={selected.size === 0}
+          >
+            🗑 Remove {selected.size || ''}
+          </button>
+        </div>
+      ) : (
+        <button className="fab" aria-label="Add item" onClick={() => setAddMenuOpen(true)}>
+          ＋
+        </button>
+      )}
 
       {menuOpen && (
-        <Backdrop onClose={() => setMenuOpen(false)}>
-          <div className="sheet menu" onClick={(e) => e.stopPropagation()}>
-            <button
-              className="menu-item"
-              onClick={() => {
-                clearChecked()
-                setMenuOpen(false)
-              }}
-            >
-              ✓ Clear checked-off items
-            </button>
-            <button className="menu-item danger" onClick={clearAll}>
-              🗑 Clear entire list
-            </button>
-            <button
-              className="menu-item"
-              onClick={() => {
-                setSettingsOpen(true)
-                setMenuOpen(false)
-              }}
-            >
-              ⚙️ Staples &amp; settings
-            </button>
-          </div>
-        </Backdrop>
+        <Sheet className="menu" onClose={() => setMenuOpen(false)}>
+          <button className="menu-item" onClick={enterSelect}>
+            ☑️ Select &amp; remove items
+          </button>
+          <button
+            className="menu-item"
+            onClick={() => {
+              clearChecked()
+              setMenuOpen(false)
+            }}
+          >
+            ✓ Clear checked-off items
+          </button>
+          <button className="menu-item danger" onClick={clearAll}>
+            🗑 Clear entire list
+          </button>
+          <button
+            className="menu-item"
+            onClick={() => {
+              setSettingsOpen(true)
+              setMenuOpen(false)
+            }}
+          >
+            ⚙️ Staples &amp; settings
+          </button>
+        </Sheet>
       )}
 
       {addMenuOpen && (
@@ -172,7 +230,15 @@ export default function App() {
 
       {settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} />}
 
-      {recipesOpen && <RecipesSheet onClose={() => setRecipesOpen(false)} />}
+      {recipesOpen && (
+        <RecipesSheet
+          onClose={() => setRecipesOpen(false)}
+          onAddRecipe={() => {
+            setRecipesOpen(false)
+            setCapture('text')
+          }}
+        />
+      )}
 
       {sheet !== null && (
         <ItemSheet
@@ -181,20 +247,6 @@ export default function App() {
           onClose={() => setSheet(null)}
         />
       )}
-    </div>
-  )
-}
-
-function Backdrop({
-  children,
-  onClose,
-}: {
-  children: React.ReactNode
-  onClose: () => void
-}) {
-  return (
-    <div className="backdrop" onClick={onClose}>
-      {children}
     </div>
   )
 }
@@ -254,9 +306,7 @@ function ItemSheet({
   }
 
   return (
-    <Backdrop onClose={onClose}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="grab" />
+    <Sheet onClose={onClose}>
         <input
           className="field name-field"
           placeholder="What do you need?"
@@ -307,7 +357,6 @@ function ItemSheet({
             </button>
           </div>
         )}
-      </div>
-    </Backdrop>
+    </Sheet>
   )
 }

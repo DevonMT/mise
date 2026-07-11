@@ -19,6 +19,7 @@ export async function saveRecipeFromParse(result: ParseResult): Promise<number |
       unit: i.unit ?? undefined,
       section: i.section,
     })),
+    instructions: result.instructions ?? undefined,
     source: undefined,
     createdAt: Date.now(),
   }

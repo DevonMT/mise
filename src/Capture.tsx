@@ -10,6 +10,7 @@ import {
   type ParseResult,
 } from './parse'
 import { saveRecipeFromParse } from './recipes'
+import { Sheet } from './Sheet'
 
 type Stage = 'input' | 'loading' | 'review' | 'error'
 export type CaptureMode = 'text' | 'url' | 'image'
@@ -94,6 +95,11 @@ export function CaptureSheet({
     onClose()
   }
 
+  const saveRecipeOnly = async () => {
+    if (parsed) await saveRecipeFromParse(parsed)
+    onClose()
+  }
+
   const isRecipe = parsed?.sourceType === 'recipe'
   const includedCount = rows.filter((r) => r.include).length
   const patch = (i: number, next: Partial<Row>) =>
@@ -107,10 +113,7 @@ export function CaptureSheet({
         : '📋 Paste or type a list'
 
   return (
-    <div className="backdrop" onClick={onClose}>
-      <div className="sheet capture" onClick={(e) => e.stopPropagation()}>
-        <div className="grab" />
-
+    <Sheet className="capture" onClose={onClose}>
         {(stage === 'input' || stage === 'error') && (
           <>
             <h3 className="sheet-title">{heading}</h3>
@@ -229,10 +232,14 @@ export function CaptureSheet({
             <button className="primary" onClick={commit} disabled={!includedCount && !isRecipe}>
               {includedCount ? `Add ${includedCount} to list` : 'Done'}
             </button>
+            {isRecipe && includedCount > 0 && (
+              <button className="ghost" onClick={saveRecipeOnly} style={{ marginTop: 10 }}>
+                📖 Save to recipes only (don’t add to list)
+              </button>
+            )}
           </>
         )}
-      </div>
-    </div>
+    </Sheet>
   )
 }
 
@@ -245,21 +252,19 @@ export function AddMenu({
   onClose: () => void
 }) {
   return (
-    <div className="backdrop" onClick={onClose}>
-      <div className="sheet menu" onClick={(e) => e.stopPropagation()}>
-        <button className="menu-item" onClick={() => onPick('one')}>
-          ✏️ Type one item
-        </button>
-        <button className="menu-item" onClick={() => onPick('image')}>
-          📷 Snap a photo
-        </button>
-        <button className="menu-item" onClick={() => onPick('text')}>
-          📋 Paste a list or recipe
-        </button>
-        <button className="menu-item" onClick={() => onPick('url')}>
-          🔗 From a recipe link
-        </button>
-      </div>
-    </div>
+    <Sheet className="menu" onClose={onClose}>
+      <button className="menu-item" onClick={() => onPick('one')}>
+        ✏️ Type one item
+      </button>
+      <button className="menu-item" onClick={() => onPick('image')}>
+        📷 Snap a photo
+      </button>
+      <button className="menu-item" onClick={() => onPick('text')}>
+        📋 Paste a list or recipe
+      </button>
+      <button className="menu-item" onClick={() => onPick('url')}>
+        🔗 From a recipe link
+      </button>
+    </Sheet>
   )
 }

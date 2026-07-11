@@ -116,8 +116,21 @@ For the phone, build the app with `VITE_PARSE_URL=http://<mini>:8787`.
 
 Launch config: `mise` in `../.claude/launch.json`.
 
-## Remaining
+## Deployment (DONE ✅ for the app)
 
-- **Add your `ANTHROPIC_API_KEY`** to `server/.env` to make parsing live (incl. photo vision).
-- Deploy the parse endpoint to the mini; build the PWA with `VITE_PARSE_URL=<mini>`; install on phone.
-- git/GitHub. Phase 4 (mini backup + cost estimate) is optional.
+- **Repo:** https://github.com/DevonMT/mise (public). Committed as personal identity (repo-local).
+- **Live PWA:** https://devontroedel.com/mise/ — HTTPS, installable. Auto-deploys via
+  `.github/workflows/deploy.yml` on every push to `main` (GitHub Pages, `build_type: workflow`).
+- Build honors `BASE_PATH=/mise/` and `VITE_PARSE_URL` (a repo **variable**).
+
+## Remaining — make AI capture live
+
+The offline list + recipe library work now. To turn on parsing (text/link/**photo**):
+
+1. Stand up the parse endpoint on the mini over **HTTPS** (Tailscale `serve`), with
+   `ANTHROPIC_API_KEY` in `server/.env`. Needs Node installed on the mini (it's bare today).
+2. Point the app at it:
+   `gh variable set VITE_PARSE_URL -R DevonMT/mise -b "https://<mini-tailscale-host>"`
+   then push (or re-run the workflow) to rebuild. Mixed-content rule: the endpoint MUST be HTTPS.
+
+Phase 4 (mini backup + cost estimate) is optional.
