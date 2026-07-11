@@ -293,6 +293,9 @@ button {
 .sheet {
   width: 100%;
   max-width: 640px;
+  max-height: 92dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--surface);
   border-radius: 24px 24px 0 0;
   padding: 12px 18px calc(24px + env(safe-area-inset-bottom, 0px));
@@ -903,4 +906,66 @@ button {
   font-weight: 700;
   color: var(--muted);
   flex: 0 0 auto;
+}
+
+/* ---- Refine ---- */
+.refine-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 6px 0 16px;
+}
+.refine-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--surface);
+}
+.refine-item {
+  font-weight: 700;
+  font-size: 1.02rem;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.refine-done {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-align: right;
+}
+.refine-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ropt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line);
+  background: var(--bg);
+  text-align: left;
+}
+.ropt.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.ropt-label {
+  font-weight: 600;
+}
+.ropt-price {
+  flex: 0 0 auto;
+  font-weight: 800;
+  color: var(--accent);
+}
+.refine-none {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0;
 }

@@ -71,3 +71,27 @@ export async function estimatePrices(
   if (!res.ok) throw new Error(data?.error ?? `Pricing failed (${res.status})`)
   return (data.prices ?? []) as PriceEstimate[]
 }
+
+export interface RefineOption {
+  label: string
+  unit: string
+  price: number
+}
+export interface RefineItem {
+  canonicalKey: string
+  options: RefineOption[]
+}
+
+export async function refineItems(
+  store: string,
+  items: Array<{ canonicalKey: string; displayName: string; unit?: string }>,
+): Promise<RefineItem[]> {
+  const res = await fetch(`${PARSE_URL}/api/refine`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ store, items }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data?.error ?? `Refine failed (${res.status})`)
+  return (data.items ?? []) as RefineItem[]
+}

@@ -3,7 +3,14 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import Anthropic from '@anthropic-ai/sdk'
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages'
-import { PARSE_SCHEMA, SYSTEM_PROMPT, PRICES_SCHEMA, pricesSystem } from './parseContract.js'
+import {
+  PARSE_SCHEMA,
+  SYSTEM_PROMPT,
+  PRICES_SCHEMA,
+  pricesSystem,
+  REFINE_SCHEMA,
+  refineSystem,
+} from './parseContract.js'
 
 const IMAGE_MEDIA = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const
 type ImageMedia = (typeof IMAGE_MEDIA)[number]
@@ -142,6 +149,47 @@ app.post('/api/prices', async (c) => {
   } catch (e) {
     console.error('prices error:', e)
     return c.json({ error: `Pricing failed: ${String(e)}` }, 500)
+  }
+})
+
+/**
+ * POST /api/refine
+ * body: { store: string, items: [{canonicalKey, displayName, unit?}] }
+ * -> { items: [{canonicalKey, options: [{label, unit, price}]}] }
+ */
+app.post('/api/refine', async (c) => {
+  if (!client) return c.json({ error: 'Server has no ANTHROPIC_API_KEY set.' }, 503)
+  let body: { store?: string; items?: Array<{ canonicalKey: string; displayName: string; unit?: string }> }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON body.' }, 400)
+  }
+  const store = (body.store ?? '').trim() || 'a typical US grocery store'
+  const items = (body.items ?? []).slice(0, 100)
+  if (items.length === 0) return c.json({ items: [] })
+
+  const list = items
+    .map((i) => `- ${i.canonicalKey}: ${i.displayName}${i.unit ? ` (${i.unit})` : ''}`)
+    .join('\n')
+
+  try {
+    const message = await client.messages.create({
+      model: 'claude-sonnet-5',
+      max_tokens: 8000,
+      thinking: { type: 'disabled' },
+      system: refineSystem(store),
+      output_config: { format: { type: 'json_schema', schema: REFINE_SCHEMA } },
+      messages: [{ role: 'user', content: `Give options for these items:\n${list}` }],
+    })
+    const textBlock = message.content.find((b) => b.type === 'text')
+    if (!textBlock || textBlock.type !== 'text') {
+      return c.json({ error: 'No options returned.' }, 502)
+    }
+    return c.json(JSON.parse(textBlock.text))
+  } catch (e) {
+    console.error('refine error:', e)
+    return c.json({ error: `Refine failed: ${String(e)}` }, 500)
   }
 })
 

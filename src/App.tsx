@@ -7,6 +7,7 @@ import { AddMenu, CaptureSheet, type CaptureMode } from './Capture'
 import { SettingsSheet } from './Settings'
 import { RecipesSheet } from './RecipesView'
 import { QuickAddSheet } from './QuickAdd'
+import { RefineSheet } from './RefineView'
 import { setPrice as savePrice } from './catalog'
 import { Sheet } from './Sheet'
 
@@ -25,6 +26,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [recipesOpen, setRecipesOpen] = useState(false)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [refineOpen, setRefineOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
@@ -89,6 +91,7 @@ export default function App() {
     setSettingsOpen(false)
     setRecipesOpen(false)
     setQuickAddOpen(false)
+    setRefineOpen(false)
     setSheet(null)
     setSelectMode(false)
     setSelected(new Set())
@@ -102,6 +105,7 @@ export default function App() {
     settingsOpen ||
     recipesOpen ||
     quickAddOpen ||
+    refineOpen ||
     sheet !== null ||
     selectMode
   useEffect(() => {
@@ -263,6 +267,15 @@ export default function App() {
 
       {menuOpen && (
         <Sheet className="menu" onClose={() => setMenuOpen(false)}>
+          <button
+            className="menu-item"
+            onClick={() => {
+              setRefineOpen(true)
+              setMenuOpen(false)
+            }}
+          >
+            🔎 Refine list (options &amp; prices)
+          </button>
           <button className="menu-item" onClick={enterSelect}>
             ☑️ Select &amp; remove items
           </button>
@@ -303,6 +316,8 @@ export default function App() {
       )}
 
       {quickAddOpen && <QuickAddSheet onClose={() => setQuickAddOpen(false)} />}
+
+      {refineOpen && <RefineSheet onClose={() => setRefineOpen(false)} />}
 
       {capture !== null && (
         <CaptureSheet mode={capture} onClose={() => setCapture(null)} />

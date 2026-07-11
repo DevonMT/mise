@@ -79,6 +79,52 @@ export const PRICES_SCHEMA = {
   },
 } as const
 
+/** Schema for POST /api/refine — concrete product options per item. */
+export const REFINE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items'],
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['canonicalKey', 'options'],
+        properties: {
+          canonicalKey: { type: 'string' },
+          options: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['label', 'unit', 'price'],
+              properties: {
+                label: { type: 'string' },
+                unit: { type: 'string' },
+                price: { type: 'number' },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const
+
+export function refineSystem(store: string): string {
+  return `You help a shopper turn vague grocery-list items into specific purchase choices at ${store}.
+
+For each item you are given, return 2 to 4 concrete product options a shopper would realistically choose between at ${store}. Cover the common, meaningful variations — especially size/count and type — that change what you buy or what it costs. Examples: eggs → "Large eggs, dozen" vs "Large eggs, 18 ct" vs "Cage-free, dozen"; milk → "Whole milk, gallon" vs "Whole milk, ½ gal"; ground beef → "80/20, 1 lb" vs "80/20, family pack ~3 lb".
+
+For each option provide:
+- label: a short, specific product name including the size/type (e.g. "Large eggs, 18 ct").
+- unit: the size or unit that label represents (e.g. "18 ct", "gallon", "lb", "3 lb pack").
+- price: realistic ${store} price in US dollars for that option (a plain number).
+
+Return exactly one entry per canonicalKey you were given, with its options ordered from most common/cheapest to larger/pricier. Use realistic ${store} pricing.`
+}
+
 export function pricesSystem(store: string): string {
   return `You estimate typical current retail grocery prices in US dollars at ${store}.
 
