@@ -44,10 +44,26 @@ export interface Staple {
   displayName: string
 }
 
+/** Everything you've ever added — powers quick re-add (favorites + frequent)
+ *  and, later, the cost estimate (remembered price per item). */
+export interface CatalogEntry {
+  id?: number
+  canonicalKey: string
+  displayName: string
+  unit?: string
+  section: Section
+  count: number
+  favorite: boolean
+  lastAdded: number
+  /** Remembered unit price for the cost estimate (Phase 4). */
+  price?: number
+}
+
 export class MiseDB extends Dexie {
   items!: Table<Item, number>
   recipes!: Table<Recipe, number>
   staples!: Table<Staple, number>
+  catalog!: Table<CatalogEntry, number>
 
   constructor() {
     super('mise')
@@ -55,6 +71,9 @@ export class MiseDB extends Dexie {
       items: '++id, canonicalKey, section, checked, backlog',
       recipes: '++id, title',
       staples: '++id, &canonicalKey',
+    })
+    this.version(2).stores({
+      catalog: '++id, &canonicalKey, favorite, count',
     })
   }
 }

@@ -770,3 +770,71 @@ button {
   border-radius: 14px;
   padding: 14px;
 }
+
+/* ---- Quick add ---- */
+.qa-head {
+  margin: 16px 2px 8px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.qa-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 42vh;
+  overflow-y: auto;
+}
+.qa-chip {
+  display: flex;
+  align-items: stretch;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.qa-chip.added {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.qa-add {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  text-align: left;
+  font-size: 1.02rem;
+  min-height: 52px;
+}
+.qa-emoji {
+  font-size: 1.1rem;
+}
+.qa-name {
+  flex: 1;
+  font-weight: 600;
+}
+.qa-hint {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+.qa-chip.added .qa-hint {
+  font-size: 0.85rem;
+}
+.qa-star {
+  flex: 0 0 auto;
+  width: 48px;
+  font-size: 1.3rem;
+  color: var(--muted);
+  border-left: 1.5px solid var(--line);
+}
+.qa-star.on {
+  color: #e0a419;
+}
+.qa-foot {
+  margin-top: 14px;
+}

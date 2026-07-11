@@ -6,6 +6,7 @@ import { addItem, groupBySection, formatQty } from './list'
 import { AddMenu, CaptureSheet, type CaptureMode } from './Capture'
 import { SettingsSheet } from './Settings'
 import { RecipesSheet } from './RecipesView'
+import { QuickAddSheet } from './QuickAdd'
 import { Sheet } from './Sheet'
 
 type View = 'list' | 'backlog'
@@ -22,6 +23,7 @@ export default function App() {
   const [capture, setCapture] = useState<null | CaptureMode>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [recipesOpen, setRecipesOpen] = useState(false)
+  const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
@@ -219,10 +221,13 @@ export default function App() {
           onPick={(m) => {
             setAddMenuOpen(false)
             if (m === 'one') setSheet('new')
+            else if (m === 'quick') setQuickAddOpen(true)
             else setCapture(m)
           }}
         />
       )}
+
+      {quickAddOpen && <QuickAddSheet onClose={() => setQuickAddOpen(false)} />}
 
       {capture !== null && (
         <CaptureSheet mode={capture} onClose={() => setCapture(null)} />

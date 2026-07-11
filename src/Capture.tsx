@@ -248,11 +248,14 @@ export function AddMenu({
   onPick,
   onClose,
 }: {
-  onPick: (mode: 'one' | CaptureMode) => void
+  onPick: (mode: 'one' | 'quick' | CaptureMode) => void
   onClose: () => void
 }) {
   return (
     <Sheet className="menu" onClose={onClose}>
+      <button className="menu-item" onClick={() => onPick('quick')}>
+        ⭐ Quick add (favorites &amp; frequent)
+      </button>
       <button className="menu-item" onClick={() => onPick('one')}>
         ✏️ Type one item
       </button>

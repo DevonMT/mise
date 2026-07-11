@@ -1,5 +1,6 @@
 import { db, canonicalize, type Item, type Section } from './db'
 import { SECTION_ORDER } from './sections'
+import { recordCatalog } from './catalog'
 
 /** Units that just mean "a count of whole things" — treated as interchangeable
  *  (and with no unit) so "2 onions" and "1 whole onion" merge. */
@@ -28,6 +29,13 @@ export interface NewItem {
 export async function addItem(input: NewItem): Promise<number> {
   const canonicalKey = input.canonicalKey?.trim() || canonicalize(input.displayName)
   const backlog = input.backlog ?? false
+
+  await recordCatalog({
+    canonicalKey,
+    displayName: input.displayName.trim(),
+    unit: input.unit,
+    section: input.section,
+  })
 
   const existing = await db.items
     .where('canonicalKey')
