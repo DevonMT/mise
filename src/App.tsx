@@ -62,10 +62,10 @@ export default function App() {
   const toggle = (item: Item) =>
     db.items.update(item.id!, { checked: !item.checked })
 
-  const clearChecked = () => db.items.where('checked').equals(1).delete()
+  const clearChecked = () => db.items.filter((i) => !!i.checked && !i.backlog).delete()
   const clearAll = async () => {
     if (confirm('Clear the entire active list? (Backlog is kept.)'))
-      await db.items.where('backlog').equals(0).delete()
+      await db.items.filter((i) => !i.backlog).delete()
     setMenuOpen(false)
   }
 

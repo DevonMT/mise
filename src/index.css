@@ -244,25 +244,41 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   font-weight: 900;
   color: transparent;
 }
 .check::before {
   content: '';
-  width: 26px;
-  height: 26px;
-  border: 2.5px solid var(--line);
-  border-radius: 50%;
+  width: 27px;
+  height: 27px;
+  border: 2.5px solid #cfc6b8;
+  border-radius: 9px;
   position: absolute;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.row.done {
+  background: var(--bg);
 }
 .row.done .check {
-  color: var(--accent-ink);
+  color: #fff;
   z-index: 1;
 }
 .row.done .check::before {
   background: var(--accent);
   border-color: var(--accent);
+  animation: check-pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.5);
+}
+@keyframes check-pop {
+  0% {
+    transform: scale(0.5);
+  }
+  55% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 .row-main {
   flex: 1;
