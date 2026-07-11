@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import Anthropic from '@anthropic-ai/sdk'
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages'
-import { PARSE_SCHEMA, SYSTEM_PROMPT } from './parseContract.js'
+import { PARSE_SCHEMA, SYSTEM_PROMPT, PRICES_SCHEMA, pricesSystem } from './parseContract.js'
 
 const IMAGE_MEDIA = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const
 type ImageMedia = (typeof IMAGE_MEDIA)[number]
@@ -99,6 +99,49 @@ app.post('/api/parse', async (c) => {
   } catch (e) {
     console.error('parse error:', e)
     return c.json({ error: `Parse failed: ${String(e)}` }, 500)
+  }
+})
+
+/**
+ * POST /api/prices
+ * body: { store: string, items: [{canonicalKey, displayName, unit?}] }
+ * -> { prices: [{canonicalKey, price}] }
+ */
+app.post('/api/prices', async (c) => {
+  if (!client) {
+    return c.json({ error: 'Server has no ANTHROPIC_API_KEY set.' }, 503)
+  }
+  let body: { store?: string; items?: Array<{ canonicalKey: string; displayName: string; unit?: string }> }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON body.' }, 400)
+  }
+  const store = (body.store ?? '').trim() || 'a typical US grocery store'
+  const items = (body.items ?? []).slice(0, 300)
+  if (items.length === 0) return c.json({ prices: [] })
+
+  const list = items
+    .map((i) => `- ${i.canonicalKey}: ${i.displayName}${i.unit ? ` (${i.unit})` : ''}`)
+    .join('\n')
+
+  try {
+    const message = await client.messages.create({
+      model: 'claude-sonnet-5',
+      max_tokens: 8000,
+      thinking: { type: 'disabled' },
+      system: pricesSystem(store),
+      output_config: { format: { type: 'json_schema', schema: PRICES_SCHEMA } },
+      messages: [{ role: 'user', content: `Price these items:\n${list}` }],
+    })
+    const textBlock = message.content.find((b) => b.type === 'text')
+    if (!textBlock || textBlock.type !== 'text') {
+      return c.json({ error: 'No prices returned.' }, 502)
+    }
+    return c.json(JSON.parse(textBlock.text))
+  } catch (e) {
+    console.error('prices error:', e)
+    return c.json({ error: `Pricing failed: ${String(e)}` }, 500)
   }
 })
 

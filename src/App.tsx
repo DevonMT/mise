@@ -7,6 +7,7 @@ import { AddMenu, CaptureSheet, type CaptureMode } from './Capture'
 import { SettingsSheet } from './Settings'
 import { RecipesSheet } from './RecipesView'
 import { QuickAddSheet } from './QuickAdd'
+import { setPrice as savePrice } from './catalog'
 import { Sheet } from './Sheet'
 
 type View = 'list' | 'backlog'
@@ -27,10 +28,29 @@ export default function App() {
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
+  const catalog = useLiveQuery(() => db.catalog.toArray(), []) ?? []
+  const priceMap = useMemo(
+    () =>
+      new Map(
+        catalog.filter((c) => c.price != null).map((c) => [c.canonicalKey, c.price as number]),
+      ),
+    [catalog],
+  )
+
   const active = useMemo(() => items.filter((i) => !i.backlog), [items])
   const backlog = useMemo(() => items.filter((i) => i.backlog), [items])
   const groups = useMemo(() => groupBySection(active), [active])
   const remaining = active.filter((i) => !i.checked).length
+
+  const total = useMemo(
+    () =>
+      active.reduce((sum, i) => {
+        const p = priceMap.get(i.canonicalKey)
+        return p != null ? sum + p * (i.quantity ?? 1) : sum
+      }, 0),
+    [active, priceMap],
+  )
+  const pricedCount = active.filter((i) => priceMap.has(i.canonicalKey)).length
 
   const toggle = (item: Item) =>
     db.items.update(item.id!, { checked: !item.checked })
@@ -102,6 +122,15 @@ export default function App() {
         </button>
       </div>
 
+      {view === 'list' && !selectMode && active.length > 0 && pricedCount > 0 && (
+        <button className="subtotal" onClick={() => setSettingsOpen(true)}>
+          <span className="subtotal-amt">~${total.toFixed(2)}</span>
+          <span className="subtotal-sub">
+            est. · {pricedCount}/{active.length} priced
+          </span>
+        </button>
+      )}
+
       <main className="scroll">
         {shown.every((g) => g.items.length === 0) ? (
           <div className="empty">
@@ -154,6 +183,14 @@ export default function App() {
                             }
                           >
                             <span className="name">{item.displayName}</span>
+                            {(() => {
+                              const p = priceMap.get(item.canonicalKey)
+                              return p != null ? (
+                                <span className="price">
+                                  ${(p * (item.quantity ?? 1)).toFixed(2)}
+                                </span>
+                              ) : null
+                            })()}
                             {formatQty(item) && <span className="qty">{formatQty(item)}</span>}
                           </button>
                         </li>
@@ -249,6 +286,7 @@ export default function App() {
         <ItemSheet
           initial={sheet === 'new' ? null : sheet}
           defaultBacklog={view === 'backlog'}
+          catalogPrice={sheet !== 'new' ? priceMap.get(sheet.canonicalKey) : undefined}
           onClose={() => setSheet(null)}
         />
       )}
@@ -259,16 +297,19 @@ export default function App() {
 function ItemSheet({
   initial,
   defaultBacklog,
+  catalogPrice,
   onClose,
 }: {
   initial: Item | null
   defaultBacklog: boolean
+  catalogPrice?: number
   onClose: () => void
 }) {
   const [name, setName] = useState(initial?.displayName ?? '')
   const [qty, setQty] = useState(initial?.quantity != null ? String(initial.quantity) : '')
   const [unit, setUnit] = useState(initial?.unit ?? '')
   const [section, setSection] = useState<Section>(initial?.section ?? 'other')
+  const [priceStr, setPriceStr] = useState(catalogPrice != null ? String(catalogPrice) : '')
 
   const editing = initial != null
 
@@ -284,6 +325,13 @@ function ItemSheet({
         unit: unit.trim() || undefined,
         section,
       })
+      const pp = priceStr.trim() ? Number(priceStr) : undefined
+      await savePrice(
+        initial!.canonicalKey,
+        trimmed,
+        section,
+        Number.isFinite(pp as number) ? pp : undefined,
+      )
     } else {
       await addItem({
         displayName: trimmed,
@@ -347,6 +395,19 @@ function ItemSheet({
             </button>
           ))}
         </div>
+
+        {editing && (
+          <div className="price-row">
+            <span className="price-label">Price $</span>
+            <input
+              className="field"
+              placeholder="e.g. 3.49"
+              inputMode="decimal"
+              value={priceStr}
+              onChange={(e) => setPriceStr(e.target.value)}
+            />
+          </div>
+        )}
 
         <button className="primary" onClick={save}>
           {editing ? 'Save' : 'Add to ' + (defaultBacklog ? 'Next time' : 'list')}

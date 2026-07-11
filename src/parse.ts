@@ -52,3 +52,22 @@ export async function getStapleKeys(): Promise<Set<string>> {
   const staples = await db.staples.toArray()
   return new Set(staples.map((s) => s.canonicalKey))
 }
+
+export interface PriceEstimate {
+  canonicalKey: string
+  price: number
+}
+
+export async function estimatePrices(
+  store: string,
+  items: Array<{ canonicalKey: string; displayName: string; unit?: string }>,
+): Promise<PriceEstimate[]> {
+  const res = await fetch(`${PARSE_URL}/api/prices`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ store, items }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data?.error ?? `Pricing failed (${res.status})`)
+  return (data.prices ?? []) as PriceEstimate[]
+}

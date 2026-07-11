@@ -57,3 +57,35 @@ Return ONLY structured data matching the schema. Rules:
 - instructions: when sourceType is "recipe" and cooking steps are present, the steps as readable text (number them "1. ... \n2. ..." if they aren't already). Null for a plain list, or a recipe with no steps given.
 
 Be thorough but do not duplicate the same canonicalKey+unit within your output — merge those yourself and sum quantities.`
+
+/** Schema for POST /api/prices — a price (USD) per catalog item. */
+export const PRICES_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['prices'],
+  properties: {
+    prices: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['canonicalKey', 'price'],
+        properties: {
+          canonicalKey: { type: 'string' },
+          price: { type: 'number' },
+        },
+      },
+    },
+  },
+} as const
+
+export function pricesSystem(store: string): string {
+  return `You estimate typical current retail grocery prices in US dollars at ${store}.
+
+For each item you are given (canonicalKey, a display name, and sometimes a unit), return your best estimate of the price a shopper would pay at ${store}, as a plain number of dollars (e.g. 3.49).
+
+- If a unit is given, price that unit or the smallest sensible package that covers it (e.g. "lb" → price per pound; "can" → one can; "whole" → each, or a typical bunch/bag if sold that way).
+- If no unit is given, price the typical single package a shopper buys.
+- Use realistic ${store} pricing — a value-oriented store is cheaper than a premium grocer.
+- Return exactly one entry per canonicalKey you were given. Never return 0 or null; give your best realistic estimate.`
+}

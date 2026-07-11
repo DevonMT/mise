@@ -838,3 +838,47 @@ button {
 .qa-foot {
   margin-top: 14px;
 }
+
+/* ---- Cost estimate ---- */
+.subtotal {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: calc(100% - 32px);
+  margin: 2px 16px 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+.subtotal-amt {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+.subtotal-sub {
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.price {
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.row.done .price {
+  opacity: 0.6;
+}
+.price-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.price-label {
+  font-weight: 700;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
