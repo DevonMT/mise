@@ -1,10 +1,9 @@
 import { db, type Section } from './db'
 
 /** Where the parse endpoint lives. Override at build with VITE_PARSE_URL
- *  (e.g. the mini PC's address); defaults to localhost for dev. */
-export const PARSE_URL =
-  (import.meta.env.VITE_PARSE_URL as string | undefined)?.replace(/\/$/, '') ??
-  'http://localhost:8787'
+ *  (e.g. the mini PC's Tailscale HTTPS address); defaults to localhost for dev. */
+const envUrl = (import.meta.env.VITE_PARSE_URL as string | undefined)?.trim()
+export const PARSE_URL = envUrl ? envUrl.replace(/\/$/, '') : 'http://localhost:8787'
 
 export interface ParsedItem {
   displayName: string

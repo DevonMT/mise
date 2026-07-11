@@ -3,7 +3,11 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
+// GitHub Pages serves a project repo under /<repo>/. Overridable via BASE_PATH.
+const base = process.env.BASE_PATH ?? '/'
+
 export default defineConfig({
+  base,
   plugins: [
     react(),
     VitePWA({
@@ -17,7 +21,9 @@ export default defineConfig({
         background_color: '#f7f3ec',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/',
+        start_url: base,
+        scope: base,
+        id: base,
         icons: [
           {
             src: 'icon.svg',
