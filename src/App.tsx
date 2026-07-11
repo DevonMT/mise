@@ -8,7 +8,7 @@ import { SettingsSheet } from './Settings'
 import { RecipesSheet } from './RecipesView'
 import { QuickAddSheet } from './QuickAdd'
 import { RefineSheet } from './RefineView'
-import { setPrice as savePrice, setFavoriteByKey } from './catalog'
+import { setPrice as savePrice, setFavoriteByKey, syncCatalogName } from './catalog'
 import { Sheet } from './Sheet'
 
 type View = 'list' | 'backlog'
@@ -127,6 +127,16 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anyOverlay])
+
+  // One-time reconcile: sync catalog (favorites / Quick add) names to the current
+  // list, fixing entries that predate name-syncing (e.g. items refined earlier).
+  useEffect(() => {
+    ;(async () => {
+      for (const it of await db.items.toArray()) {
+        await syncCatalogName(it.canonicalKey, it.displayName, it.unit)
+      }
+    })()
+  }, [])
 
   const shown =
     view === 'list' ? groups : [{ section: 'other' as Section, items: backlog }]
@@ -386,7 +396,13 @@ function ItemSheet({
     if (!editing) return
     const next = !fav
     setFav(next)
-    await setFavoriteByKey(initial!.canonicalKey, name.trim() || initial!.displayName, section, next)
+    await setFavoriteByKey(
+      initial!.canonicalKey,
+      name.trim() || initial!.displayName,
+      section,
+      next,
+      unit.trim() || undefined,
+    )
   }
 
   const save = async () => {
@@ -408,6 +424,7 @@ function ItemSheet({
         section,
         Number.isFinite(pp as number) ? pp : undefined,
       )
+      await syncCatalogName(initial!.canonicalKey, trimmed, unit.trim() || undefined)
     } else {
       await addItem({
         displayName: trimmed,

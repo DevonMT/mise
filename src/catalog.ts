@@ -35,25 +35,40 @@ export async function toggleFavorite(entry: CatalogEntry): Promise<void> {
   if (entry.id != null) await db.catalog.update(entry.id, { favorite: !entry.favorite })
 }
 
-/** Set favorite on/off by key (upserts a catalog entry if the item is new). */
+/** Set favorite on/off by key. Also syncs the stored name/unit/section to the
+ *  current item, so favoriting a refined item keeps its refined name. */
 export async function setFavoriteByKey(
   canonicalKey: string,
   displayName: string,
   section: Section,
   favorite: boolean,
+  unit?: string,
 ): Promise<void> {
   const existing = await db.catalog.where('canonicalKey').equals(canonicalKey).first()
   if (existing?.id != null) {
-    await db.catalog.update(existing.id, { favorite })
+    await db.catalog.update(existing.id, { favorite, displayName, unit, section })
   } else {
     await db.catalog.add({
       canonicalKey,
       displayName,
+      unit,
       section,
       count: 0,
       favorite,
       lastAdded: Date.now(),
     })
+  }
+}
+
+/** Keep the catalog's stored name/unit in sync when an item is renamed/edited. */
+export async function syncCatalogName(
+  canonicalKey: string,
+  displayName: string,
+  unit?: string,
+): Promise<void> {
+  const existing = await db.catalog.where('canonicalKey').equals(canonicalKey).first()
+  if (existing?.id != null) {
+    await db.catalog.update(existing.id, { displayName, unit })
   }
 }
 
