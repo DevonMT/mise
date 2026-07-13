@@ -3,14 +3,13 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Recipe } from './db'
 import { addRecipeToList } from './recipes'
 import { formatQty } from './list'
-import { Sheet } from './Sheet'
 
-export function RecipesSheet({
-  onClose,
+export function RecipesView({
   onAddRecipe,
+  onAdded,
 }: {
-  onClose: () => void
-  onAddRecipe?: () => void
+  onAddRecipe: () => void
+  onAdded: () => void
 }) {
   const recipes =
     useLiveQuery(async () => {
@@ -19,49 +18,48 @@ export function RecipesSheet({
     }, []) ?? []
   const [selected, setSelected] = useState<Recipe | null>(null)
 
-  return (
-    <Sheet className="recipes" onClose={onClose}>
-      {selected ? (
+  if (selected) {
+    return (
+      <div className="view">
         <RecipeDetail
           recipe={selected}
           onBack={() => setSelected(null)}
-          onDone={onClose}
+          onDone={() => {
+            setSelected(null)
+            onAdded()
+          }}
         />
+      </div>
+    )
+  }
+
+  return (
+    <div className="view">
+      <div className="view-head">
+        <h2 className="view-title">Recipes</h2>
+        <button className="add-btn" onClick={onAddRecipe}>
+          ＋ Add
+        </button>
+      </div>
+      {recipes.length === 0 ? (
+        <p className="view-empty">
+          No recipes yet. Paste or snap a recipe and it saves itself here.
+        </p>
       ) : (
-        <>
-          <div className="recipes-head">
-            <h3 className="sheet-title">📖 Recipes</h3>
-            {onAddRecipe && (
-              <button className="add-btn" onClick={onAddRecipe}>
-                ＋ Add
-              </button>
-            )}
-          </div>
-          {recipes.length === 0 ? (
-            <p className="review-hint">
-              No recipes yet. Paste or snap a recipe and it saves itself here.
-            </p>
-          ) : (
-            <div className="recipe-list">
-              {recipes.map((r) => (
-                <button
-                  key={r.id}
-                  className="recipe-card"
-                  onClick={() => setSelected(r)}
-                >
-                  <span className="recipe-title">{r.title}</span>
-                  <span className="recipe-sub">
-                    {r.servings ? `serves ${r.servings} · ` : ''}
-                    {r.ingredients.length} ingredients
-                    {r.instructions ? ' · has steps' : ''}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </>
+        <div className="recipe-list">
+          {recipes.map((r) => (
+            <button key={r.id} className="recipe-card" onClick={() => setSelected(r)}>
+              <span className="recipe-title">{r.title}</span>
+              <span className="recipe-sub">
+                {r.servings ? `serves ${r.servings} · ` : ''}
+                {r.ingredients.length} ingredients
+                {r.instructions ? ' · has steps' : ''}
+              </span>
+            </button>
+          ))}
+        </div>
       )}
-    </Sheet>
+    </div>
   )
 }
 
@@ -75,7 +73,6 @@ function RecipeDetail({
   onDone: () => void
 }) {
   const base = recipe.servings || 0
-  // When servings known: `n` is target servings. When unknown: `n` is a multiplier.
   const [n, setN] = useState(base || 1)
   const factor = base ? n / base : n
   const step = base ? 1 : 0.5
@@ -99,21 +96,17 @@ function RecipeDetail({
         <button className="icon-back" onClick={onBack} aria-label="Back to recipes">
           ‹
         </button>
-        <h3 className="detail-title">{recipe.title}</h3>
+        <h2 className="detail-title">{recipe.title}</h2>
       </div>
 
       <div className="scaler">
         <span className="scaler-label">{base ? 'Servings' : 'Batch ×'}</span>
         <div className="stepper">
-          <button onClick={() => setN((v) => Math.max(min, +(v - step).toFixed(2)))}>
-            −
-          </button>
+          <button onClick={() => setN((v) => Math.max(min, +(v - step).toFixed(2)))}>−</button>
           <span className="stepper-val">{base ? n : `×${n}`}</span>
           <button onClick={() => setN((v) => +(v + step).toFixed(2))}>＋</button>
         </div>
-        {base > 0 && n !== base && (
-          <span className="scaler-note">{factor.toFixed(2)}×</span>
-        )}
+        {base > 0 && n !== base && <span className="scaler-note">{factor.toFixed(2)}×</span>}
       </div>
 
       <div className="ing-list">
@@ -144,7 +137,7 @@ function RecipeDetail({
         Add to list
       </button>
       <button className="ghost danger" onClick={remove} style={{ marginTop: 10 }}>
-        🗑 Delete recipe
+        Delete recipe
       </button>
     </>
   )

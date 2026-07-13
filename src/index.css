@@ -9,6 +9,10 @@
   --accent-ink: #ffffff;
   --accent-soft: #e2f1ea;
   --danger: #c0392b;
+  --danger-soft: #fbe0dc;
+  --fav: var(--fav);
+  --fav-soft: #fbeecb;
+  --nav-h: 60px;
   --shadow: 0 6px 24px rgba(28, 25, 23, 0.12);
 
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -96,9 +100,10 @@ button {
   display: flex;
   gap: 6px;
   padding: 10px 16px;
+  margin: 0 -16px;
   background: var(--bg);
   position: sticky;
-  top: 57px;
+  top: 0;
   z-index: 4;
 }
 .tab {
@@ -193,29 +198,29 @@ button {
   justify-content: space-between;
   padding: 0 20px;
 }
-.swipe-bg.show-fav {
-  background: #fbeecb;
+.swipe-bg.show-check {
+  background: var(--accent-soft);
 }
 .swipe-bg.show-del {
-  background: #fbe0dc;
+  background: var(--danger-soft);
 }
-.swipe-bg.commit-fav {
-  background: #e0a419;
+.swipe-bg.commit-check {
+  background: var(--accent);
 }
 .swipe-bg.commit-del {
   background: var(--danger);
 }
 .swipe-act {
-  font-size: 1.25rem;
+  font-size: 1.35rem;
   font-weight: 800;
 }
-.swipe-act.fav {
-  color: #b8860b;
+.swipe-act.check {
+  color: var(--accent);
 }
 .swipe-act.del {
   color: var(--danger);
 }
-.swipe-bg.commit-fav .swipe-act.fav,
+.swipe-bg.commit-check .swipe-act.check,
 .swipe-bg.commit-del .swipe-act.del {
   color: #fff;
 }
@@ -234,8 +239,152 @@ button {
 }
 .row-fav {
   flex: 0 0 auto;
-  color: #e0a419;
+  color: var(--fav);
   font-size: 0.9rem;
+}
+
+/* ---- Bottom navigation ---- */
+.bottomnav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-width: 640px;
+  margin: 0 auto;
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  z-index: 6;
+}
+.navbtn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.navbtn-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  filter: grayscale(0.5);
+  opacity: 0.7;
+}
+.navbtn.on {
+  color: var(--accent);
+}
+.navbtn.on .navbtn-icon {
+  filter: none;
+  opacity: 1;
+}
+
+/* ---- Undo toast ---- */
+.toast {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  max-width: 608px;
+  margin: 0 auto;
+  bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 8px 12px 16px;
+  border-radius: 14px;
+  background: var(--ink);
+  color: #fff;
+  box-shadow: var(--shadow);
+  z-index: 8;
+  animation: slideup 0.2s ease;
+}
+.toast-msg {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+.toast-action {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  border-radius: 10px;
+  color: #8fe3c4;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+/* ---- First-run gesture hint ---- */
+.hint-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 2px 0 8px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.hint-x {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  color: var(--accent);
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+/* ---- Full-screen views (Recipes / Settings) ---- */
+.view {
+  padding-top: 6px;
+}
+.view-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.view-title {
+  margin: 6px 2px 14px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.view-head .view-title {
+  margin: 0;
+}
+.view-empty {
+  color: var(--muted);
+  margin: 16px 2px;
+  line-height: 1.5;
+}
+.settings-group {
+  margin-bottom: 26px;
+}
+.group-title {
+  margin: 0 2px 4px;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.group-hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0 2px 12px;
+  line-height: 1.45;
+}
+.two-btn {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+.two-btn .field {
+  flex: 1;
 }
 .check {
   position: relative;
@@ -340,7 +489,7 @@ button {
 .fab {
   position: fixed;
   right: max(20px, calc(50% - 320px + 20px));
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--nav-h) + 18px + env(safe-area-inset-bottom, 0px));
   width: 62px;
   height: 62px;
   border-radius: 20px;
@@ -358,7 +507,7 @@ button {
   transform: scale(0.94);
 }
 .bottom-space {
-  height: 110px;
+  height: calc(var(--nav-h) + 80px);
 }
 
 /* ---- Sheets ---- */
@@ -827,18 +976,18 @@ button {
 }
 .select-bar {
   position: fixed;
-  bottom: 0;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
   max-width: 640px;
   margin: 0 auto;
   display: flex;
   gap: 10px;
-  padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  padding: 12px 16px;
   background: var(--surface);
   border-top: 1px solid var(--line);
   box-shadow: 0 -6px 20px rgba(28, 25, 23, 0.08);
-  z-index: 6;
+  z-index: 7;
 }
 .select-bar .ghost {
   flex: 1;
@@ -903,9 +1052,9 @@ button {
   color: var(--muted);
 }
 .fav-btn.on {
-  color: #b8860b;
-  border-color: #e0a419;
-  background: #fff8e6;
+  color: #9a7112;
+  border-color: var(--fav);
+  background: var(--fav-soft);
 }
 .qa-grid {
   display: flex;
@@ -969,7 +1118,7 @@ button {
   border-left: 1.5px solid var(--line);
 }
 .qa-star.on {
-  color: #e0a419;
+  color: var(--fav);
 }
 .qa-foot {
   margin-top: 14px;

@@ -1,26 +1,26 @@
 import { useRef, useState, type ReactNode } from 'react'
 
 /**
- * A list row you can swipe: right to favorite, left to delete.
+ * A list row you can swipe: right to check off, left to delete.
  * touch-action:pan-y lets vertical scrolling pass through while we own
  * horizontal drags, so swipes never fight the list scroll.
  */
 export function SwipeRow({
   rowClassName,
+  onCheck,
   onDelete,
-  onFavorite,
   children,
 }: {
   rowClassName: string
+  onCheck: () => void
   onDelete: () => void
-  onFavorite: () => void
   children: ReactNode
 }) {
   const [dx, setDx] = useState(0)
   const start = useRef<{ x: number; y: number } | null>(null)
   const axis = useRef<'h' | 'v' | null>(null)
   const dxRef = useRef(0)
-  const COMMIT = 88
+  const COMMIT = 82
   const MAX = 130
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -45,7 +45,7 @@ export function SwipeRow({
   }
   const onTouchEnd = () => {
     if (axis.current === 'h') {
-      if (dxRef.current >= COMMIT) onFavorite()
+      if (dxRef.current >= COMMIT) onCheck()
       else if (dxRef.current <= -COMMIT) onDelete()
     }
     start.current = null
@@ -54,13 +54,13 @@ export function SwipeRow({
     setDx(0)
   }
 
-  const committed = dx >= COMMIT ? 'commit-fav' : dx <= -COMMIT ? 'commit-del' : ''
-  const side = dx > 0 ? 'show-fav' : dx < 0 ? 'show-del' : ''
+  const committed = dx >= COMMIT ? 'commit-check' : dx <= -COMMIT ? 'commit-del' : ''
+  const side = dx > 0 ? 'show-check' : dx < 0 ? 'show-del' : ''
 
   return (
     <li className="swipe-row">
       <div className={`swipe-bg ${side} ${committed}`}>
-        <span className="swipe-act fav">★</span>
+        <span className="swipe-act check">✓</span>
         <span className="swipe-act del">🗑</span>
       </div>
       <div
