@@ -5,6 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 // https://vite.dev/config/
 // GitHub Pages serves a project repo under /<repo>/. Overridable via BASE_PATH.
 const base = process.env.BASE_PATH ?? '/'
+const lite = process.env.VITE_MISE_EDITION === 'lite'
+const appName = lite ? 'Mise Lite' : 'Mise'
 
 export default defineConfig({
   base,
@@ -14,9 +16,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Mise',
-        short_name: 'Mise',
-        description: 'Snap it, paste it, or type it — one smart grocery list.',
+        name: appName,
+        short_name: appName,
+        description: lite
+          ? 'A clean, offline smart grocery list — aisle-grouped, swipe to check.'
+          : 'Snap it, paste it, or type it — one smart grocery list.',
         theme_color: '#0e7c5b',
         background_color: '#f7f3ec',
         display: 'standalone',

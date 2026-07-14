@@ -11,6 +11,7 @@ import {
 } from './parse'
 import { saveRecipeFromParse } from './recipes'
 import { Sheet } from './Sheet'
+import { AI_ENABLED } from './edition'
 
 type Stage = 'input' | 'loading' | 'review' | 'error'
 export type CaptureMode = 'text' | 'url' | 'image'
@@ -259,15 +260,19 @@ export function AddMenu({
       <button className="menu-item" onClick={() => onPick('one')}>
         ✏️ Type one item
       </button>
-      <button className="menu-item" onClick={() => onPick('image')}>
-        📷 Snap a photo
-      </button>
-      <button className="menu-item" onClick={() => onPick('text')}>
-        📋 Paste a list or recipe
-      </button>
-      <button className="menu-item" onClick={() => onPick('url')}>
-        🔗 From a recipe link
-      </button>
+      {AI_ENABLED && (
+        <>
+          <button className="menu-item" onClick={() => onPick('image')}>
+            📷 Snap a photo
+          </button>
+          <button className="menu-item" onClick={() => onPick('text')}>
+            📋 Paste a list or recipe
+          </button>
+          <button className="menu-item" onClick={() => onPick('url')}>
+            🔗 From a recipe link
+          </button>
+        </>
+      )}
     </Sheet>
   )
 }

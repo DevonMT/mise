@@ -27,12 +27,18 @@ jobs:
         with:
           enablement: true
       - run: npm ci
+      # Personal edition (AI on, points at the mini) -> /mise/
       - run: npm run build
         env:
           BASE_PATH: /mise/
           # Set repo variable VITE_PARSE_URL to the mini's HTTPS endpoint to
           # make AI capture live. Until then, capture errors gracefully.
           VITE_PARSE_URL: ${{ vars.VITE_PARSE_URL }}
+      # Lite edition (public, no AI, no backend) -> /mise/lite/
+      - run: npx vite build --outDir dist/lite --emptyOutDir false
+        env:
+          BASE_PATH: /mise/lite/
+          VITE_MISE_EDITION: lite
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

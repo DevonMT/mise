@@ -12,6 +12,8 @@ import { setPrice as savePrice, setFavoriteByKey, syncCatalogName } from './cata
 import { Sheet } from './Sheet'
 import { SwipeRow } from './SwipeRow'
 import { BottomNav, type Tab } from './BottomNav'
+import { RecipeForm } from './RecipeForm'
+import { AI_ENABLED, EDITION_NAME } from './edition'
 
 type ListView = 'list' | 'backlog'
 type SheetState = null | 'new' | Item
@@ -28,6 +30,7 @@ export default function App() {
   const [capture, setCapture] = useState<null | CaptureMode>(null)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [refineOpen, setRefineOpen] = useState(false)
+  const [recipeFormOpen, setRecipeFormOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [toast, setToast] = useState<{ msg: string; undo?: () => void } | null>(null)
@@ -122,6 +125,7 @@ export default function App() {
     setCapture(null)
     setQuickAddOpen(false)
     setRefineOpen(false)
+    setRecipeFormOpen(false)
     setSheet(null)
     setSelectMode(false)
     setSelected(new Set())
@@ -135,6 +139,7 @@ export default function App() {
     capture !== null ||
     quickAddOpen ||
     refineOpen ||
+    recipeFormOpen ||
     sheet !== null ||
     selectMode ||
     tab !== 'list'
@@ -169,7 +174,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <img className="logo-img" src={`${import.meta.env.BASE_URL}icon.svg`} alt="" /> Mise
+          <img className="logo-img" src={`${import.meta.env.BASE_URL}icon.svg`} alt="" /> {EDITION_NAME}
         </div>
         {tab === 'list' && (
           <button className="icon-btn" aria-label="List actions" onClick={() => setMenuOpen(true)}>
@@ -311,7 +316,7 @@ export default function App() {
 
         {tab === 'recipes' && (
           <RecipesView
-            onAddRecipe={() => setCapture('text')}
+            onAddRecipe={() => setRecipeFormOpen(true)}
             onAdded={() => setTab('list')}
           />
         )}
@@ -353,15 +358,17 @@ export default function App() {
 
       {menuOpen && (
         <Sheet className="menu" onClose={() => setMenuOpen(false)}>
-          <button
-            className="menu-item"
-            onClick={() => {
-              setRefineOpen(true)
-              setMenuOpen(false)
-            }}
-          >
-            Refine list — options &amp; prices
-          </button>
+          {AI_ENABLED && (
+            <button
+              className="menu-item"
+              onClick={() => {
+                setRefineOpen(true)
+                setMenuOpen(false)
+              }}
+            >
+              Refine list — options &amp; prices
+            </button>
+          )}
           <button className="menu-item" onClick={enterSelect}>
             Select &amp; remove items
           </button>
@@ -397,6 +404,8 @@ export default function App() {
       )}
 
       {refineOpen && <RefineSheet onClose={() => setRefineOpen(false)} />}
+
+      {recipeFormOpen && <RecipeForm onClose={() => setRecipeFormOpen(false)} />}
 
       {capture !== null && <CaptureSheet mode={capture} onClose={() => setCapture(null)} />}
 

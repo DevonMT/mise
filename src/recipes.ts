@@ -1,6 +1,45 @@
-import { db, type Recipe } from './db'
+import { db, canonicalize, type Recipe } from './db'
 import { addItem } from './list'
 import { getStapleKeys, type ParseResult } from './parse'
+
+const KNOWN_UNITS = new Set([
+  'cup', 'cups', 'tbsp', 'tsp', 'oz', 'lb', 'lbs', 'g', 'kg', 'ml', 'l',
+  'clove', 'cloves', 'can', 'cans', 'bunch', 'pkg', 'stick', 'sticks',
+  'whole', 'dozen', 'pinch', 'slice', 'slices', 'quart', 'pint', 'gal',
+])
+
+/** Best-effort local parse of manually-typed ingredient lines (no AI). */
+export function parseManualIngredients(text: string): Recipe['ingredients'] {
+  return text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      let quantity: number | undefined
+      let unit: string | undefined
+      let name = line
+      const m = line.match(/^(\d+(?:\.\d+)?|\d+\/\d+)\s+(.*)$/)
+      if (m) {
+        quantity = m[1].includes('/')
+          ? Number(m[1].split('/')[0]) / Number(m[1].split('/')[1])
+          : Number(m[1])
+        let rest = m[2]
+        const words = rest.split(/\s+/)
+        if (words.length > 1 && KNOWN_UNITS.has(words[0].toLowerCase())) {
+          unit = words[0]
+          rest = words.slice(1).join(' ')
+        }
+        name = rest
+      }
+      return {
+        displayName: name,
+        canonicalKey: canonicalize(name),
+        quantity: quantity != null && Number.isFinite(quantity) ? quantity : undefined,
+        unit,
+        section: 'other' as const,
+      }
+    })
+}
 
 /**
  * Save (or update) a recipe from a parse result, if it looks like a recipe.

@@ -386,6 +386,15 @@ button {
 .two-btn .field {
   flex: 1;
 }
+.form-label {
+  display: block;
+  margin: 14px 2px 6px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
 .check {
   position: relative;
   flex: 0 0 auto;

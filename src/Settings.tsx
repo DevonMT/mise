@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, canonicalize } from './db'
 import { PARSE_URL } from './parse'
 import { estimateStorePrices } from './catalog'
+import { AI_ENABLED } from './edition'
 
 export function SettingsView() {
   const staples =
@@ -47,33 +48,35 @@ export function SettingsView() {
     <div className="view">
       <h2 className="view-title">Settings</h2>
 
-      <section className="settings-group">
-        <h3 className="group-title">Store prices</h3>
-        <p className="group-hint">
-          Set your store, then let Claude estimate prices for the {catalogCount} item
-          {catalogCount === 1 ? '' : 's'} you've bought. Prices you edit by hand always win.
-        </p>
-        <input
-          className="field"
-          placeholder="Your store (e.g. Walmart, Aldi)"
-          value={store}
-          onChange={(e) => setStore(e.target.value)}
-        />
-        <div className="two-btn">
-          <button className="ghost" onClick={() => estimate('missing')} disabled={busy}>
-            Estimate missing
-          </button>
-          <button className="ghost" onClick={() => estimate('all')} disabled={busy}>
-            Re-price all
-          </button>
-        </div>
-        {priceMsg && (
+      {AI_ENABLED && (
+        <section className="settings-group">
+          <h3 className="group-title">Store prices</h3>
           <p className="group-hint">
-            {busy ? '⏳ ' : ''}
-            {priceMsg}
+            Set your store, then let Claude estimate prices for the {catalogCount} item
+            {catalogCount === 1 ? '' : 's'} you've bought. Prices you edit by hand always win.
           </p>
-        )}
-      </section>
+          <input
+            className="field"
+            placeholder="Your store (e.g. Walmart, Aldi)"
+            value={store}
+            onChange={(e) => setStore(e.target.value)}
+          />
+          <div className="two-btn">
+            <button className="ghost" onClick={() => estimate('missing')} disabled={busy}>
+              Estimate missing
+            </button>
+            <button className="ghost" onClick={() => estimate('all')} disabled={busy}>
+              Re-price all
+            </button>
+          </div>
+          {priceMsg && (
+            <p className="group-hint">
+              {busy ? '⏳ ' : ''}
+              {priceMsg}
+            </p>
+          )}
+        </section>
+      )}
 
       <section className="settings-group">
         <h3 className="group-title">Staples you always have</h3>
@@ -110,7 +113,7 @@ export function SettingsView() {
         )}
       </section>
 
-      <p className="endpoint-note">Parse endpoint: {PARSE_URL}</p>
+      {AI_ENABLED && <p className="endpoint-note">Parse endpoint: {PARSE_URL}</p>}
     </div>
   )
 }
