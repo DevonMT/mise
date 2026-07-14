@@ -501,7 +501,16 @@ export default function App() {
           <RecipesView
             activeListId={activeId}
             onAddRecipe={() => setRecipeFormOpen(true)}
-            onAdded={() => setTab('list')}
+            onAdded={(listId) => {
+              // A recipe can't go on a pantry or task list, so it may have
+              // landed somewhere other than where you were standing — take you
+              // there, or it just looks like nothing happened.
+              const moved = listId !== activeId
+              const name = lists.find((l) => l.id === listId)?.name ?? 'your list'
+              if (moved) switchTo(listId)
+              else setTab('list')
+              if (moved) showToast(`Added to “${name}”`)
+            }}
             onToast={showToast}
           />
         )}

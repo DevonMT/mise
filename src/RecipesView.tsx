@@ -14,7 +14,9 @@ export function RecipesView({
 }: {
   activeListId: number
   onAddRecipe: () => void
-  onAdded: () => void
+  /** The grocery list the ingredients actually landed on — may not be the one
+   *  you were standing on, so the caller switches you to it. */
+  onAdded: (listId: number) => void
   onToast: (msg: string) => void
 }) {
   const recipes =
@@ -32,9 +34,9 @@ export function RecipesView({
           activeListId={activeListId}
           onBack={() => setSelected(null)}
           onToast={onToast}
-          onDone={() => {
+          onDone={(listId) => {
             setSelected(null)
-            onAdded()
+            onAdded(listId)
           }}
         />
       </div>
@@ -81,7 +83,7 @@ function RecipeDetail({
   recipe: Recipe
   activeListId: number
   onBack: () => void
-  onDone: () => void
+  onDone: (listId: number) => void
   onToast: (msg: string) => void
 }) {
   const base = recipe.servings || 0
@@ -90,8 +92,9 @@ function RecipeDetail({
   const step = base ? 1 : 0.5
   const min = base ? 1 : 0.5
 
-  // Ingredients always land on a grocery list, even if you're standing on a
-  // task list when you tap Add.
+  // Ingredients only ever land on a grocery list — a pantry is what you *have*
+  // and a task list has no use for flour, so neither can receive a recipe.
+  // If you're standing on one of those, we find a grocery list and say so.
   const add = async () => {
     const target = await defaultGroceryListId(activeListId)
     if (target == null) {
@@ -99,7 +102,7 @@ function RecipeDetail({
       return
     }
     await addRecipeToList(recipe, factor, target)
-    onDone()
+    onDone(target)
   }
 
   const share = async () => {
