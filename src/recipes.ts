@@ -71,13 +71,18 @@ export async function saveRecipeFromParse(result: ParseResult): Promise<number |
   return db.recipes.add(recipe as Recipe)
 }
 
-/** Add a recipe's ingredients to the active list, scaled by `factor` (default 1).
+/** Add a recipe's ingredients to a grocery list, scaled by `factor` (default 1).
  *  Staples are skipped, same as the capture review. */
-export async function addRecipeToList(recipe: Recipe, factor = 1): Promise<void> {
+export async function addRecipeToList(
+  recipe: Recipe,
+  factor = 1,
+  listId: number,
+): Promise<void> {
   const staples = await getStapleKeys()
   for (const ing of recipe.ingredients) {
     if (staples.has(ing.canonicalKey)) continue
     await addItem({
+      listId,
       displayName: ing.displayName,
       canonicalKey: ing.canonicalKey,
       quantity:

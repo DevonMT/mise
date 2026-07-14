@@ -10,7 +10,7 @@
   --accent-soft: #e2f1ea;
   --danger: #c0392b;
   --danger-soft: #fbe0dc;
-  --fav: var(--fav);
+  --fav: #e0a419;
   --fav-soft: #fbeecb;
   --nav-h: 60px;
   --shadow: 0 6px 24px rgba(28, 25, 23, 0.12);
@@ -904,12 +904,27 @@ button {
 }
 .detail-title {
   margin: 0;
+  flex: 1;
+  min-width: 0;
   font-size: 1.2rem;
   font-weight: 800;
   letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.icon-share {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--accent);
+  background: var(--accent-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .scaler {
   display: flex;
@@ -1237,4 +1252,261 @@ button {
   color: var(--muted);
   font-size: 0.9rem;
   margin: 0;
+}
+
+/* ---- List switcher (top bar) ---- */
+.list-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 10px 6px 6px;
+  margin-left: -6px;
+  border-radius: 12px;
+}
+.list-pick:active {
+  background: var(--line);
+}
+.list-pick-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+.list-pick-name {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.list-pick-caret {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* ---- Lists sheet ---- */
+.list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 0 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  text-align: left;
+}
+.list-row.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.list-row:disabled {
+  opacity: 0.5;
+}
+.list-icon {
+  flex: 0 0 auto;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+.list-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.list-name {
+  font-weight: 700;
+  font-size: 1.02rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.list-sub {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* ---- Kind picker (new list) ---- */
+.kind-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.kind-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  text-align: left;
+}
+.kind-opt.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.kind-icon {
+  flex: 0 0 auto;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+.kind-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.kind-label {
+  font-weight: 700;
+}
+.kind-desc {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+/* ---- Manage lists ---- */
+.manage-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 56vh;
+  overflow-y: auto;
+}
+.manage-row {
+  padding: 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.manage-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+.manage-acts {
+  display: flex;
+  gap: 8px;
+}
+.manage-acts .ghost {
+  padding: 10px;
+  font-size: 0.9rem;
+}
+.manage-acts .ghost:disabled {
+  opacity: 0.4;
+}
+
+/* ---- Pantry restock bar ---- */
+.restock-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin: 2px 0 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--fav);
+  background: var(--fav-soft);
+  text-align: left;
+}
+.restock-n {
+  font-weight: 800;
+  color: #8a6410;
+}
+.restock-cta {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #8a6410;
+}
+/* A pantry item that's out reads as a gap to fill, not a job done. */
+.row.out .check {
+  color: #fff;
+  z-index: 1;
+}
+.row.out .check::before {
+  background: var(--fav);
+  border-color: var(--fav);
+  animation: check-pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.5);
+}
+.row.out .name {
+  color: var(--muted);
+}
+
+/* ---- Tasks: due dates + notes ---- */
+.row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.row-notes {
+  font-size: 0.82rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.due {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 4px 9px;
+  border-radius: 999px;
+}
+.due-over {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.due-soon {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.due-calm {
+  color: var(--muted);
+  background: var(--line);
+}
+.row.done .due {
+  color: var(--muted);
+  background: var(--line);
+}
+.due-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+.due-row .ghost {
+  flex: 0 0 auto;
+  padding: 0 16px;
+}
+.notes-field {
+  margin-top: 10px;
+  min-height: 80px;
+}
+
+/* ---- Import (shared link) ---- */
+.import-badge {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 800;
 }

@@ -3,13 +3,19 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Recipe } from './db'
 import { addRecipeToList } from './recipes'
 import { formatQty } from './list'
+import { defaultGroceryListId } from './lists'
+import { encodeShare, shareLink, shareRecipePayload } from './share'
 
 export function RecipesView({
+  activeListId,
   onAddRecipe,
   onAdded,
+  onToast,
 }: {
+  activeListId: number
   onAddRecipe: () => void
   onAdded: () => void
+  onToast: (msg: string) => void
 }) {
   const recipes =
     useLiveQuery(async () => {
@@ -23,7 +29,9 @@ export function RecipesView({
       <div className="view">
         <RecipeDetail
           recipe={selected}
+          activeListId={activeListId}
           onBack={() => setSelected(null)}
+          onToast={onToast}
           onDone={() => {
             setSelected(null)
             onAdded()
@@ -65,12 +73,16 @@ export function RecipesView({
 
 function RecipeDetail({
   recipe,
+  activeListId,
   onBack,
   onDone,
+  onToast,
 }: {
   recipe: Recipe
+  activeListId: number
   onBack: () => void
   onDone: () => void
+  onToast: (msg: string) => void
 }) {
   const base = recipe.servings || 0
   const [n, setN] = useState(base || 1)
@@ -78,9 +90,23 @@ function RecipeDetail({
   const step = base ? 1 : 0.5
   const min = base ? 1 : 0.5
 
+  // Ingredients always land on a grocery list, even if you're standing on a
+  // task list when you tap Add.
   const add = async () => {
-    await addRecipeToList(recipe, factor)
+    const target = await defaultGroceryListId(activeListId)
+    if (target == null) {
+      onToast('No grocery list to add to — make one first.')
+      return
+    }
+    await addRecipeToList(recipe, factor, target)
     onDone()
+  }
+
+  const share = async () => {
+    const url = await encodeShare(shareRecipePayload(recipe))
+    const how = await shareLink(url, recipe.title)
+    if (how === 'copied') onToast('Recipe link copied to clipboard')
+    else if (how === 'failed') onToast('Could not share that recipe.')
   }
 
   const remove = async () => {
@@ -97,6 +123,9 @@ function RecipeDetail({
           ‹
         </button>
         <h2 className="detail-title">{recipe.title}</h2>
+        <button className="icon-share" onClick={share} aria-label="Share recipe">
+          ↗
+        </button>
       </div>
 
       <div className="scaler">

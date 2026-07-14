@@ -11,21 +11,45 @@ export type Section =
   | 'household'
   | 'other'
 
+/**
+ * What a list is *for*. The kind decides which of Mise's smarts wake up
+ * (see kinds.ts) — the underlying item shape is shared by all of them.
+ */
+export type ListKind = 'grocery' | 'tasks' | 'pantry'
+
+export interface List {
+  id?: number
+  name: string
+  kind: ListKind
+  createdAt: number
+}
+
 export interface Item {
   id?: number
+  /** Which list this belongs to. */
+  listId: number
   displayName: string
   /** Normalized key used to merge duplicates across sources (e.g. "onion"). */
   canonicalKey: string
   quantity?: number
   unit?: string
   section: Section
+  /**
+   * grocery: in the cart · tasks: done · pantry: out of stock.
+   * NB: booleans are NOT indexable in IndexedDB — never query this with
+   * .where('checked'); filter in JS instead.
+   */
   checked: boolean
   /** true = parked in the "next time" backlog, not on the active trip. */
   backlog: boolean
   createdAt: number
+  /** Tasks only: due date (epoch ms, midnight-local). */
+  dueAt?: number
+  /** Tasks only: free-text detail. */
+  notes?: string
 }
 
-/** A saved recipe (Phase 3 — table defined now so the schema is stable). */
+/** A saved recipe. */
 export interface Recipe {
   id?: number
   title: string
@@ -37,15 +61,15 @@ export interface Recipe {
   createdAt: number
 }
 
-/** A staple you always have — filtered out of the list (Phase 2). */
+/** A staple you always have — filtered out of grocery lists. */
 export interface Staple {
   id?: number
   canonicalKey: string
   displayName: string
 }
 
-/** Everything you've ever added — powers quick re-add (favorites + frequent)
- *  and, later, the cost estimate (remembered price per item). */
+/** Everything you've ever added — powers quick re-add (favorites) and
+ *  the remembered price per item. Global, not per-list: it describes *you*. */
 export interface CatalogEntry {
   id?: number
   canonicalKey: string
@@ -55,7 +79,7 @@ export interface CatalogEntry {
   count: number
   favorite: boolean
   lastAdded: number
-  /** Remembered unit price for the cost estimate (Phase 4). */
+  /** Remembered unit price for the cost estimate. */
   price?: number
 }
 
@@ -64,6 +88,7 @@ export class MiseDB extends Dexie {
   recipes!: Table<Recipe, number>
   staples!: Table<Staple, number>
   catalog!: Table<CatalogEntry, number>
+  lists!: Table<List, number>
 
   constructor() {
     super('mise')
@@ -75,6 +100,26 @@ export class MiseDB extends Dexie {
     this.version(2).stores({
       catalog: '++id, &canonicalKey, favorite, count',
     })
+    // v3: lists become first-class. Every existing item belongs to the
+    // grocery list it was always implicitly on.
+    this.version(3)
+      .stores({
+        lists: '++id, kind',
+        items: '++id, listId, canonicalKey, section, checked, backlog',
+      })
+      .upgrade(async (tx) => {
+        const id = await tx.table('lists').add({
+          name: 'Groceries',
+          kind: 'grocery',
+          createdAt: Date.now(),
+        })
+        await tx
+          .table('items')
+          .toCollection()
+          .modify((i: Item) => {
+            i.listId = id as number
+          })
+      })
   }
 }
 

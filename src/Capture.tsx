@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import type { Section } from './db'
+import type { ListKind, Section } from './db'
+import { KINDS } from './kinds'
 import { SECTIONS, SECTION_META } from './sections'
 import { addItem } from './list'
 import {
@@ -27,9 +28,11 @@ interface Row {
 }
 
 export function CaptureSheet({
+  listId,
   mode,
   onClose,
 }: {
+  listId: number
   mode: CaptureMode
   onClose: () => void
 }) {
@@ -85,6 +88,7 @@ export function CaptureSheet({
       if (!r.include) continue
       const qty = r.quantityStr.trim() ? Number(r.quantityStr) : undefined
       await addItem({
+        listId,
         displayName: r.displayName,
         canonicalKey: r.canonicalKey,
         quantity: Number.isFinite(qty as number) ? qty : undefined,
@@ -244,23 +248,29 @@ export function CaptureSheet({
   )
 }
 
-/** Small chooser shown when tapping the + FAB. */
+/** Small chooser shown when tapping the + FAB. What it offers depends on the
+ *  kind of list you're on — a task list has no use for recipe parsing. */
 export function AddMenu({
+  kind,
   onPick,
   onClose,
 }: {
+  kind: ListKind
   onPick: (mode: 'one' | 'quick' | CaptureMode) => void
   onClose: () => void
 }) {
+  const meta = KINDS[kind]
   return (
     <Sheet className="menu" onClose={onClose}>
-      <button className="menu-item" onClick={() => onPick('quick')}>
-        ⭐ Quick add (favorites &amp; frequent)
-      </button>
+      {meta.kind !== 'tasks' && (
+        <button className="menu-item" onClick={() => onPick('quick')}>
+          ⭐ Quick add (favorites)
+        </button>
+      )}
       <button className="menu-item" onClick={() => onPick('one')}>
-        ✏️ Type one item
+        ✏️ {meta.due ? 'Type a task' : 'Type one item'}
       </button>
-      {AI_ENABLED && (
+      {AI_ENABLED && meta.recipes && (
         <>
           <button className="menu-item" onClick={() => onPick('image')}>
             📷 Snap a photo

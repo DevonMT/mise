@@ -6,7 +6,7 @@ import { Sheet } from './Sheet'
 
 type Stage = 'loading' | 'ready' | 'empty' | 'error'
 
-export function RefineSheet({ onClose }: { onClose: () => void }) {
+export function RefineSheet({ listId, onClose }: { listId: number; onClose: () => void }) {
   const store = localStorage.getItem('mise.store') ?? ''
   const [stage, setStage] = useState<Stage>('loading')
   const [error, setError] = useState('')
@@ -17,7 +17,9 @@ export function RefineSheet({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const active = (await db.items.toArray()).filter((i) => !i.backlog)
+      const active = (await db.items.toArray()).filter(
+        (i) => i.listId === listId && !i.backlog,
+      )
       if (cancelled) return
       if (active.length === 0) {
         setStage('empty')
@@ -41,7 +43,7 @@ export function RefineSheet({ onClose }: { onClose: () => void }) {
     return () => {
       cancelled = true
     }
-  }, [store])
+  }, [store, listId])
 
   const apply = async (item: Item, opt: RefineOption) => {
     await db.items.update(item.id!, { displayName: opt.label, unit: opt.unit })

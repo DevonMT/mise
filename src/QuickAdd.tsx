@@ -7,9 +7,11 @@ import { SECTION_META } from './sections'
 import { Sheet } from './Sheet'
 
 export function QuickAddSheet({
+  listId,
   onClose,
   onAddNew,
 }: {
+  listId: number
   onClose: () => void
   onAddNew: () => void
 }) {
@@ -22,6 +24,7 @@ export function QuickAddSheet({
 
   const add = async (c: CatalogEntry) => {
     await addItem({
+      listId,
       displayName: c.displayName,
       canonicalKey: c.canonicalKey,
       unit: c.unit,
