@@ -31,6 +31,14 @@ export default defineConfig({
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          // Both maskable sizes — some Android launchers look for a 192 maskable
+          // specifically, and fall back to a generic icon if only 512 exists.
+          {
+            src: 'icon-maskable-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
           {
             src: 'icon-maskable-512.png',
             sizes: '512x512',
