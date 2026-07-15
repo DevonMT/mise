@@ -53,6 +53,9 @@ button {
   border: none;
   background: none;
   color: inherit;
+  /* Treat every button press as a tap — no double-tap-zoom wait, more reliable
+     taps in the installed standalone app. */
+  touch-action: manipulation;
 }
 
 .app {
@@ -1301,6 +1304,41 @@ button {
   font-weight: 700;
   color: var(--muted);
   flex: 0 0 auto;
+}
+
+/* ---- Full-screen view (Refine) — no draggable sheet, taps reliably ---- */
+.fullview {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  max-width: 640px;
+  margin: 0 auto;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  animation: slideup 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.fullview-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  padding-top: max(14px, env(safe-area-inset-top, 0px));
+  border-bottom: 1px solid var(--line);
+}
+.fullview-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 16px;
+}
+.fullview-foot {
+  flex: 0 0 auto;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
 }
 
 /* ---- Refine ---- */

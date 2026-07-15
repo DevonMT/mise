@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { db, type Item } from './db'
 import { applyRefinement } from './catalog'
 import { refineItems, type RefineOption } from './parse'
-import { Sheet } from './Sheet'
 
 type Stage = 'loading' | 'ready' | 'empty' | 'error'
 
@@ -58,75 +57,92 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
   }, [store, listId])
 
   const apply = async (item: Item, opt: RefineOption) => {
-    // Update the name to a clean product name (no size — that's the pill), keep
-    // the full product string as `detail` (shown on tap), and clear the recipe
-    // quantity: you buy one package of this size whatever the recipe called for.
-    const name = conciseName(opt.label, opt.unit)
-    await db.items.update(item.id!, {
-      displayName: name,
-      detail: opt.label,
-      unit: opt.unit,
-      quantity: undefined,
-    })
-    await applyRefinement(item.canonicalKey, name, opt.label, opt.unit, item.section, opt.price)
+    // Optimistic: show the choice immediately, before the DB round-trip, so a
+    // tap always registers even if the writes are slow or fail.
     setApplied((a) => ({ ...a, [item.canonicalKey]: opt.label }))
+    try {
+      // Update the name to a clean product name (no size — that's the pill), keep
+      // the full product string as `detail` (shown on tap), and clear the recipe
+      // quantity: you buy one package of this size whatever the recipe called for.
+      const name = conciseName(opt.label, opt.unit)
+      await db.items.update(item.id!, {
+        displayName: name,
+        detail: opt.label,
+        unit: opt.unit,
+        quantity: undefined,
+      })
+      await applyRefinement(item.canonicalKey, name, opt.label, opt.unit, item.section, opt.price)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   return (
-    <Sheet className="refine" onClose={onClose}>
-      <h3 className="sheet-title">🔎 Refine your list</h3>
+    <div className="fullview refine-view">
+      <div className="fullview-head">
+        <button className="icon-back" onClick={onClose} aria-label="Back to list">
+          ‹
+        </button>
+        <h2 className="detail-title">🔎 Refine your list</h2>
+      </div>
 
-      {stage === 'loading' && (
-        <div className="loading">
-          <div className="spinner" />
-          <p>Finding options{store ? ` at ${store}` : ''}…</p>
-        </div>
-      )}
-
-      {stage === 'empty' && <p className="review-hint">Your list is empty.</p>}
-      {stage === 'error' && <p className="err-text">{error}</p>}
-
-      {stage === 'ready' && (
-        <>
-          <p className="review-hint">
-            Pick a specific option to sharpen the name &amp; price
-            {store ? ` at ${store}` : ' (set your store in Settings for better options)'}.
-          </p>
-          <div className="refine-list">
-            {items.map((item) => {
-              const opts = options.get(item.canonicalKey) ?? []
-              const chosen = applied[item.canonicalKey]
-              return (
-                <div key={item.id} className="refine-card">
-                  <div className="refine-item">
-                    {item.displayName}
-                    {chosen && <span className="refine-done">✓ {chosen}</span>}
-                  </div>
-                  {opts.length === 0 ? (
-                    <p className="refine-none">No options suggested.</p>
-                  ) : (
-                    <div className="refine-opts">
-                      {opts.map((opt, i) => (
-                        <button
-                          key={i}
-                          className={chosen === opt.label ? 'ropt on' : 'ropt'}
-                          onClick={() => apply(item, opt)}
-                        >
-                          <span className="ropt-label">{opt.label}</span>
-                          <span className="ropt-price">${opt.price.toFixed(2)}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+      <div className="fullview-body">
+        {stage === 'loading' && (
+          <div className="loading">
+            <div className="spinner" />
+            <p>Finding options{store ? ` at ${store}` : ''}…</p>
           </div>
-          <button className="primary" onClick={onClose}>
-            Done
-          </button>
-        </>
-      )}
-    </Sheet>
+        )}
+
+        {stage === 'empty' && <p className="review-hint">Your list is empty.</p>}
+        {stage === 'error' && <p className="err-text">{error}</p>}
+
+        {stage === 'ready' && (
+          <>
+            <p className="review-hint">
+              Tap an option to sharpen the name &amp; price
+              {store ? ` at ${store}` : ' (set your store in Settings for better options)'}.
+            </p>
+            <div className="refine-list">
+              {items.map((item) => {
+                const opts = options.get(item.canonicalKey) ?? []
+                const chosen = applied[item.canonicalKey]
+                return (
+                  <div key={item.id} className="refine-card">
+                    <div className="refine-item">
+                      {item.displayName}
+                      {chosen && <span className="refine-done">✓ {chosen}</span>}
+                    </div>
+                    {opts.length === 0 ? (
+                      <p className="refine-none">No options suggested.</p>
+                    ) : (
+                      <div className="refine-opts">
+                        {opts.map((opt, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            className={chosen === opt.label ? 'ropt on' : 'ropt'}
+                            onClick={() => apply(item, opt)}
+                          >
+                            <span className="ropt-label">{opt.label}</span>
+                            <span className="ropt-price">${opt.price.toFixed(2)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="fullview-foot">
+        <button className="primary" onClick={onClose}>
+          Done
+        </button>
+      </div>
+    </div>
   )
 }

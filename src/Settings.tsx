@@ -55,9 +55,8 @@ export function SettingsView() {
         <section className="settings-group">
           <h3 className="group-title">Store prices</h3>
           <p className="group-hint">
-            Set your store, then let Claude price the {priceCount} item
-            {priceCount === 1 ? '' : 's'} on your grocery lists — only those, nothing you've removed.
-            Prices you edit by hand always win.
+            Estimated prices for the {priceCount} item{priceCount === 1 ? '' : 's'} on your grocery
+            lists — only those, never anything you've removed. Prices you set yourself stay put.
           </p>
           <input
             className="field"
