@@ -9,6 +9,18 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
+// Ask the browser to keep our IndexedDB — the only copy of the user's lists,
+// recipes, and prices — from being evicted under storage pressure. Without
+// this, a non-persistent origin's data can be cleared with no warning.
+if (navigator.storage?.persist) {
+  navigator.storage
+    .persisted()
+    .then((already) => {
+      if (!already) return navigator.storage.persist()
+    })
+    .catch(() => {})
+}
+
 // Keep the installed app from getting stuck on an old cached build.
 //
 // The service worker skipWaiting()s and claims clients, so a new version takes

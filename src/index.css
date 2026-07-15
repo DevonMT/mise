@@ -389,6 +389,23 @@ button {
 .settings-group {
   margin-bottom: 26px;
 }
+.data-readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 4px;
+}
+.data-stat {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+.data-stat b {
+  color: var(--accent);
+  font-weight: 800;
+}
 .group-title {
   margin: 0 2px 4px;
   font-size: 1.05rem;

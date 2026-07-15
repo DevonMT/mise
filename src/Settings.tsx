@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, canonicalize } from './db'
 import { PARSE_URL } from './parse'
 import { estimateStorePrices, priceableKeys } from './catalog'
+import { downloadBackup, importAll } from './backup'
 import { AI_ENABLED } from './edition'
 
 export function SettingsView() {
@@ -19,6 +20,53 @@ export function SettingsView() {
   const [store, setStore] = useState(() => localStorage.getItem('mise.store') ?? '')
   const [busy, setBusy] = useState(false)
   const [priceMsg, setPriceMsg] = useState('')
+
+  // Live "what's actually stored" readout — the no-console way to see whether
+  // data is present, and where it lives.
+  const dataCounts = useLiveQuery(async () => {
+    const [items, recipes, lists, catalog] = await Promise.all([
+      db.items.toArray(),
+      db.recipes.count(),
+      db.lists.toArray(),
+      db.catalog.count(),
+    ])
+    return {
+      items: items.length,
+      recipes,
+      catalog,
+      lists: lists.map((l) => ({
+        name: l.name,
+        n: items.filter((i) => i.listId === l.id).length,
+      })),
+    }
+  }, [])
+  const [persisted, setPersisted] = useState<boolean | null>(null)
+  useEffect(() => {
+    navigator.storage?.persisted?.().then(setPersisted).catch(() => setPersisted(null))
+  }, [])
+  const [dataMsg, setDataMsg] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const onExport = async () => {
+    try {
+      await downloadBackup()
+      setDataMsg('Backup saved to your downloads.')
+    } catch (e) {
+      setDataMsg(e instanceof Error ? e.message : String(e))
+    }
+  }
+  const onPickBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const n = await importAll(await file.text())
+      setDataMsg(`Restored ${n.items} items, ${n.recipes} recipes, ${n.lists} lists.`)
+    } catch (err) {
+      setDataMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
 
   const add = async () => {
     const trimmed = name.trim()
@@ -50,6 +98,52 @@ export function SettingsView() {
   return (
     <div className="view">
       <h2 className="view-title">Settings</h2>
+
+      <section className="settings-group">
+        <h3 className="group-title">Your data &amp; backup</h3>
+        {dataCounts && (
+          <div className="data-readout">
+            <span className="data-stat">
+              <b>{dataCounts.items}</b> items
+            </span>
+            <span className="data-stat">
+              <b>{dataCounts.recipes}</b> recipes
+            </span>
+            <span className="data-stat">
+              <b>{dataCounts.lists.length}</b> lists
+            </span>
+            <span className="data-stat">
+              <b>{dataCounts.catalog}</b> saved
+            </span>
+          </div>
+        )}
+        {dataCounts && dataCounts.lists.length > 0 && (
+          <p className="group-hint" style={{ marginTop: 8 }}>
+            {dataCounts.lists.map((l) => `${l.name} (${l.n})`).join(' · ')}
+          </p>
+        )}
+        <p className="group-hint">
+          Everything lives on this device only. Keep a backup so a browser reset can never lose it.
+          {persisted === false && ' Storage isn’t marked persistent yet — reopening the app requests it.'}
+          {persisted === true && ' ✓ Storage is protected from automatic clearing.'}
+        </p>
+        <div className="two-btn">
+          <button className="ghost" onClick={onExport}>
+            ⭳ Back up to a file
+          </button>
+          <button className="ghost" onClick={() => fileRef.current?.click()}>
+            ⭱ Restore
+          </button>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={onPickBackup}
+        />
+        {dataMsg && <p className="group-hint">{dataMsg}</p>}
+      </section>
 
       {AI_ENABLED && (
         <section className="settings-group">
