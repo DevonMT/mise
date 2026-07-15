@@ -22,7 +22,7 @@ import {
   undoRestock,
   writeActiveId,
 } from './lists'
-import { AddMenu, CaptureSheet, type CaptureMode } from './Capture'
+import { AddMenu, AddRecipeMenu, CaptureSheet, type CaptureMode } from './Capture'
 import { SettingsView } from './Settings'
 import { RecipesView } from './RecipesView'
 import { QuickAddSheet } from './QuickAdd'
@@ -56,9 +56,11 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [capture, setCapture] = useState<null | CaptureMode>(null)
+  const [captureForRecipe, setCaptureForRecipe] = useState(false)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [refineOpen, setRefineOpen] = useState(false)
   const [recipeFormOpen, setRecipeFormOpen] = useState(false)
+  const [recipeMenuOpen, setRecipeMenuOpen] = useState(false)
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
@@ -260,9 +262,11 @@ export default function App() {
     setMenuOpen(false)
     setAddMenuOpen(false)
     setCapture(null)
+    setCaptureForRecipe(false)
     setQuickAddOpen(false)
     setRefineOpen(false)
     setRecipeFormOpen(false)
+    setRecipeMenuOpen(false)
     setSwitcherOpen(false)
     setManageOpen(false)
     setPending(null)
@@ -280,6 +284,7 @@ export default function App() {
     quickAddOpen ||
     refineOpen ||
     recipeFormOpen ||
+    recipeMenuOpen ||
     switcherOpen ||
     manageOpen ||
     pending !== null ||
@@ -500,7 +505,11 @@ export default function App() {
         {tab === 'recipes' && (
           <RecipesView
             activeListId={activeId}
-            onAddRecipe={() => setRecipeFormOpen(true)}
+            // With AI on, offer all the capture methods; in Lite, straight to
+            // the manual form (it'd be the menu's only option).
+            onAddRecipe={() =>
+              AI_ENABLED ? setRecipeMenuOpen(true) : setRecipeFormOpen(true)
+            }
             onAdded={(listId) => {
               // A recipe can't go on a pantry or task list, so it may have
               // landed somewhere other than where you were standing — take you
@@ -574,9 +583,13 @@ export default function App() {
           <button className="menu-item" onClick={enterSelect}>
             Select &amp; remove items
           </button>
-          <button className="menu-item" onClick={clearChecked}>
-            Clear {kind.kind === 'tasks' ? 'completed' : 'checked-off'} items
-          </button>
+          {/* A pantry's "checked" means out-of-stock — you restock those, you
+              don't clear them — so this only makes sense for grocery/tasks. */}
+          {kind.kind !== 'pantry' && (
+            <button className="menu-item" onClick={clearChecked}>
+              Clear {kind.kind === 'tasks' ? 'completed' : 'checked-off'} items
+            </button>
+          )}
           <button className="menu-item danger" onClick={clearAll}>
             Clear the list
           </button>
@@ -635,7 +648,24 @@ export default function App() {
             setAddMenuOpen(false)
             if (m === 'one') setSheet('new')
             else if (m === 'quick') setQuickAddOpen(true)
-            else setCapture(m)
+            else {
+              setCaptureForRecipe(false)
+              setCapture(m)
+            }
+          }}
+        />
+      )}
+
+      {recipeMenuOpen && (
+        <AddRecipeMenu
+          onClose={() => setRecipeMenuOpen(false)}
+          onPick={(m) => {
+            setRecipeMenuOpen(false)
+            if (m === 'manual') setRecipeFormOpen(true)
+            else {
+              setCaptureForRecipe(true)
+              setCapture(m)
+            }
           }}
         />
       )}
@@ -656,7 +686,15 @@ export default function App() {
       {recipeFormOpen && <RecipeForm onClose={() => setRecipeFormOpen(false)} />}
 
       {capture !== null && (
-        <CaptureSheet listId={activeId} mode={capture} onClose={() => setCapture(null)} />
+        <CaptureSheet
+          listId={activeId}
+          mode={capture}
+          forRecipe={captureForRecipe}
+          onClose={() => {
+            setCapture(null)
+            setCaptureForRecipe(false)
+          }}
+        />
       )}
 
       {sheet !== null && (

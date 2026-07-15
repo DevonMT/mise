@@ -5,6 +5,7 @@ import { addRecipeToList } from './recipes'
 import { formatQty } from './list'
 import { defaultGroceryListId } from './lists'
 import { encodeShare, shareLink, shareRecipePayload } from './share'
+import { AI_ENABLED } from './edition'
 
 export function RecipesView({
   activeListId,
@@ -53,7 +54,8 @@ export function RecipesView({
       </div>
       {recipes.length === 0 ? (
         <p className="view-empty">
-          No recipes yet. Paste or snap a recipe and it saves itself here.
+          No recipes yet. Tap <strong>＋ Add</strong> to{' '}
+          {AI_ENABLED ? 'snap, paste, link, or type one in.' : 'enter one.'}
         </p>
       ) : (
         <div className="recipe-list">

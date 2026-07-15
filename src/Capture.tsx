@@ -11,6 +11,7 @@ import {
   type ParseResult,
 } from './parse'
 import { saveRecipeFromParse } from './recipes'
+import { defaultGroceryListId } from './lists'
 import { Sheet } from './Sheet'
 import { AI_ENABLED } from './edition'
 
@@ -31,10 +32,14 @@ interface Row {
 export function CaptureSheet({
   listId,
   mode,
+  forRecipe = false,
   onClose,
 }: {
   listId: number
   mode: CaptureMode
+  /** Opened from the Recipes tab: the library is the goal, so lead with
+   *  "Save recipe" and send any list items to a grocery list, not `listId`. */
+  forRecipe?: boolean
   onClose: () => void
 }) {
   const [stage, setStage] = useState<Stage>('input')
@@ -88,11 +93,14 @@ export function CaptureSheet({
   }
 
   const commit = async () => {
+    // Recipe ingredients belong on a grocery list — when captured from the
+    // Recipes tab the active list could be a pantry or task list.
+    const target = forRecipe ? ((await defaultGroceryListId(listId)) ?? listId) : listId
     for (const r of rows) {
       if (!r.include) continue
       const qty = r.quantityStr.trim() ? Number(r.quantityStr) : undefined
       await addItem({
-        listId,
+        listId: target,
         displayName: r.displayName,
         canonicalKey: r.canonicalKey,
         quantity: Number.isFinite(qty as number) ? qty : undefined,
@@ -118,8 +126,12 @@ export function CaptureSheet({
     mode === 'url'
       ? '🔗 Paste a recipe link'
       : mode === 'image'
-        ? '📷 Snap a list or recipe'
-        : '📋 Paste or type a list'
+        ? forRecipe
+          ? '📷 Snap a recipe'
+          : '📷 Snap a list or recipe'
+        : forRecipe
+          ? '📋 Paste a recipe'
+          : '📋 Paste or type a list'
 
   return (
     <Sheet className="capture" onClose={onClose}>
@@ -243,13 +255,28 @@ export function CaptureSheet({
                 </div>
               ))}
             </div>
-            <button className="primary" onClick={commit} disabled={!includedCount && !isRecipe}>
-              {includedCount ? `Add ${includedCount} to list` : 'Done'}
-            </button>
-            {isRecipe && includedCount > 0 && (
-              <button className="ghost" onClick={saveRecipeOnly} style={{ marginTop: 10 }}>
-                📖 Save to recipes only (don’t add to list)
-              </button>
+            {forRecipe && isRecipe ? (
+              <>
+                <button className="primary" onClick={saveRecipeOnly}>
+                  📖 Save recipe
+                </button>
+                {includedCount > 0 && (
+                  <button className="ghost" onClick={commit} style={{ marginTop: 10 }}>
+                    Save &amp; add {includedCount} to your list
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <button className="primary" onClick={commit} disabled={!includedCount && !isRecipe}>
+                  {includedCount ? `Add ${includedCount} to list` : 'Done'}
+                </button>
+                {isRecipe && includedCount > 0 && (
+                  <button className="ghost" onClick={saveRecipeOnly} style={{ marginTop: 10 }}>
+                    📖 Save to recipes only (don’t add to list)
+                  </button>
+                )}
+              </>
             )}
           </>
         )}
@@ -292,6 +319,33 @@ export function AddMenu({
           </button>
         </>
       )}
+    </Sheet>
+  )
+}
+
+/** Ways to add a recipe from the Recipes tab. Only shown when AI capture is on;
+ *  in Lite there's just the manual form, opened directly. */
+export function AddRecipeMenu({
+  onPick,
+  onClose,
+}: {
+  onPick: (mode: 'manual' | CaptureMode) => void
+  onClose: () => void
+}) {
+  return (
+    <Sheet className="menu" onClose={onClose}>
+      <button className="menu-item" onClick={() => onPick('image')}>
+        📷 Snap a recipe
+      </button>
+      <button className="menu-item" onClick={() => onPick('text')}>
+        📋 Paste a recipe
+      </button>
+      <button className="menu-item" onClick={() => onPick('url')}>
+        🔗 From a recipe link
+      </button>
+      <button className="menu-item" onClick={() => onPick('manual')}>
+        ✏️ Enter it manually
+      </button>
     </Sheet>
   )
 }
