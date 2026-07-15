@@ -1,11 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" fill="#0e7c5b"/>
-  <g fill="none" stroke="#f7f3ec" stroke-width="22">
-    <circle cx="176" cy="196" r="62"/>
-    <circle cx="336" cy="196" r="62"/>
-    <circle cx="256" cy="340" r="62"/>
+  <rect x="120" y="120" width="122" height="122" rx="28" fill="#f7f3ec"/>
+  <rect x="270" y="120" width="122" height="122" rx="28" fill="#f7f3ec"/>
+  <rect x="120" y="270" width="122" height="122" rx="28" fill="#f7f3ec"/>
+  <g transform="rotate(-10 331 331)">
+    <rect x="270" y="270" width="122" height="122" rx="28" fill="#e0a419"/>
   </g>
-  <circle cx="176" cy="196" r="24" fill="#f7f3ec"/>
-  <circle cx="336" cy="196" r="24" fill="#f7f3ec"/>
-  <circle cx="256" cy="340" r="24" fill="#e0a419"/>
 </svg>
