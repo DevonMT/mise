@@ -153,7 +153,15 @@ button {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding: 8px 16px 0;
+  /* No top padding: the sticky tabs must park flush under the topbar. A
+     padding-top here parks them lower and leaves a transparent strip that
+     scrolling list rows show through. Horizontal padding only. */
+  padding: 0 16px;
+}
+/* Breathing room at the top for views without the sticky tab bar. */
+.scroll > .view:first-child,
+.scroll > .restock-bar:first-child {
+  margin-top: 10px;
 }
 .group {
   margin-bottom: 18px;
