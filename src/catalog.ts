@@ -76,10 +76,11 @@ export async function removeFromCatalog(entry: CatalogEntry): Promise<void> {
   if (entry.id != null) await db.catalog.delete(entry.id)
 }
 
-/** Sync a catalog entry to a refined choice: keep the basic displayName, but
- *  remember the specific product as `detail`, plus its size (unit) and price. */
+/** Sync a catalog entry to a refined choice: update to the clean product name,
+ *  remember the full product string as `detail`, plus its size (unit) and price. */
 export async function applyRefinement(
   canonicalKey: string,
+  displayName: string,
   detail: string,
   unit: string | undefined,
   section: Section,
@@ -87,11 +88,11 @@ export async function applyRefinement(
 ): Promise<void> {
   const existing = await db.catalog.where('canonicalKey').equals(canonicalKey).first()
   if (existing?.id != null) {
-    await db.catalog.update(existing.id, { detail, unit, price })
+    await db.catalog.update(existing.id, { displayName, detail, unit, price })
   } else {
     await db.catalog.add({
       canonicalKey,
-      displayName: canonicalKey,
+      displayName,
       unit,
       section,
       count: 0,

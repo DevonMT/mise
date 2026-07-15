@@ -6,6 +6,18 @@ import { Sheet } from './Sheet'
 
 type Stage = 'loading' | 'ready' | 'empty' | 'error'
 
+/** A clean item name from a refine option: the full label minus its trailing
+ *  size, so "Store brand salsa, 16 oz jar" (unit "16 oz jar") → "Store brand
+ *  salsa". Falls back to the whole label if the size isn't at the end. */
+export function conciseName(label: string, unit?: string): string {
+  const full = label.trim()
+  const u = (unit ?? '').trim()
+  if (!u) return full
+  const esc = u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const stripped = full.replace(new RegExp(',?\\s*' + esc + '\\s*$', 'i'), '').replace(/[,\s]+$/, '')
+  return stripped.trim() || full
+}
+
 export function RefineSheet({ listId, onClose }: { listId: number; onClose: () => void }) {
   const store = localStorage.getItem('mise.store') ?? ''
   const [stage, setStage] = useState<Stage>('loading')
@@ -46,11 +58,17 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
   }, [store, listId])
 
   const apply = async (item: Item, opt: RefineOption) => {
-    // Keep the row's basic name; stash the specific product as `detail` (shown
-    // on tap) and show its size via unit. Clear the recipe quantity — you buy
-    // one package of this size, whatever the recipe called for.
-    await db.items.update(item.id!, { detail: opt.label, unit: opt.unit, quantity: undefined })
-    await applyRefinement(item.canonicalKey, opt.label, opt.unit, item.section, opt.price)
+    // Update the name to a clean product name (no size — that's the pill), keep
+    // the full product string as `detail` (shown on tap), and clear the recipe
+    // quantity: you buy one package of this size whatever the recipe called for.
+    const name = conciseName(opt.label, opt.unit)
+    await db.items.update(item.id!, {
+      displayName: name,
+      detail: opt.label,
+      unit: opt.unit,
+      quantity: undefined,
+    })
+    await applyRefinement(item.canonicalKey, name, opt.label, opt.unit, item.section, opt.price)
     setApplied((a) => ({ ...a, [item.canonicalKey]: opt.label }))
   }
 
