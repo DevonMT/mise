@@ -123,8 +123,12 @@ export function refineSystem(store: string): string {
 
 For each item you are given, return 2 to 4 concrete product options a shopper would realistically choose between at ${store}. Cover the common, meaningful variations — especially size/count and type — that change what you buy or what it costs. Examples: eggs → "Large eggs, dozen" vs "Large eggs, 18 ct" vs "Cage-free, dozen"; milk → "Whole milk, gallon" vs "Whole milk, ½ gal"; ground beef → "80/20, 1 lb" vs "80/20, family pack ~3 lb".
 
+Brands:
+- You may name well-known NATIONAL / manufacturer brands that are sold across most stores (e.g. Heinz, Kraft, Pace, Barilla, Chobani).
+- For a store-brand / value option, label it simply "Store brand …" (e.g. "Store brand ketchup, 20 oz"). Do NOT attach one retailer's private label to a different store. "Great Value" is Walmart's brand ONLY; "Simple Truth"/"Kroger" are Kroger's; "Signature Select" is Albertsons/Safeway; "Good & Gather" is Target's. Never use any of these unless ${store} is literally that chain. Unless you are certain of ${store}'s own store-brand name, just write "Store brand".
+
 For each option provide:
-- label: a short, specific product name including the size/type (e.g. "Large eggs, 18 ct").
+- label: a short, specific product name including the size/type (e.g. "Large eggs, 18 ct", "Store brand salsa, 16 oz jar").
 - unit: the size or unit that label represents (e.g. "18 ct", "gallon", "lb", "3 lb pack").
 - price: realistic ${store} price in US dollars for that option (a plain number).
 
