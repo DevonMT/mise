@@ -43,6 +43,7 @@ type SheetState = null | 'new' | Item
 
 export default function App() {
   const [activeId, setActiveId] = useState<number | null>(null)
+  const [storageBlocked, setStorageBlocked] = useState(false)
   const [pending, setPending] = useState<SharePayload | null>(null)
 
   // Left undefined while loading, so we can tell "not loaded yet" from "none".
@@ -71,8 +72,19 @@ export default function App() {
   const undoTimer = useRef<number | undefined>(undefined)
 
   // Seed the DB and settle on a list before rendering anything list-shaped.
+  // If the DB open is blocked by another open copy of Mise, resolveActiveId
+  // never resolves — time out and show a recovery message instead of a blank app.
   useEffect(() => {
-    resolveActiveId().then(setActiveId)
+    const t = window.setTimeout(() => setStorageBlocked(true), 8000)
+    resolveActiveId()
+      .then((id) => {
+        window.clearTimeout(t)
+        setActiveId(id)
+      })
+      .catch(() => {
+        window.clearTimeout(t)
+        setStorageBlocked(true)
+      })
   }, [])
 
   // An inbound share link. The payload lives in the hash, so it never left the
@@ -316,6 +328,31 @@ export default function App() {
       }
     })()
   }, [])
+
+  if (storageBlocked) {
+    return (
+      <div className="app">
+        <div className="blocked">
+          <div className="blocked-emoji">🔒</div>
+          <h2>Storage is locked</h2>
+          <p>
+            Mise looks like it’s open in more than one place at once, and the copies are blocking
+            each other from reading your data.
+          </p>
+          <p className="blocked-hint">
+            Close <strong>every</strong> other copy — other browser tabs on this site, and the
+            installed app if you’re in a browser (or vice-versa) — then reopen just one.
+          </p>
+          <p className="blocked-hint">
+            Your data is almost certainly fine — it’s locked, not lost.
+          </p>
+          <button className="primary" onClick={() => location.reload()}>
+            Reload
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (activeId == null || !activeList) {
     return <div className="app" />

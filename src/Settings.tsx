@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, canonicalize } from './db'
+import { db, canonicalize, readAllWithTimeout } from './db'
 import { PARSE_URL } from './parse'
 import { estimateStorePrices, priceableKeys } from './catalog'
 import { downloadBackup, importAll } from './backup'
@@ -34,12 +34,7 @@ export function SettingsView() {
   const [dataErr, setDataErr] = useState('')
   const loadCounts = async () => {
     try {
-      const [items, recipes, lists, catalog] = await Promise.all([
-        db.items.toArray(),
-        db.recipes.count(),
-        db.lists.toArray(),
-        db.catalog.count(),
-      ])
+      const { items, recipes, lists, catalog } = await readAllWithTimeout()
       setDataCounts({
         items: items.length,
         recipes,
@@ -51,7 +46,12 @@ export function SettingsView() {
       })
       setDataErr('')
     } catch (e) {
-      setDataErr(e instanceof Error ? e.message : String(e))
+      const msg = e instanceof Error ? e.message : String(e)
+      setDataErr(
+        msg === 'STORAGE_BLOCKED'
+          ? "Storage is blocked — Mise is open somewhere else. Close every other copy (other browser tabs, and the installed app if you're in a browser, or vice-versa), then reopen just this one. Your data is almost certainly fine — it's only locked, not lost."
+          : msg,
+      )
     }
   }
   useEffect(() => {

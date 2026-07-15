@@ -139,6 +139,33 @@ export class MiseDB extends Dexie {
 
 export const db = new MiseDB()
 
+// When another copy of Mise (the installed app + a browser tab, or two tabs)
+// needs to change the schema, close this connection so it isn't the one that
+// blocks the upgrade — a blocked upgrade hangs every query forever with no
+// error, which looks exactly like "all my data vanished".
+db.on('versionchange', () => db.close())
+
+/** Read every table, but never hang: if the open is blocked by another copy of
+ *  Mise the promise rejects after `ms` so the UI can say so instead of spinning
+ *  on "Reading…". Returns the raw arrays/counts. */
+export async function readAllWithTimeout(ms = 8000): Promise<{
+  items: Item[]
+  recipes: number
+  lists: List[]
+  catalog: number
+}> {
+  const read = (async () => ({
+    items: await db.items.toArray(),
+    recipes: await db.recipes.count(),
+    lists: await db.lists.toArray(),
+    catalog: await db.catalog.count(),
+  }))()
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('STORAGE_BLOCKED')), ms),
+  )
+  return Promise.race([read, timeout])
+}
+
 /** Normalize a free-text name into a merge key: lowercase, singular-ish, trimmed. */
 export function canonicalize(name: string): string {
   let k = name.trim().toLowerCase()
