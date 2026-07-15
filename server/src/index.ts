@@ -77,7 +77,11 @@ app.post('/api/parse', async (c) => {
     try {
       text = await fetchReadable(raw)
     } catch (e) {
-      return c.json({ error: `Could not fetch that link: ${String(e)}` }, 502)
+      const why = e instanceof Error ? e.message : String(e)
+      return c.json(
+        { error: `Couldn't read that link — ${why}. Try copying the recipe text and pasting it instead.` },
+        502,
+      )
     }
     userContent = `The following text was extracted from a recipe web page. Parse it.\n\n${text}`
   } else {
@@ -205,17 +209,55 @@ function parseImage(
   return { media, data }
 }
 
-/** Fetch a URL and crudely reduce HTML to readable text, truncated. */
+/** Fetch a URL and crudely reduce HTML to readable text, truncated.
+ *  Uses a real browser UA (recipe sites 403 obvious bots) and a hard timeout
+ *  (a hanging site must fail fast, or the phone's request drops → NetworkError). */
 async function fetchReadable(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: { 'user-agent': 'Mozilla/5.0 (compatible; MiseBot/0.1)' },
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  let target: URL
+  try {
+    target = new URL(url)
+  } catch {
+    throw new Error("that doesn't look like a valid link")
+  }
+  if (target.protocol !== 'http:' && target.protocol !== 'https:') {
+    throw new Error('only http/https links work')
+  }
+
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 12_000)
+  let res: Response
+  try {
+    res = await fetch(target, {
+      redirect: 'follow',
+      signal: ctrl.signal,
+      headers: {
+        'user-agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'accept-language': 'en-US,en;q=0.9',
+      },
+    })
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new Error('the site took too long to respond')
+    }
+    throw new Error('the site could not be reached')
+  } finally {
+    clearTimeout(timer)
+  }
+
+  if (!res.ok) throw new Error(`the site returned HTTP ${res.status}`)
+
+  const ctype = res.headers.get('content-type') ?? ''
+  if (ctype && !/html|xml|json|text/i.test(ctype)) {
+    throw new Error(`that link is ${ctype.split(';')[0].trim()}, not a recipe page`)
+  }
+
   const html = await res.text()
 
   // Prefer JSON-LD recipe blocks if present — they're clean and structured.
   const ld = [...html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)]
-    .map((m) => m[1])
+    .map((m) => m[1].trim())
     .join('\n')
 
   const stripped = html
@@ -226,7 +268,9 @@ async function fetchReadable(url: string): Promise<string> {
     .replace(/\s+/g, ' ')
     .trim()
 
-  return `${ld}\n\n${stripped}`.slice(0, 16000)
+  const combined = `${ld}\n\n${stripped}`.trim()
+  if (!combined) throw new Error('no readable text on that page')
+  return combined.slice(0, 16000)
 }
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
