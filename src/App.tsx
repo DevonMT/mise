@@ -13,7 +13,8 @@ import {
   toDateInput,
   type Group,
 } from './list'
-import { KINDS } from './kinds'
+import { KINDS, listIcon } from './kinds'
+import { Icon } from './Icon'
 import {
   addOutToGroceries,
   defaultGroceryListId,
@@ -34,9 +35,10 @@ import { SwipeRow } from './SwipeRow'
 import { BottomNav, type Tab } from './BottomNav'
 import { RecipeForm } from './RecipeForm'
 import { ListSwitcher, ManageLists } from './ListSwitcher'
-import { ImportSheet } from './ImportSheet'
+import { EditListSheet } from './EditListSheet'
+import { ImportSheet, ImportLinkSheet } from './ImportSheet'
 import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayload } from './share'
-import { AI_ENABLED, EDITION_NAME } from './edition'
+import { AI_ENABLED } from './edition'
 
 type ListView = 'list' | 'backlog'
 type SheetState = null | 'new' | Item
@@ -65,6 +67,8 @@ export default function App() {
   const [recipeMenuOpen, setRecipeMenuOpen] = useState(false)
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
+  const [editListOpen, setEditListOpen] = useState(false)
+  const [importLinkOpen, setImportLinkOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [toast, setToast] = useState<{ msg: string; undo?: () => void } | null>(null)
@@ -282,6 +286,8 @@ export default function App() {
     setRecipeMenuOpen(false)
     setSwitcherOpen(false)
     setManageOpen(false)
+    setEditListOpen(false)
+    setImportLinkOpen(false)
     setPending(null)
     setSheet(null)
     setSelectMode(false)
@@ -300,6 +306,8 @@ export default function App() {
     recipeMenuOpen ||
     switcherOpen ||
     manageOpen ||
+    editListOpen ||
+    importLinkOpen ||
     pending !== null ||
     sheet !== null ||
     selectMode ||
@@ -365,19 +373,21 @@ export default function App() {
       <header className="topbar">
         {tab === 'list' ? (
           <button className="list-pick" onClick={() => setSwitcherOpen(true)}>
-            <span className="list-pick-icon">{kind.icon}</span>
-            <span className="list-pick-name">{activeList.name}</span>
-            <span className="list-pick-caret">▾</span>
+            <span className="list-pick-tile">
+              <Icon name={listIcon(activeList)} size={22} />
+            </span>
+            <span className="list-pick-text">
+              <span className="list-pick-name">{activeList.name}</span>
+              <span className="list-pick-kind">{kind.label}</span>
+            </span>
+            <Icon name="chevronDown" size={16} className="list-pick-caret" />
           </button>
         ) : (
-          <div className="brand">
-            <img className="logo-img" src={`${import.meta.env.BASE_URL}icon.svg`} alt="" />{' '}
-            {EDITION_NAME}
-          </div>
+          <div className="brand">{tab === 'recipes' ? 'Recipes' : 'Settings'}</div>
         )}
         {tab === 'list' && (
           <button className="icon-btn" aria-label="List actions" onClick={() => setMenuOpen(true)}>
-            ⋯
+            <Icon name="dots" size={22} />
           </button>
         )}
       </header>
@@ -417,27 +427,28 @@ export default function App() {
 
             {view === 'list' && kind.kind === 'pantry' && outCount > 0 && !selectMode && (
               <button className="restock-bar" onClick={restock}>
-                <span className="restock-n">{outCount} out</span>
-                <span className="restock-cta">🛒 Add to groceries</span>
+                <span className="restock-n">{outCount} out of stock</span>
+                <span className="restock-cta">
+                  Add to groceries
+                  <Icon name="chevronRight" size={16} />
+                </span>
               </button>
             )}
 
             {showHint && !selectMode && active.length > 0 && (
               <div className="hint-banner">
-                <span>
-                  Swipe a row → {kind.checkVerb.toLowerCase()} · ← delete
-                </span>
+                <span>Swipe a row → {kind.checkVerb.toLowerCase()} · ← delete</span>
                 <button className="hint-x" aria-label="Dismiss" onClick={dismissHint}>
-                  ✕
+                  <Icon name="x" size={16} />
                 </button>
               </div>
             )}
 
             {isEmpty ? (
               <div className="empty">
-                <div className="empty-emoji">
-                  {view === 'list' ? kind.emptyEmoji : '💭'}
-                </div>
+                <span className="empty-icon">
+                  <Icon name={view === 'list' ? kind.emptyIcon : 'calendar'} size={34} />
+                </span>
                 <p>
                   {view === 'list'
                     ? kind.emptyText
@@ -448,12 +459,7 @@ export default function App() {
             ) : (
               groups.map((g) => (
                 <section key={g.key} className="group">
-                  {g.label && (
-                    <h2 className="group-head">
-                      <span className="group-emoji">{g.emoji}</span>
-                      {g.label}
-                    </h2>
-                  )}
+                  {g.label && <h2 className="group-head">{g.label}</h2>}
                   <ul className="rows">
                     {g.items.map((item) => {
                       const sel = selected.has(item.id!)
@@ -482,7 +488,9 @@ export default function App() {
                             }
                             onClick={() => (selectMode ? toggleSelect(item.id!) : toggle(item))}
                           >
-                            {(selectMode ? sel : item.checked) ? '✓' : ''}
+                            {(selectMode ? sel : item.checked) && (
+                              <Icon name="check" size={16} strokeWidth={3} className="check-mark" />
+                            )}
                           </button>
                           <button
                             className="row-main"
@@ -491,7 +499,9 @@ export default function App() {
                             }
                           >
                             <span className="row-name-wrap">
-                              {isFav && kind.kind !== 'tasks' && <span className="row-fav">★</span>}
+                              {isFav && kind.kind !== 'tasks' && (
+                                <Icon name="star" size={13} className="row-fav" />
+                              )}
                               <span className="row-text">
                                 <span className="name">{item.displayName}</span>
                                 {kind.due && item.notes && (
@@ -578,9 +588,22 @@ export default function App() {
         </div>
       )}
 
+      {tab === 'list' && !selectMode && view === 'list' && kind.kind !== 'pantry' && !toast && (
+        (() => {
+          const checkedCount = active.filter((i) => i.checked).length
+          if (!checkedCount) return null
+          return (
+            <button className="clear-pill" onClick={clearChecked}>
+              <Icon name="trash" size={16} />
+              Clear {checkedCount} {kind.kind === 'tasks' ? 'done' : 'checked'}
+            </button>
+          )
+        })()
+      )}
+
       {tab === 'list' && !selectMode && (
         <button className="fab" aria-label="Add item" onClick={() => setAddMenuOpen(true)}>
-          ＋
+          <Icon name="plus" size={26} strokeWidth={2.6} />
         </button>
       )}
 
@@ -595,18 +618,29 @@ export default function App() {
         </div>
       )}
 
-      <BottomNav tab={tab} onChange={setTab} />
+      <BottomNav
+        tab={tab}
+        onChange={setTab}
+        listIconName={listIcon(activeList)}
+        listName={activeList.name}
+      />
 
       {menuOpen && (
         <Sheet className="menu" onClose={() => setMenuOpen(false)}>
+          <button
+            className="menu-item"
+            onClick={() => {
+              setEditListOpen(true)
+              setMenuOpen(false)
+            }}
+          >
+            <Icon name="edit" size={20} />
+            Rename &amp; icon
+          </button>
           <button className="menu-item" onClick={doShareList}>
+            <Icon name="share" size={20} />
             Share this list
           </button>
-          {kind.kind === 'pantry' && (
-            <button className="menu-item" onClick={restock}>
-              Add everything out to groceries
-            </button>
-          )}
           {AI_ENABLED && kind.recipes && (
             <button
               className="menu-item"
@@ -615,24 +649,28 @@ export default function App() {
                 setMenuOpen(false)
               }}
             >
-              Refine list — options &amp; prices
+              <Icon name="refine" size={20} />
+              Refine prices &amp; sizes
+            </button>
+          )}
+          {kind.kind === 'pantry' && (
+            <button className="menu-item" onClick={restock}>
+              <Icon name="cart" size={20} />
+              Add what&apos;s out to groceries
             </button>
           )}
           <button className="menu-item" onClick={enterSelect}>
-            Select &amp; remove items
+            <Icon name="select" size={20} />
+            Select to remove
           </button>
-          {/* A pantry's "checked" means out-of-stock — you restock those, you
-              don't clear them — so this only makes sense for grocery/tasks. */}
-          {kind.kind !== 'pantry' && (
-            <button className="menu-item" onClick={clearChecked}>
-              Clear {kind.kind === 'tasks' ? 'completed' : 'checked-off'} items
-            </button>
-          )}
           <button className="menu-item danger" onClick={clearAll}>
+            <Icon name="trash" size={20} />
             Clear the list
           </button>
         </Sheet>
       )}
+
+      {editListOpen && <EditListSheet list={activeList} onClose={() => setEditListOpen(false)} />}
 
       {switcherOpen && (
         <ListSwitcher
@@ -642,7 +680,21 @@ export default function App() {
             setSwitcherOpen(false)
             setManageOpen(true)
           }}
+          onImport={() => {
+            setSwitcherOpen(false)
+            setImportLinkOpen(true)
+          }}
           onClose={() => setSwitcherOpen(false)}
+        />
+      )}
+
+      {importLinkOpen && (
+        <ImportLinkSheet
+          onClose={() => setImportLinkOpen(false)}
+          onDecoded={(p) => {
+            setImportLinkOpen(false)
+            setPending(p)
+          }}
         />
       )}
 

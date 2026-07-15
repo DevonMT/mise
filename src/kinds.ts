@@ -1,4 +1,4 @@
-import type { ListKind } from './db'
+import type { List, ListKind } from './db'
 
 /**
  * A list's kind decides which of Mise's smarts wake up. Everything is off by
@@ -8,6 +8,7 @@ import type { ListKind } from './db'
 export interface KindMeta {
   kind: ListKind
   label: string
+  /** Icon key (Icon.tsx) — the kind's default when a list has no custom icon. */
   icon: string
   /** Group rows by store section (aisle walk order). */
   sections: boolean
@@ -27,7 +28,7 @@ export interface KindMeta {
   /** What checking a row means, in this kind's language. */
   checkVerb: string
   primaryLabel: string
-  emptyEmoji: string
+  emptyIcon: string
   emptyText: string
   emptyHint: string
 }
@@ -36,7 +37,7 @@ export const KINDS: Record<ListKind, KindMeta> = {
   grocery: {
     kind: 'grocery',
     label: 'Grocery',
-    icon: '🛒',
+    icon: 'cart',
     sections: true,
     quantities: true,
     prices: true,
@@ -47,14 +48,14 @@ export const KINDS: Record<ListKind, KindMeta> = {
     backlogLabel: 'Next time',
     checkVerb: 'Check off',
     primaryLabel: 'list',
-    emptyEmoji: '🛒',
-    emptyText: 'Your list is empty.',
+    emptyIcon: 'basket',
+    emptyText: 'Nothing on this list yet.',
     emptyHint: 'Tap ＋ to snap, paste, or type what you need.',
   },
   tasks: {
     kind: 'tasks',
     label: 'Tasks',
-    icon: '✅',
+    icon: 'tasks',
     sections: false,
     quantities: false,
     prices: false,
@@ -65,14 +66,14 @@ export const KINDS: Record<ListKind, KindMeta> = {
     backlogLabel: 'Someday',
     checkVerb: 'Mark done',
     primaryLabel: 'tasks',
-    emptyEmoji: '✅',
+    emptyIcon: 'tasks',
     emptyText: 'Nothing to do.',
     emptyHint: 'Tap ＋ to add a task. A due date is optional.',
   },
   pantry: {
     kind: 'pantry',
     label: 'Pantry',
-    icon: '🥫',
+    icon: 'pantry',
     sections: true,
     quantities: true,
     prices: false,
@@ -83,10 +84,15 @@ export const KINDS: Record<ListKind, KindMeta> = {
     backlogLabel: '',
     checkVerb: 'Mark as out',
     primaryLabel: 'pantry',
-    emptyEmoji: '🥫',
+    emptyIcon: 'pantry',
     emptyText: 'Your pantry is empty.',
     emptyHint: 'Add what you keep on hand. Mark things out to restock them.',
   },
 }
 
 export const KIND_LIST: KindMeta[] = [KINDS.grocery, KINDS.tasks, KINDS.pantry]
+
+/** The icon a list shows — its own override, or its kind's default. */
+export function listIcon(list: Pick<List, 'kind' | 'icon'>): string {
+  return list.icon || KINDS[list.kind].icon
+}

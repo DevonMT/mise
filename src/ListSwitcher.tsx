@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Item, type List, type ListKind } from './db'
-import { KINDS, KIND_LIST } from './kinds'
+import { KINDS, KIND_LIST, listIcon } from './kinds'
 import { createList, deleteList, mergeInto, renameList } from './lists'
+import { Icon } from './Icon'
+import { IconGrid } from './EditListSheet'
 import { Sheet } from './Sheet'
 
 /** Switch lists, or make a new one. The kind is chosen once, up front —
@@ -11,11 +13,13 @@ export function ListSwitcher({
   activeId,
   onPick,
   onManage,
+  onImport,
   onClose,
 }: {
   activeId: number
   onPick: (id: number) => void
   onManage: () => void
+  onImport: () => void
   onClose: () => void
 }) {
   const lists = useLiveQuery(() => db.lists.toArray(), []) ?? []
@@ -32,12 +36,14 @@ export function ListSwitcher({
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [kind, setKind] = useState<ListKind>('grocery')
+  const [icon, setIcon] = useState('list')
 
   const create = async () => {
-    const id = await createList(name, kind)
+    const id = await createList(name, kind, icon)
     setCreating(false)
     setName('')
     setKind('grocery')
+    setIcon('list')
     onPick(id)
   }
 
@@ -53,17 +59,20 @@ export function ListSwitcher({
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && create()}
         />
-        <p className="group-hint" style={{ marginTop: 16 }}>
-          What kind of list? This decides what it can do — and can't be changed later.
-        </p>
+        <p className="form-label">What kind? (can’t change later)</p>
         <div className="kind-picker">
           {KIND_LIST.map((k) => (
             <button
               key={k.kind}
               className={kind === k.kind ? 'kind-opt on' : 'kind-opt'}
-              onClick={() => setKind(k.kind)}
+              onClick={() => {
+                setKind(k.kind)
+                setIcon(k.icon)
+              }}
             >
-              <span className="kind-icon">{k.icon}</span>
+              <span className="kind-icon">
+                <Icon name={k.icon} size={22} />
+              </span>
               <span className="kind-body">
                 <span className="kind-label">{k.label}</span>
                 <span className="kind-desc">{KIND_DESC[k.kind]}</span>
@@ -71,7 +80,9 @@ export function ListSwitcher({
             </button>
           ))}
         </div>
-        <button className="primary" onClick={create} disabled={!name.trim()}>
+        <p className="form-label">Icon</p>
+        <IconGrid value={icon} onChange={setIcon} />
+        <button className="primary" onClick={create} disabled={!name.trim()} style={{ marginTop: 16 }}>
           Create list
         </button>
       </Sheet>
@@ -83,7 +94,7 @@ export function ListSwitcher({
       <div className="qa-header">
         <h3 className="sheet-title">Your lists</h3>
         <button className="add-btn" onClick={() => setCreating(true)}>
-          ＋ New
+          <Icon name="plus" size={18} /> New
         </button>
       </div>
 
@@ -94,21 +105,26 @@ export function ListSwitcher({
             className={l.id === activeId ? 'list-row on' : 'list-row'}
             onClick={() => onPick(l.id!)}
           >
-            <span className="list-icon">{KINDS[l.kind].icon}</span>
+            <span className="list-icon">
+              <Icon name={listIcon(l)} size={22} />
+            </span>
             <span className="list-body">
               <span className="list-name">{l.name}</span>
               <span className="list-sub">{KINDS[l.kind].label}</span>
             </span>
-            {(counts.get(l.id!) ?? 0) > 0 && (
-              <span className="badge">{counts.get(l.id!)}</span>
-            )}
+            {(counts.get(l.id!) ?? 0) > 0 && <span className="badge">{counts.get(l.id!)}</span>}
           </button>
         ))}
       </div>
 
-      <button className="ghost" style={{ marginTop: 14, width: '100%' }} onClick={onManage}>
-        Manage lists — rename, merge, delete
-      </button>
+      <div className="switcher-foot">
+        <button className="ghost" onClick={onImport}>
+          <Icon name="link" size={18} /> Paste a shared link
+        </button>
+        <button className="ghost" onClick={onManage}>
+          Manage lists
+        </button>
+      </div>
     </Sheet>
   )
 }
@@ -169,7 +185,9 @@ export function ManageLists({
                   setMergeFrom(null)
                 }}
               >
-                <span className="list-icon">{KINDS[t.kind].icon}</span>
+                <span className="list-icon">
+                  <Icon name={listIcon(t)} size={22} />
+                </span>
                 <span className="list-body">
                   <span className="list-name">{t.name}</span>
                   <span className="list-sub">{KINDS[t.kind].label}</span>
@@ -199,7 +217,9 @@ export function ManageLists({
               />
             ) : (
               <div className="manage-head">
-                <span className="list-icon">{KINDS[l.kind].icon}</span>
+                <span className="list-icon">
+                  <Icon name={listIcon(l)} size={20} />
+                </span>
                 <span className="list-name">{l.name}</span>
                 {l.id === activeId && <span className="rev-tag">active</span>}
               </div>

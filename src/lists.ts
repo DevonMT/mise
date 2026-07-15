@@ -14,7 +14,9 @@ export async function ensureSeed(): Promise<number> {
   return db.transaction('rw', db.lists, async () => {
     const existing = await db.lists.orderBy('id').first()
     if (existing?.id != null) return existing.id
-    return db.lists.add({ name: 'Groceries', kind: 'grocery', createdAt: Date.now() })
+    // Neutral default — Mise isn't only for groceries. Grocery *kind* (the
+    // richest), but the name/icon are the user's to change.
+    return db.lists.add({ name: 'My list', kind: 'grocery', icon: 'list', createdAt: Date.now() })
   })
 }
 
@@ -37,8 +39,13 @@ export async function resolveActiveId(): Promise<number> {
   return id
 }
 
-export async function createList(name: string, kind: ListKind): Promise<number> {
-  const id = await db.lists.add({ name: name.trim() || 'Untitled', kind, createdAt: Date.now() })
+export async function createList(name: string, kind: ListKind, icon?: string): Promise<number> {
+  const id = await db.lists.add({
+    name: name.trim() || 'Untitled',
+    kind,
+    icon,
+    createdAt: Date.now(),
+  })
   return id
 }
 

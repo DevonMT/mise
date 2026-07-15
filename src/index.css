@@ -1,25 +1,36 @@
 :root {
-  /* Light, warm, high-contrast palette — readable under store lights */
-  --bg: #f7f3ec;
+  /* Mise 2.0 — deep pine-green on warm-oat. Light-only, store-readable,
+     kind-neutral (no grocery branding baked into the palette). */
+  --bg: #f1f4ed;
   --surface: #ffffff;
-  --ink: #1c1917;
-  --muted: #7a716a;
-  --line: #ece4d8;
-  --accent: #0e7c5b;
+  --ink: #1a1a14;
+  --muted: #8a8578;
+  --line: #e5e2d7;
+  --accent: #14664a;
   --accent-ink: #ffffff;
-  --accent-soft: #e2f1ea;
-  --danger: #c0392b;
-  --danger-soft: #fbe0dc;
-  --fav: #e0a419;
-  --fav-soft: #fbeecb;
-  --nav-h: 60px;
-  --shadow: 0 6px 24px rgba(28, 25, 23, 0.12);
+  --accent-soft: #e2ede6;
+  --accent-deep: #0b3d2c;
+  --danger: #b23a2e;
+  --danger-soft: #f7e4e1;
+  --fav: #d6970f;
+  --fav-soft: #f6ecd2;
+  --seg: #eae7dc;
+  --nav-h: 62px;
+  --shadow: 0 12px 30px -14px rgba(20, 60, 44, 0.28);
+  --shadow-fab: 0 12px 24px -8px rgba(20, 102, 74, 0.55);
 
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
   color: var(--ink);
   color-scheme: light;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Shared icon sizing — inherits color from its parent. */
+.icon {
+  display: block;
+  flex: 0 0 auto;
 }
 
 * {
@@ -81,72 +92,114 @@ button {
   border-bottom: 1px solid var(--line);
 }
 .brand {
-  font-size: 1.4rem;
+  font-size: 1.55rem;
   font-weight: 800;
-  letter-spacing: -0.02em;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.logo-img {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  display: block;
+  letter-spacing: -0.03em;
 }
 .icon-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  font-size: 1.5rem;
-  color: var(--muted);
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .icon-btn:active {
   background: var(--line);
 }
 
-/* ---- Tabs ---- */
+/* ---- List picker (top bar) ---- */
+.list-pick {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 4px 8px 4px 4px;
+  border-radius: 15px;
+}
+.list-pick:active {
+  background: var(--line);
+}
+.list-pick-tile {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.list-pick-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.05;
+}
+.list-pick-name {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.list-pick-kind {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.list-pick-caret {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+/* ---- Segmented control (List / Next time) ----
+   Deliberately NOT sticky: a sticky element with margin/padding above it leaves
+   a gap that scrolling rows show through. It scrolls with the list instead. */
 .tabs {
   display: flex;
-  gap: 6px;
-  padding: 10px 16px;
-  margin: 0 -16px;
-  background: var(--bg);
-  position: sticky;
-  top: 0;
-  z-index: 4;
+  gap: 4px;
+  padding: 4px;
+  margin: 2px 0 10px;
+  background: var(--seg);
+  border-radius: 15px;
 }
 .tab {
   flex: 1;
-  padding: 12px;
-  border-radius: 12px;
-  font-size: 1rem;
+  padding: 10px;
+  border-radius: 11px;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--muted);
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
 }
 .tab.active {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(26, 26, 20, 0.08);
 }
 .badge {
-  min-width: 22px;
-  height: 22px;
+  min-width: 20px;
+  height: 20px;
   padding: 0 6px;
-  border-radius: 11px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-size: 0.8rem;
+  border-radius: 10px;
+  background: #cfcbbd;
+  color: #fff;
+  font-size: 0.74rem;
   font-weight: 800;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+.tab.active .badge {
+  background: var(--accent);
 }
 
 /* ---- List ---- */
@@ -156,32 +209,18 @@ button {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  /* No top padding: the sticky tabs must park flush under the topbar. A
-     padding-top here parks them lower and leaves a transparent strip that
-     scrolling list rows show through. Horizontal padding only. */
-  padding: 0 16px;
-}
-/* Breathing room at the top for views without the sticky tab bar. */
-.scroll > .view:first-child,
-.scroll > .restock-bar:first-child {
-  margin-top: 10px;
+  padding: 10px 16px 0;
 }
 .group {
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 .group-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 4px 2px 8px;
-  font-size: 0.82rem;
+  margin: 6px 4px 9px;
+  font-size: 0.74rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.09em;
   color: var(--muted);
-}
-.group-emoji {
-  font-size: 1.05rem;
 }
 .rows {
   list-style: none;
@@ -189,7 +228,7 @@ button {
   padding: 0;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 18px;
   overflow: hidden;
 }
 .rows > li {
@@ -233,8 +272,8 @@ button {
   background: var(--danger);
 }
 .swipe-act {
-  font-size: 1.35rem;
-  font-weight: 800;
+  display: flex;
+  align-items: center;
 }
 .swipe-act.check {
   color: var(--accent);
@@ -249,7 +288,7 @@ button {
 .row-name-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   min-width: 0;
   flex: 1;
 }
@@ -262,7 +301,6 @@ button {
 .row-fav {
   flex: 0 0 auto;
   color: var(--fav);
-  font-size: 0.9rem;
 }
 
 /* ---- Bottom navigation ---- */
@@ -288,21 +326,29 @@ button {
   justify-content: center;
   gap: 3px;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
+  min-width: 0;
+  padding: 0 4px;
 }
 .navbtn-icon {
-  font-size: 1.35rem;
-  line-height: 1;
-  filter: grayscale(0.5);
-  opacity: 0.7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 16px;
+  border-radius: 12px;
+}
+.navbtn-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .navbtn.on {
   color: var(--accent);
 }
 .navbtn.on .navbtn-icon {
-  filter: none;
-  opacity: 1;
+  background: var(--accent-soft);
 }
 
 /* ---- Undo toast ---- */
@@ -437,29 +483,30 @@ button {
 .check {
   position: relative;
   flex: 0 0 auto;
-  width: 56px;
+  width: 54px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
-  font-weight: 900;
   color: transparent;
 }
 .check::before {
   content: '';
   width: 27px;
   height: 27px;
-  border: 2.5px solid #cfc6b8;
+  border: 2.5px solid #cbc4b3;
   border-radius: 9px;
   position: absolute;
   transition: background 0.15s ease, border-color 0.15s ease;
+}
+.check-mark {
+  position: relative;
+  z-index: 1;
 }
 .row.done {
   background: var(--bg);
 }
 .row.done .check {
   color: #fff;
-  z-index: 1;
 }
 .row.done .check::before {
   background: var(--accent);
@@ -545,34 +592,42 @@ button {
 .empty {
   text-align: center;
   color: var(--muted);
-  padding: 18vh 24px;
+  padding: 16vh 24px;
 }
-.empty-emoji {
-  font-size: 3rem;
-  margin-bottom: 12px;
+.empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin-bottom: 16px;
 }
 .empty p {
   margin: 4px 0;
-  font-size: 1.05rem;
+  font-size: 1.06rem;
+  color: var(--ink);
+  font-weight: 600;
 }
 .empty .hint {
-  font-size: 0.9rem;
-  opacity: 0.8;
+  font-size: 0.92rem;
+  color: var(--muted);
+  font-weight: 400;
 }
 
 /* ---- FAB ---- */
 .fab {
   position: fixed;
-  right: max(20px, calc(50% - 320px + 20px));
+  right: max(18px, calc(50% - 320px + 18px));
   bottom: calc(var(--nav-h) + 18px + env(safe-area-inset-bottom, 0px));
-  width: 62px;
-  height: 62px;
+  width: 60px;
+  height: 60px;
   border-radius: 20px;
   background: var(--accent);
   color: var(--accent-ink);
-  font-size: 2rem;
-  line-height: 1;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-fab);
   z-index: 6;
   display: flex;
   align-items: center;
@@ -580,6 +635,52 @@ button {
 }
 .fab:active {
   transform: scale(0.94);
+}
+
+/* ---- Clear-checked pill (contextual, above the nav) ---- */
+.clear-pill {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--nav-h) + 18px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+  z-index: 6;
+  animation: slideup 0.2s ease;
+}
+.clear-pill:active {
+  transform: translateX(-50%) scale(0.96);
+}
+
+/* ---- Icon picker (list identity) ---- */
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin: 4px 0 4px;
+}
+.icon-opt {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+}
+.icon-opt.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .bottom-space {
   height: calc(var(--nav-h) + 80px);
@@ -748,14 +849,23 @@ button {
 }
 .menu-item {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
   text-align: left;
-  padding: 18px 8px;
-  font-size: 1.05rem;
+  padding: 16px 6px;
+  font-size: 1.04rem;
   font-weight: 600;
   border-bottom: 1px solid var(--line);
 }
+.menu-item .icon {
+  color: var(--muted);
+}
 .menu-item:last-child {
   border-bottom: none;
+}
+.menu-item.danger .icon {
+  color: var(--danger);
 }
 
 /* ---- Capture / Review / Settings ---- */
@@ -887,11 +997,15 @@ button {
 }
 .add-btn {
   flex: 0 0 auto;
-  padding: 0 18px;
-  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 38px;
+  padding: 0 16px 0 12px;
+  border-radius: 12px;
   background: var(--accent);
   color: var(--accent-ink);
-  font-weight: 800;
+  font-weight: 700;
 }
 .add-btn:disabled {
   opacity: 0.45;
@@ -1508,8 +1622,14 @@ button {
 }
 .list-icon {
   flex: 0 0 auto;
-  font-size: 1.3rem;
-  line-height: 1;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .list-body {
   flex: 1;
@@ -1553,8 +1673,29 @@ button {
 }
 .kind-icon {
   flex: 0 0 auto;
-  font-size: 1.4rem;
-  line-height: 1;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.kind-opt.on .kind-icon {
+  background: var(--accent);
+  color: #fff;
+}
+.switcher-foot {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.switcher-foot .ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
 }
 .kind-body {
   display: flex;
@@ -1623,6 +1764,9 @@ button {
   color: #8a6410;
 }
 .restock-cta {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   font-weight: 700;
   font-size: 0.9rem;
   color: #8a6410;

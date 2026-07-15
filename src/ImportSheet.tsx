@@ -1,11 +1,57 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Recipe } from './db'
-import { KINDS } from './kinds'
+import { KINDS, listIcon } from './kinds'
 import { addItem } from './list'
 import { createList } from './lists'
-import { sharedToItem, type SharePayload } from './share'
+import { decodeShare, sharedToItem, type SharePayload } from './share'
+import { Icon } from './Icon'
 import { Sheet } from './Sheet'
+
+/** Manually paste a shared link (for when tapping the link didn't route in). */
+export function ImportLinkSheet({
+  onClose,
+  onDecoded,
+}: {
+  onClose: () => void
+  onDecoded: (payload: SharePayload) => void
+}) {
+  const [text, setText] = useState('')
+  const [err, setErr] = useState('')
+
+  const go = async () => {
+    const raw = text.trim()
+    const at = raw.indexOf('#i=')
+    const hash = at >= 0 ? raw.slice(at) : `#i=${raw.replace(/^#?i?=?/, '')}`
+    const payload = await decodeShare(hash)
+    if (payload) onDecoded(payload)
+    else setErr("That doesn't look like a Mise share link.")
+  }
+
+  return (
+    <Sheet className="import" onClose={onClose}>
+      <h3 className="sheet-title">Paste a shared link</h3>
+      <p className="review-hint">
+        Paste a Mise list or recipe link someone sent you — you’ll get to review it before anything’s
+        added.
+      </p>
+      <textarea
+        className="field textarea"
+        placeholder="https://devontroedel.com/mise/#i=…"
+        value={text}
+        autoFocus
+        onChange={(e) => {
+          setText(e.target.value)
+          setErr('')
+        }}
+      />
+      {err && <p className="err-text">{err}</p>}
+      <button className="primary" onClick={go} disabled={!text.trim()}>
+        Open
+      </button>
+    </Sheet>
+  )
+}
 
 /**
  * What you see when you open a link someone shared with you. Nothing is written
@@ -122,7 +168,7 @@ export function ImportSheet({
   return (
     <Sheet className="import" onClose={onClose}>
       <div className="import-badge">
-        {meta.icon} Shared {meta.label.toLowerCase()} list
+        <Icon name={meta.icon} size={15} /> Shared {meta.label.toLowerCase()} list
       </div>
       <h3 className="sheet-title">{payload.name}</h3>
       <p className="review-hint">{payload.items.length} items</p>
@@ -153,7 +199,9 @@ export function ImportSheet({
                 disabled={busy}
                 onClick={() => mergeIntoExisting(l.id!, l.name)}
               >
-                <span className="list-icon">{KINDS[l.kind].icon}</span>
+                <span className="list-icon">
+                  <Icon name={listIcon(l)} size={22} />
+                </span>
                 <span className="list-body">
                   <span className="list-name">{l.name}</span>
                   <span className="list-sub">duplicates will merge</span>

@@ -21,6 +21,8 @@ export interface List {
   id?: number
   name: string
   kind: ListKind
+  /** Icon key (see Icon.tsx LIST_ICON_KEYS). Falls back to the kind's default. */
+  icon?: string
   createdAt: number
 }
 
