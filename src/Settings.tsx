@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, canonicalize } from './db'
 import { PARSE_URL } from './parse'
-import { estimateStorePrices } from './catalog'
+import { estimateStorePrices, priceableKeys } from './catalog'
 import { AI_ENABLED } from './edition'
 
 export function SettingsView() {
@@ -11,7 +11,10 @@ export function SettingsView() {
       const all = await db.staples.toArray()
       return all.sort((a, b) => a.displayName.localeCompare(b.displayName))
     }, []) ?? []
-  const catalogCount = useLiveQuery(() => db.catalog.count(), []) ?? 0
+  // What a re-price would actually send: distinct items on your grocery lists,
+  // not the whole history. Live so the count is honest before you tap.
+  const priceCount =
+    useLiveQuery(async () => (await priceableKeys()).size, []) ?? 0
   const [name, setName] = useState('')
   const [store, setStore] = useState(() => localStorage.getItem('mise.store') ?? '')
   const [busy, setBusy] = useState(false)
@@ -52,8 +55,9 @@ export function SettingsView() {
         <section className="settings-group">
           <h3 className="group-title">Store prices</h3>
           <p className="group-hint">
-            Set your store, then let Claude estimate prices for the {catalogCount} item
-            {catalogCount === 1 ? '' : 's'} you've bought. Prices you edit by hand always win.
+            Set your store, then let Claude price the {priceCount} item
+            {priceCount === 1 ? '' : 's'} on your grocery lists — only those, nothing you've removed.
+            Prices you edit by hand always win.
           </p>
           <input
             className="field"
@@ -62,11 +66,11 @@ export function SettingsView() {
             onChange={(e) => setStore(e.target.value)}
           />
           <div className="two-btn">
-            <button className="ghost" onClick={() => estimate('missing')} disabled={busy}>
-              Estimate missing
+            <button className="ghost" onClick={() => estimate('missing')} disabled={busy || !priceCount}>
+              Price missing
             </button>
-            <button className="ghost" onClick={() => estimate('all')} disabled={busy}>
-              Re-price all
+            <button className="ghost" onClick={() => estimate('all')} disabled={busy || !priceCount}>
+              Re-price {priceCount || 'all'}
             </button>
           </div>
           {priceMsg && (

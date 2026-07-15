@@ -469,8 +469,8 @@ export default function App() {
                                   ${(p * buyMultiplier(item)).toFixed(2)}
                                 </span>
                               )}
-                              {kind.quantities && formatQty(item) && (
-                                <span className="qty">{formatQty(item)}</span>
+                              {kind.quantities && (formatQty(item) || item.unit) && (
+                                <span className="qty">{formatQty(item) || item.unit}</span>
                               )}
                             </span>
                           </button>
@@ -822,6 +822,10 @@ function ItemSheet({
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && save()}
       />
+
+      {editing && initial?.detail && (
+        <p className="detail-note">🏷️ {initial.detail}</p>
+      )}
 
       {kind.quantities && (
         <div className="qty-row">

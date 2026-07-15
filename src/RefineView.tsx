@@ -46,7 +46,10 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
   }, [store, listId])
 
   const apply = async (item: Item, opt: RefineOption) => {
-    await db.items.update(item.id!, { displayName: opt.label, unit: opt.unit })
+    // Keep the row's basic name; stash the specific product as `detail` (shown
+    // on tap) and show its size via unit. Clear the recipe quantity — you buy
+    // one package of this size, whatever the recipe called for.
+    await db.items.update(item.id!, { detail: opt.label, unit: opt.unit, quantity: undefined })
     await applyRefinement(item.canonicalKey, opt.label, opt.unit, item.section, opt.price)
     setApplied((a) => ({ ...a, [item.canonicalKey]: opt.label }))
   }

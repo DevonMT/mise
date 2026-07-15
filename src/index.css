@@ -621,6 +621,15 @@ button {
 .name-field {
   font-weight: 600;
 }
+.detail-note {
+  margin: 8px 2px 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
 .qty-row {
   display: flex;
   gap: 10px;

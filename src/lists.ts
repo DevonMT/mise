@@ -9,9 +9,13 @@ const ACTIVE_KEY = 'mise.activeList'
  * install lands on v3 with an empty `lists` table — this covers both.
  */
 export async function ensureSeed(): Promise<number> {
-  const existing = await db.lists.orderBy('id').first()
-  if (existing?.id != null) return existing.id
-  return db.lists.add({ name: 'Groceries', kind: 'grocery', createdAt: Date.now() })
+  // One atomic transaction so concurrent callers (React StrictMode double-mount,
+  // or two effects) can't each create a duplicate "Groceries" list.
+  return db.transaction('rw', db.lists, async () => {
+    const existing = await db.lists.orderBy('id').first()
+    if (existing?.id != null) return existing.id
+    return db.lists.add({ name: 'Groceries', kind: 'grocery', createdAt: Date.now() })
+  })
 }
 
 export function readActiveId(): number | null {

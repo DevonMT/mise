@@ -28,24 +28,14 @@ export default defineConfig({
         start_url: base,
         scope: base,
         id: base,
+        // Absolute paths + PNG only. Relative paths and an SVG in the icon list
+        // have both been implicated in Android minting a generic launcher icon;
+        // this is the stable config, so the WebAPK stops getting re-generated.
         icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          // Both maskable sizes — some Android launchers look for a 192 maskable
-          // specifically, and fall back to a generic icon if only 512 exists.
-          {
-            src: 'icon-maskable-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-          {
-            src: 'icon-maskable-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: `${base}icon-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: `${base}icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: `${base}icon-maskable-192.png`, sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: `${base}icon-maskable-512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       devOptions: {

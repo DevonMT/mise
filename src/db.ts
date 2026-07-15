@@ -47,6 +47,9 @@ export interface Item {
   dueAt?: number
   /** Tasks only: free-text detail. */
   notes?: string
+  /** The specific product picked via Refine (brand/size), e.g. "Store brand
+   *  salsa, 16 oz jar". The row keeps the basic displayName; this shows on tap. */
+  detail?: string
 }
 
 /** One line of a recipe. `optional` ingredients are never added to the list
@@ -90,6 +93,8 @@ export interface CatalogEntry {
   lastAdded: number
   /** Remembered unit price for the cost estimate. */
   price?: number
+  /** Remembered specific product from Refine (brand/size), shown on tap. */
+  detail?: string
 }
 
 export class MiseDB extends Dexie {

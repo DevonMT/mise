@@ -76,26 +76,28 @@ export async function removeFromCatalog(entry: CatalogEntry): Promise<void> {
   if (entry.id != null) await db.catalog.delete(entry.id)
 }
 
-/** Sync a catalog entry to a refined choice: specific name, unit, and price. */
+/** Sync a catalog entry to a refined choice: keep the basic displayName, but
+ *  remember the specific product as `detail`, plus its size (unit) and price. */
 export async function applyRefinement(
   canonicalKey: string,
-  displayName: string,
+  detail: string,
   unit: string | undefined,
   section: Section,
   price: number,
 ): Promise<void> {
   const existing = await db.catalog.where('canonicalKey').equals(canonicalKey).first()
   if (existing?.id != null) {
-    await db.catalog.update(existing.id, { displayName, unit, price })
+    await db.catalog.update(existing.id, { detail, unit, price })
   } else {
     await db.catalog.add({
       canonicalKey,
-      displayName,
+      displayName: canonicalKey,
       unit,
       section,
       count: 0,
       favorite: false,
       lastAdded: Date.now(),
+      detail,
       price,
     })
   }
@@ -124,19 +126,35 @@ export async function setPrice(
   }
 }
 
+/** Distinct canonical keys of items on a grocery list right now (active, not
+ *  backlog). This — NOT the whole historical catalog — is what pricing targets,
+ *  so we never pay to price things you've since removed. */
+export async function priceableKeys(): Promise<Set<string>> {
+  const lists = await db.lists.toArray()
+  const groceryIds = new Set(lists.filter((l) => l.kind === 'grocery').map((l) => l.id))
+  const items = await db.items.toArray()
+  return new Set(
+    items.filter((i) => groceryIds.has(i.listId) && !i.backlog).map((i) => i.canonicalKey),
+  )
+}
+
 /**
- * Ask Claude to price catalog items for a store and save the results.
- * mode 'missing' only fills items with no price; 'all' re-prices everything.
+ * Ask Claude to price the items ON YOUR GROCERY LISTS for a store, and save the
+ * results. mode 'missing' only fills ones with no price yet; 'all' re-prices
+ * them. Never touches catalog entries that aren't currently on a list.
  * Returns how many prices were written.
  */
 export async function estimateStorePrices(
   store: string,
   mode: 'missing' | 'all',
 ): Promise<number> {
-  // Make sure everything currently on the list can be priced, even if it
-  // predates the catalog — add any missing list items as catalog entries.
-  const listItems = await db.items.toArray()
-  for (const it of listItems) {
+  const keys = await priceableKeys()
+  if (keys.size === 0) return 0
+
+  // Make sure each on-list item has a catalog entry to hold its price.
+  const items = await db.items.toArray()
+  for (const it of items) {
+    if (!keys.has(it.canonicalKey)) continue
     const existing = await db.catalog.where('canonicalKey').equals(it.canonicalKey).first()
     if (!existing) {
       await db.catalog.add({
@@ -151,8 +169,9 @@ export async function estimateStorePrices(
     }
   }
 
-  const all = await db.catalog.toArray()
-  const targets = mode === 'all' ? all : all.filter((c) => c.price == null)
+  const catalog = await db.catalog.toArray()
+  const onList = catalog.filter((c) => keys.has(c.canonicalKey))
+  const targets = mode === 'all' ? onList : onList.filter((c) => c.price == null)
   if (targets.length === 0) return 0
 
   const estimates = await estimatePrices(
