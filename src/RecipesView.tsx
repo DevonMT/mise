@@ -64,6 +64,7 @@ export function RecipesView({
                 {r.servings ? `serves ${r.servings} · ` : ''}
                 {r.ingredients.length} ingredients
                 {r.instructions ? ' · has steps' : ''}
+                {r.tips && r.tips.length > 0 ? ' · 💡 tips' : ''}
               </span>
             </button>
           ))}
@@ -91,6 +92,20 @@ function RecipeDetail({
   const factor = base ? n / base : n
   const step = base ? 1 : 0.5
   const min = base ? 1 : 0.5
+  // Which optional ingredients (by index into recipe.ingredients) to include.
+  const [optSel, setOptSel] = useState<Set<number>>(new Set())
+
+  const indexed = recipe.ingredients.map((ing, i) => ({ ing, i }))
+  const required = indexed.filter((x) => !x.ing.optional)
+  const optional = indexed.filter((x) => x.ing.optional)
+  const tips = recipe.tips ?? []
+
+  const toggleOpt = (i: number) =>
+    setOptSel((s) => {
+      const next = new Set(s)
+      next.has(i) ? next.delete(i) : next.add(i)
+      return next
+    })
 
   // Ingredients only ever land on a grocery list — a pantry is what you *have*
   // and a task list has no use for flour, so neither can receive a recipe.
@@ -101,7 +116,7 @@ function RecipeDetail({
       onToast('No grocery list to add to — make one first.')
       return
     }
-    await addRecipeToList(recipe, factor, target)
+    await addRecipeToList(recipe, factor, target, optSel)
     onDone(target)
   }
 
@@ -118,6 +133,12 @@ function RecipeDetail({
       onBack()
     }
   }
+
+  const qtyOf = (ing: Recipe['ingredients'][number]) =>
+    formatQty({
+      quantity: ing.quantity != null ? Math.round(ing.quantity * factor * 100) / 100 : undefined,
+      unit: ing.unit,
+    })
 
   return (
     <>
@@ -142,21 +163,35 @@ function RecipeDetail({
       </div>
 
       <div className="ing-list">
-        {recipe.ingredients.map((ing, i) => (
+        {required.map(({ ing, i }) => (
           <div key={i} className="ing-row">
             <span className="ing-name">{ing.displayName}</span>
-            <span className="ing-qty">
-              {formatQty({
-                quantity:
-                  ing.quantity != null
-                    ? Math.round(ing.quantity * factor * 100) / 100
-                    : undefined,
-                unit: ing.unit,
-              })}
-            </span>
+            <span className="ing-qty">{qtyOf(ing)}</span>
           </div>
         ))}
       </div>
+
+      {optional.length > 0 && (
+        <div className="opt-block">
+          <h4 className="steps-head">Optional — tap to include</h4>
+          <div className="ing-list">
+            {optional.map(({ ing, i }) => {
+              const on = optSel.has(i)
+              return (
+                <button
+                  key={i}
+                  className={on ? 'opt-row on' : 'opt-row'}
+                  onClick={() => toggleOpt(i)}
+                >
+                  <span className="opt-check">{on ? '✓' : ''}</span>
+                  <span className="ing-name">{ing.displayName}</span>
+                  <span className="ing-qty">{qtyOf(ing)}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {recipe.instructions && (
         <div className="steps">
@@ -165,8 +200,19 @@ function RecipeDetail({
         </div>
       )}
 
+      {tips.length > 0 && (
+        <div className="tips">
+          <h4 className="steps-head">💡 Tips &amp; ideas</h4>
+          <ul className="tips-list">
+            {tips.map((t, i) => (
+              <li key={i}>{t}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <button className="primary" onClick={add}>
-        Add to list
+        Add to list{optSel.size > 0 ? ` · +${optSel.size} optional` : ''}
       </button>
       <button className="ghost danger" onClick={remove} style={{ marginTop: 10 }}>
         Delete recipe

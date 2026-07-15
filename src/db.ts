@@ -49,14 +49,23 @@ export interface Item {
   notes?: string
 }
 
+/** One line of a recipe. `optional` ingredients are never added to the list
+ *  by default — you opt into them. */
+export type RecipeIngredient = Pick<
+  Item,
+  'displayName' | 'canonicalKey' | 'quantity' | 'unit' | 'section'
+> & { optional?: boolean }
+
 /** A saved recipe. */
 export interface Recipe {
   id?: number
   title: string
   servings: number
-  ingredients: Array<Pick<Item, 'displayName' | 'canonicalKey' | 'quantity' | 'unit' | 'section'>>
+  ingredients: RecipeIngredient[]
   /** Free-text cooking steps, if captured. */
   instructions?: string
+  /** Serving suggestions / variations the recipe offers (not shopping items). */
+  tips?: string[]
   source?: string
   createdAt: number
 }

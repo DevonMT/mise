@@ -11,6 +11,8 @@ export interface ParsedItem {
   quantity: number | null
   unit: string | null
   section: Section
+  /** The recipe marks this ingredient as optional — not added by default. */
+  optional?: boolean
 }
 
 export interface ParseResult {
@@ -19,6 +21,8 @@ export interface ParseResult {
   servings: number | null
   instructions: string | null
   items: ParsedItem[]
+  /** Serving ideas / variations the recipe offers. Never become list items. */
+  tips?: string[]
 }
 
 /** Read a picked/captured file into a data URL for the parse endpoint. */

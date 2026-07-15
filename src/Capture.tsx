@@ -25,6 +25,7 @@ interface Row {
   section: Section
   include: boolean
   isStaple: boolean
+  optional: boolean
 }
 
 export function CaptureSheet({
@@ -63,14 +64,17 @@ export function CaptureSheet({
       ])
       const built: Row[] = result.items.map((it: ParsedItem) => {
         const isStaple = staples.has(it.canonicalKey)
+        const optional = Boolean(it.optional)
         return {
           displayName: it.displayName,
           canonicalKey: it.canonicalKey,
           quantityStr: it.quantity != null ? String(it.quantity) : '',
           unit: it.unit,
           section: it.section,
-          include: !isStaple,
+          // Staples and recipe-optional items are pre-skipped but toggleable.
+          include: !isStaple && !optional,
           isStaple,
+          optional,
         }
       })
       setParsed(result)
@@ -186,8 +190,12 @@ export function CaptureSheet({
               {isRecipe && parsed?.recipeTitle ? `“${parsed.recipeTitle}”` : 'Review items'}
             </h3>
             <p className="review-hint">
-              {includedCount} of {rows.length} will be added. Tap to toggle; staples are pre-skipped.
+              {includedCount} of {rows.length} will be added. Tap to toggle; staples and optional
+              extras are pre-skipped.
               {isRecipe && ' · 📖 saved to your recipes'}
+              {isRecipe && parsed?.tips && parsed.tips.length > 0 && (
+                <> · 💡 {parsed.tips.length} tip{parsed.tips.length === 1 ? '' : 's'} saved</>
+              )}
             </p>
             <div className="review-list">
               {rows.map((r, i) => (
@@ -203,6 +211,7 @@ export function CaptureSheet({
                     <div className="rev-top">
                       <span className="rev-name">{r.displayName}</span>
                       {r.isStaple && <span className="rev-tag">staple</span>}
+                      {r.optional && <span className="rev-tag optional">optional</span>}
                     </div>
                     <div className="rev-meta">
                       <input

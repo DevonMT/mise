@@ -37,8 +37,10 @@ export function ImportSheet({
           quantity: i.q,
           unit: i.u,
           section: i.s,
+          optional: i.x || undefined,
         })),
         instructions: payload.instructions,
+        tips: payload.tips,
         createdAt: Date.now(),
       }
       const existing = await db.recipes.where('title').equals(recipe.title).first()

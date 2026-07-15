@@ -17,7 +17,7 @@ export const SECTIONS = [
 export const PARSE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['sourceType', 'recipeTitle', 'servings', 'instructions', 'items'],
+  required: ['sourceType', 'recipeTitle', 'servings', 'instructions', 'items', 'tips'],
   properties: {
     sourceType: { type: 'string', enum: ['recipe', 'list'] },
     recipeTitle: { type: ['string', 'null'] },
@@ -28,16 +28,20 @@ export const PARSE_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['displayName', 'canonicalKey', 'quantity', 'unit', 'section'],
+        required: ['displayName', 'canonicalKey', 'quantity', 'unit', 'section', 'optional'],
         properties: {
           displayName: { type: 'string' },
           canonicalKey: { type: 'string' },
           quantity: { type: ['number', 'null'] },
           unit: { type: ['string', 'null'] },
           section: { type: 'string', enum: SECTIONS },
+          optional: { type: 'boolean' },
         },
       },
     },
+    // Serving suggestions / variations / ideas the recipe offers, beyond the
+    // core method. Never turned into shopping items. Empty when the input has none.
+    tips: { type: 'array', items: { type: 'string' } },
   },
 } as const
 
@@ -55,6 +59,8 @@ Return ONLY structured data matching the schema. Rules:
 - recipeTitle: the recipe's name when sourceType is "recipe", else null.
 - servings: the number of servings/yield when clearly stated for a recipe, else null.
 - instructions: when sourceType is "recipe" and cooking steps are present, capture the COMPLETE steps as readable numbered text ("1. ...\n2. ..."). Preserve every concrete detail exactly: temperatures (e.g. 375°F), times/durations (e.g. 25 minutes), pan/dish sizes, and the amounts used in each step (e.g. "add 2 tbsp of the butter"). Do not summarize, shorten, or omit steps — reproduce the method in full so it can be cooked from memory. Null only for a plain list, or a recipe that genuinely has no method given.
+- optional: true ONLY for an ingredient the recipe itself presents as not required — labeled "optional", "to taste", "for garnish", "for serving", "if desired", or offered as an add-on/topping/variation. Everything the core recipe actually requires is optional:false. Do not guess; only mark what the recipe explicitly treats as optional.
+- tips: an array of short, standalone ideas the recipe offers BEYOND the core method — serving suggestions, variations, substitutions, make-ahead/storage notes, or "you can also…" ideas (e.g. "Bake the tortillas draped over an upturned muffin tin to make crispy taco bowls"). One idea per string, concise, in the recipe's own spirit. Empty array [] when the input offers none. Never invent tips, and never put a required cooking step here — steps go in instructions.
 
 Be thorough but do not duplicate the same canonicalKey+unit within your output — merge those yourself and sum quantities.`
 

@@ -1022,6 +1022,64 @@ button {
   color: var(--accent);
 }
 
+/* ---- Optional ingredients (recipe detail) ---- */
+.rev-tag.optional {
+  color: #8a6410;
+  background: var(--fav-soft);
+}
+.opt-block {
+  margin-top: 4px;
+}
+.opt-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  text-align: left;
+}
+.opt-row:last-child {
+  border-bottom: none;
+}
+.opt-row.on {
+  background: var(--accent-soft);
+}
+.opt-check {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 2px solid #cfc6b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 0.85rem;
+  color: var(--accent-ink);
+}
+.opt-row.on .opt-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.opt-row .ing-name {
+  flex: 1;
+}
+
+/* ---- Tips & ideas (recipe detail) ---- */
+.tips {
+  margin: 4px 0 16px;
+}
+.tips-list {
+  margin: 0;
+  padding-left: 22px;
+}
+.tips-list li {
+  line-height: 1.5;
+  margin: 5px 0;
+}
+
 /* ---- Select & remove mode ---- */
 .row.selected {
   background: var(--accent-soft);

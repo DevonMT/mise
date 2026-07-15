@@ -48,6 +48,7 @@ export function parseManualIngredients(text: string): Recipe['ingredients'] {
 export async function saveRecipeFromParse(result: ParseResult): Promise<number | null> {
   if (result.sourceType !== 'recipe' || !result.recipeTitle) return null
 
+  const tips = (result.tips ?? []).map((t) => t.trim()).filter(Boolean)
   const recipe: Omit<Recipe, 'id'> = {
     title: result.recipeTitle.trim(),
     servings: result.servings ?? 0,
@@ -57,8 +58,10 @@ export async function saveRecipeFromParse(result: ParseResult): Promise<number |
       quantity: i.quantity ?? undefined,
       unit: i.unit ?? undefined,
       section: i.section,
+      optional: i.optional || undefined,
     })),
     instructions: result.instructions ?? undefined,
+    tips: tips.length ? tips : undefined,
     source: undefined,
     createdAt: Date.now(),
   }
@@ -72,25 +75,32 @@ export async function saveRecipeFromParse(result: ParseResult): Promise<number |
 }
 
 /** Add a recipe's ingredients to a grocery list, scaled by `factor` (default 1).
- *  Staples are skipped, same as the capture review. */
+ *  Staples are skipped. Optional ingredients are skipped too, unless their index
+ *  is in `includeOptional` — that's how the detail view opts specific ones in.
+ *  Returns how many items were added. */
 export async function addRecipeToList(
   recipe: Recipe,
   factor = 1,
   listId: number,
-): Promise<void> {
+  includeOptional?: Set<number>,
+): Promise<number> {
   const staples = await getStapleKeys()
-  for (const ing of recipe.ingredients) {
+  let added = 0
+  for (let i = 0; i < recipe.ingredients.length; i++) {
+    const ing = recipe.ingredients[i]
     if (staples.has(ing.canonicalKey)) continue
+    if (ing.optional && !includeOptional?.has(i)) continue
     await addItem({
       listId,
       displayName: ing.displayName,
       canonicalKey: ing.canonicalKey,
-      quantity:
-        ing.quantity != null ? round2(ing.quantity * factor) : undefined,
+      quantity: ing.quantity != null ? round2(ing.quantity * factor) : undefined,
       unit: ing.unit,
       section: ing.section,
     })
+    added++
   }
+  return added
 }
 
 function round2(n: number): number {

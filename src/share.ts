@@ -19,6 +19,7 @@ export interface SharedItem {
   s: Section
   d?: number // dueAt
   o?: string // notes
+  x?: boolean // optional (recipe ingredient)
 }
 
 export type SharePayload =
@@ -30,6 +31,7 @@ export type SharePayload =
       servings: number
       ingredients: SharedItem[]
       instructions?: string
+      tips?: string[]
     }
 
 /* ---- base64url (no padding, URL-safe) ---- */
@@ -112,6 +114,7 @@ const toShared = (i: {
   section: Section
   dueAt?: number
   notes?: string
+  optional?: boolean
 }): SharedItem => ({
   n: i.displayName,
   k: i.canonicalKey,
@@ -120,6 +123,7 @@ const toShared = (i: {
   s: i.section,
   ...(i.dueAt != null ? { d: i.dueAt } : {}),
   ...(i.notes ? { o: i.notes } : {}),
+  ...(i.optional ? { x: true } : {}),
 })
 
 export async function shareListPayload(
@@ -140,6 +144,7 @@ export function shareRecipePayload(recipe: Recipe): SharePayload {
     servings: recipe.servings,
     ingredients: recipe.ingredients.map(toShared),
     ...(recipe.instructions ? { instructions: recipe.instructions } : {}),
+    ...(recipe.tips && recipe.tips.length ? { tips: recipe.tips } : {}),
   }
 }
 
