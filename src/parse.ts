@@ -31,20 +31,42 @@ export function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
+/**
+ * POST JSON to the parse server with a timeout and human error messages.
+ * The endpoint lives on the mini over Tailscale, so the usual failure is
+ * "phone isn't on the tailnet" — say that, don't surface a raw "NetworkError".
+ */
+async function postJson<T>(path: string, body: unknown, label: string): Promise<T> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 45_000)
+  let res: Response
+  try {
+    res = await fetch(`${PARSE_URL}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error(`${label} timed out. Check your connection and try again.`)
+    }
+    // fetch rejects (TypeError "Failed to fetch") when the server is
+    // unreachable — on this app that's almost always Tailscale being off.
+    throw new Error("Can't reach the parser. Make sure Tailscale is on, then try again.")
+  } finally {
+    clearTimeout(timer)
+  }
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string })?.error ?? `${label} failed (${res.status})`)
+  return data as T
+}
+
 export async function parseCapture(input: {
   type: 'text' | 'url' | 'image'
   content: string
 }): Promise<ParseResult> {
-  const res = await fetch(`${PARSE_URL}/api/parse`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    throw new Error(data?.error ?? `Parse failed (${res.status})`)
-  }
-  return data as ParseResult
+  return postJson<ParseResult>('/api/parse', input, 'Parse')
 }
 
 /** Current staples ignore-list as a set of canonical keys. */
@@ -62,14 +84,8 @@ export async function estimatePrices(
   store: string,
   items: Array<{ canonicalKey: string; displayName: string; unit?: string }>,
 ): Promise<PriceEstimate[]> {
-  const res = await fetch(`${PARSE_URL}/api/prices`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ store, items }),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data?.error ?? `Pricing failed (${res.status})`)
-  return (data.prices ?? []) as PriceEstimate[]
+  const data = await postJson<{ prices?: PriceEstimate[] }>('/api/prices', { store, items }, 'Pricing')
+  return data.prices ?? []
 }
 
 export interface RefineOption {
@@ -86,12 +102,6 @@ export async function refineItems(
   store: string,
   items: Array<{ canonicalKey: string; displayName: string; unit?: string }>,
 ): Promise<RefineItem[]> {
-  const res = await fetch(`${PARSE_URL}/api/refine`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ store, items }),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data?.error ?? `Refine failed (${res.status})`)
-  return (data.items ?? []) as RefineItem[]
+  const data = await postJson<{ items?: RefineItem[] }>('/api/refine', { store, items }, 'Refine')
+  return data.items ?? []
 }
