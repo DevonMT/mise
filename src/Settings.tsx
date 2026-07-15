@@ -117,7 +117,15 @@ export function SettingsView() {
         )}
       </section>
 
-      {AI_ENABLED && <p className="endpoint-note">Parse endpoint: {PARSE_URL}</p>}
+      <p className="endpoint-note">
+        Build {__BUILD__}
+        {AI_ENABLED && (
+          <>
+            <br />
+            Parse endpoint: {PARSE_URL}
+          </>
+        )}
+      </p>
     </div>
   )
 }

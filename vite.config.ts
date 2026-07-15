@@ -7,9 +7,15 @@ import { VitePWA } from 'vite-plugin-pwa'
 const base = process.env.BASE_PATH ?? '/'
 const lite = process.env.VITE_MISE_EDITION === 'lite'
 const appName = lite ? 'Mise Lite' : 'Mise'
+// A human build stamp so Settings can show which version is actually running —
+// the fastest way to tell a stale install from a current one.
+const buildStamp = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC'
 
 export default defineConfig({
   base,
+  define: {
+    __BUILD__: JSON.stringify(buildStamp),
+  },
   plugins: [
     react(),
     VitePWA({
