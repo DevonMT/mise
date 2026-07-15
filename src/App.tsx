@@ -4,6 +4,7 @@ import { db, type Item, type List, type Section } from './db'
 import { SECTIONS, SECTION_META } from './sections'
 import {
   addItem,
+  buyMultiplier,
   formatDue,
   formatQty,
   fromDateInput,
@@ -145,7 +146,7 @@ export default function App() {
     () =>
       active.reduce((sum, i) => {
         const p = priceMap.get(i.canonicalKey)
-        return p != null ? sum + p * (i.quantity ?? 1) : sum
+        return p != null ? sum + p * buyMultiplier(i) : sum
       }, 0),
     [active, priceMap],
   )
@@ -465,7 +466,7 @@ export default function App() {
                               {due && <span className={`due due-${due.tone}`}>{due.text}</span>}
                               {p != null && (
                                 <span className="price">
-                                  ${(p * (item.quantity ?? 1)).toFixed(2)}
+                                  ${(p * buyMultiplier(item)).toFixed(2)}
                                 </span>
                               )}
                               {kind.quantities && formatQty(item) && (

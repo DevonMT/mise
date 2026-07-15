@@ -132,12 +132,12 @@ Return exactly one entry per canonicalKey you were given, with its options order
 }
 
 export function pricesSystem(store: string): string {
-  return `You estimate typical current retail grocery prices in US dollars at ${store}.
+  return `You estimate what a shopper actually PAYS at ${store} to buy each grocery item — the price of the package or unit they put in the cart, in US dollars (e.g. 3.49).
 
-For each item you are given (canonicalKey, a display name, and sometimes a unit), return your best estimate of the price a shopper would pay at ${store}, as a plain number of dollars (e.g. 3.49).
-
-- If a unit is given, price that unit or the smallest sensible package that covers it (e.g. "lb" → price per pound; "can" → one can; "whole" → each, or a typical bunch/bag if sold that way).
-- If no unit is given, price the typical single package a shopper buys.
+For each item (a canonicalKey, a display name, and sometimes a unit):
+- Price WHAT THE SHOPPER BUYS, never a recipe portion. If the unit is a cooking measure — cup, tbsp, tsp, clove, slice, gram, ounce, ml, pinch, stick — the shopper still buys a whole package, so price that typical package, NOT the fractional amount. Examples: salsa with unit "cup" → one jar of salsa (~$3–4); flour "cup" → a bag of flour; parmesan "cup" → a wedge or tub; butter "tbsp" → a package of butter.
+- If the unit is a real purchase unit, price ONE of it: "whole"/"each" → one item (e.g. one onion, one bell pepper); "lb" → one pound; "can"/"jar"/"bottle"/"box"/"bag" → one of them; "dozen" → a dozen; "bunch" → a bunch; "gallon" → a gallon.
+- If no unit is given, price the typical single package or item a shopper buys.
 - Use realistic ${store} pricing — a value-oriented store is cheaper than a premium grocer.
-- Return exactly one entry per canonicalKey you were given. Never return 0 or null; give your best realistic estimate.`
+- Return exactly one entry per canonicalKey. Never return 0 or null, and never less than about $0.30 for a real grocery item — give your best realistic estimate of the real shelf price.`
 }

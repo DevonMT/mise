@@ -12,6 +12,31 @@ export function unitKey(unit?: string | null): string {
   return COUNT_UNITS.has(s) ? '' : s
 }
 
+/** Recipe *measure* units — you don't buy salsa by the cup, you buy a jar. For
+ *  these the remembered price is a whole-package price, and the recipe amount
+ *  must NOT scale the cost (0.5 cup and 2 cups of salsa are both one jar). */
+const MEASURE_UNITS = new Set([
+  'cup', 'cups', 'tbsp', 'tbsps', 'tablespoon', 'tablespoons',
+  'tsp', 'tsps', 'teaspoon', 'teaspoons', 'clove', 'cloves',
+  'pinch', 'pinches', 'dash', 'dashes', 'slice', 'slices', 'stick', 'sticks',
+  'ml', 'l', 'liter', 'liters', 'litre', 'litres', 'quart', 'quarts',
+  'pint', 'pints', 'g', 'gram', 'grams', 'kg', 'kilogram', 'kilograms',
+  'oz', 'ounce', 'ounces', 'fl oz', 'handful', 'handfuls', 'sprig', 'sprigs',
+])
+
+/**
+ * How many purchase-units of an item go into the cost estimate.
+ * Recipe measures (cup, tbsp, g, oz…) → 1: you buy one package regardless of
+ * the amount the recipe calls for. Real purchase units (whole, lb, can, dozen,
+ * bunch, gallon…) → the quantity, so "3 cans" or "2 lb" scale.
+ */
+export function buyMultiplier(item: Pick<Item, 'quantity' | 'unit'>): number {
+  const u = (item.unit ?? '').trim().toLowerCase()
+  if (MEASURE_UNITS.has(u)) return 1
+  const q = item.quantity
+  return q != null && q > 0 ? q : 1
+}
+
 export interface NewItem {
   listId: number
   displayName: string
