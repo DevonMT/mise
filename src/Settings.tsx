@@ -21,24 +21,41 @@ export function SettingsView() {
   const [busy, setBusy] = useState(false)
   const [priceMsg, setPriceMsg] = useState('')
 
-  // Live "what's actually stored" readout — the no-console way to see whether
-  // data is present, and where it lives.
-  const dataCounts = useLiveQuery(async () => {
-    const [items, recipes, lists, catalog] = await Promise.all([
-      db.items.toArray(),
-      db.recipes.count(),
-      db.lists.toArray(),
-      db.catalog.count(),
-    ])
-    return {
-      items: items.length,
-      recipes,
-      catalog,
-      lists: lists.map((l) => ({
-        name: l.name,
-        n: items.filter((i) => i.listId === l.id).length,
-      })),
+  // "What's actually stored" readout — the no-console way to see whether data
+  // is present. Loaded explicitly (not useLiveQuery) so a read error is shown
+  // instead of a silent blank.
+  type Counts = {
+    items: number
+    recipes: number
+    catalog: number
+    lists: { name: string; n: number }[]
+  }
+  const [dataCounts, setDataCounts] = useState<Counts | null>(null)
+  const [dataErr, setDataErr] = useState('')
+  const loadCounts = async () => {
+    try {
+      const [items, recipes, lists, catalog] = await Promise.all([
+        db.items.toArray(),
+        db.recipes.count(),
+        db.lists.toArray(),
+        db.catalog.count(),
+      ])
+      setDataCounts({
+        items: items.length,
+        recipes,
+        catalog,
+        lists: lists.map((l) => ({
+          name: l.name,
+          n: items.filter((i) => i.listId === l.id).length,
+        })),
+      })
+      setDataErr('')
+    } catch (e) {
+      setDataErr(e instanceof Error ? e.message : String(e))
     }
+  }
+  useEffect(() => {
+    loadCounts()
   }, [])
   const [persisted, setPersisted] = useState<boolean | null>(null)
   useEffect(() => {
@@ -61,6 +78,7 @@ export function SettingsView() {
     try {
       const n = await importAll(await file.text())
       setDataMsg(`Restored ${n.items} items, ${n.recipes} recipes, ${n.lists} lists.`)
+      await loadCounts()
     } catch (err) {
       setDataMsg(err instanceof Error ? err.message : String(err))
     } finally {
@@ -101,26 +119,32 @@ export function SettingsView() {
 
       <section className="settings-group">
         <h3 className="group-title">Your data &amp; backup</h3>
-        {dataCounts && (
-          <div className="data-readout">
-            <span className="data-stat">
-              <b>{dataCounts.items}</b> items
-            </span>
-            <span className="data-stat">
-              <b>{dataCounts.recipes}</b> recipes
-            </span>
-            <span className="data-stat">
-              <b>{dataCounts.lists.length}</b> lists
-            </span>
-            <span className="data-stat">
-              <b>{dataCounts.catalog}</b> saved
-            </span>
-          </div>
-        )}
-        {dataCounts && dataCounts.lists.length > 0 && (
-          <p className="group-hint" style={{ marginTop: 8 }}>
-            {dataCounts.lists.map((l) => `${l.name} (${l.n})`).join(' · ')}
-          </p>
+        {dataErr ? (
+          <p className="err-text">Couldn’t read storage: {dataErr}</p>
+        ) : dataCounts ? (
+          <>
+            <div className="data-readout">
+              <span className="data-stat">
+                <b>{dataCounts.items}</b> items
+              </span>
+              <span className="data-stat">
+                <b>{dataCounts.recipes}</b> recipes
+              </span>
+              <span className="data-stat">
+                <b>{dataCounts.lists.length}</b> lists
+              </span>
+              <span className="data-stat">
+                <b>{dataCounts.catalog}</b> saved
+              </span>
+            </div>
+            {dataCounts.lists.length > 0 && (
+              <p className="group-hint" style={{ marginTop: 8 }}>
+                {dataCounts.lists.map((l) => `${l.name} (${l.n})`).join(' · ')}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="group-hint">Reading storage…</p>
         )}
         <p className="group-hint">
           Everything lives on this device only. Keep a backup so a browser reset can never lose it.
@@ -129,10 +153,10 @@ export function SettingsView() {
         </p>
         <div className="two-btn">
           <button className="ghost" onClick={onExport}>
-            ⭳ Back up to a file
+            💾 Back up to a file
           </button>
           <button className="ghost" onClick={() => fileRef.current?.click()}>
-            ⭱ Restore
+            📂 Restore from a file
           </button>
         </div>
         <input
