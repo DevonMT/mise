@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react'
+import { Icon } from './Icon'
 
 /**
  * A list row you can swipe: right to check off, left to delete.
@@ -60,8 +61,12 @@ export function SwipeRow({
   return (
     <li className="swipe-row">
       <div className={`swipe-bg ${side} ${committed}`}>
-        <span className="swipe-act check">✓</span>
-        <span className="swipe-act del">🗑</span>
+        <span className="swipe-act check">
+          <Icon name="check" size={22} strokeWidth={2.6} />
+        </span>
+        <span className="swipe-act del">
+          <Icon name="trash" size={22} strokeWidth={2.2} />
+        </span>
       </div>
       <div
         className={`${rowClassName} swipe-content`}

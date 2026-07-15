@@ -27,6 +27,13 @@ const PATHS: Record<string, string> = {
   refine: '<path d="M5 7h14M8 12h8M11 17h2"/>',
   select: '<path d="M4 6h10M4 12h7M4 18h10M17 15l2 2 3-4"/>',
   sparkle: '<path d="M12 4l1.6 4.4L18 10l-4.4 1.6L12 16l-1.6-4.4L6 10l4.4-1.6z"/>',
+  camera: '<path d="M4 8h3l1.5-2h7L18 8h2a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13" r="3.2"/>',
+  clipboard: '<path d="M9 4h6v2H9zM7 5H6a1 1 0 00-1 1v13a1 1 0 001 1h12a1 1 0 001-1V6a1 1 0 00-1-1h-1M9 12h6M9 16h4"/>',
+  tag: '<path d="M4 4h7l9 9-7 7-9-9z"/><circle cx="8.5" cy="8.5" r="1.2"/>',
+  bulb: '<path d="M9 18h6M10 21h4M8.5 15a5 5 0 117 0c-.8.7-1 1.3-1 2.2h-5c0-.9-.2-1.5-1-2.2z"/>',
+  save: '<path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/>',
+  folder: '<path d="M4 6h6l2 2h8v11H4z"/>',
+  lock: '<path d="M7 11V8a5 5 0 0110 0v3M5 11h14v9H5z"/>',
   // --- nav ---
   book: '<path d="M5 4h13a1 1 0 011 1v15l-7-3-7 3V5a1 1 0 011-1z"/>',
   settings: '<circle cx="16" cy="8" r="2.3"/><circle cx="7" cy="16" r="2.3"/><path d="M4 8h9M18 8h2M4 16h2M9 16h11"/>',

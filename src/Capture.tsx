@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import type { ListKind, Section } from './db'
 import { KINDS } from './kinds'
-import { SECTIONS, SECTION_META } from './sections'
+import { SECTIONS } from './sections'
 import { addItem } from './list'
 import {
   parseCapture,
@@ -12,6 +12,7 @@ import {
 } from './parse'
 import { saveRecipeFromParse } from './recipes'
 import { defaultGroceryListId } from './lists'
+import { Icon } from './Icon'
 import { Sheet } from './Sheet'
 import { AI_ENABLED } from './edition'
 
@@ -122,22 +123,25 @@ export function CaptureSheet({
   const patch = (i: number, next: Partial<Row>) =>
     setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...next } : r)))
 
+  const headingIcon = mode === 'url' ? 'link' : mode === 'image' ? 'camera' : 'clipboard'
   const heading =
     mode === 'url'
-      ? '🔗 Paste a recipe link'
+      ? 'Paste a recipe link'
       : mode === 'image'
         ? forRecipe
-          ? '📷 Snap a recipe'
-          : '📷 Snap a list or recipe'
+          ? 'Snap a recipe'
+          : 'Snap a list or recipe'
         : forRecipe
-          ? '📋 Paste a recipe'
-          : '📋 Paste or type a list'
+          ? 'Paste a recipe'
+          : 'Paste or type a list'
 
   return (
     <Sheet className="capture" onClose={onClose}>
         {(stage === 'input' || stage === 'error') && (
           <>
-            <h3 className="sheet-title">{heading}</h3>
+            <h3 className="sheet-title">
+              <Icon name={headingIcon} size={20} /> {heading}
+            </h3>
 
             {mode === 'url' && (
               <input
@@ -177,14 +181,15 @@ export function CaptureSheet({
                   <div className="photo-empty">No photo yet</div>
                 )}
                 <button className="ghost" onClick={() => fileRef.current?.click()}>
-                  {preview ? '🔁 Retake / choose another' : '📷 Take or choose a photo'}
+                  <Icon name={preview ? 'refresh' : 'camera'} size={18} />
+                  {preview ? 'Retake / choose another' : 'Take or choose a photo'}
                 </button>
               </div>
             )}
 
             {stage === 'error' && <p className="err-text">{error}</p>}
             <button className="primary" onClick={run} disabled={!content.trim()}>
-              Parse it ✨
+              <Icon name="sparkle" size={18} /> Parse it
             </button>
           </>
         )}
@@ -204,9 +209,12 @@ export function CaptureSheet({
             <p className="review-hint">
               {includedCount} of {rows.length} will be added. Tap to toggle; staples and optional
               extras are pre-skipped.
-              {isRecipe && ' · 📖 saved to your recipes'}
+              {isRecipe && ' · saved to your recipes'}
               {isRecipe && parsed?.tips && parsed.tips.length > 0 && (
-                <> · 💡 {parsed.tips.length} tip{parsed.tips.length === 1 ? '' : 's'} saved</>
+                <>
+                  {' '}
+                  · {parsed.tips.length} tip{parsed.tips.length === 1 ? '' : 's'} saved
+                </>
               )}
             </p>
             <div className="review-list">
@@ -217,7 +225,7 @@ export function CaptureSheet({
                     aria-label="toggle"
                     onClick={() => patch(i, { include: !r.include })}
                   >
-                    {r.include ? '✓' : ''}
+                    {r.include && <Icon name="check" size={15} strokeWidth={3} />}
                   </button>
                   <div className="rev-body">
                     <div className="rev-top">
@@ -246,7 +254,7 @@ export function CaptureSheet({
                       >
                         {SECTIONS.map((s) => (
                           <option key={s.key} value={s.key}>
-                            {SECTION_META[s.key].emoji} {s.label}
+                            {s.label}
                           </option>
                         ))}
                       </select>
@@ -258,7 +266,7 @@ export function CaptureSheet({
             {forRecipe && isRecipe ? (
               <>
                 <button className="primary" onClick={saveRecipeOnly}>
-                  📖 Save recipe
+                  <Icon name="book" size={18} /> Save recipe
                 </button>
                 {includedCount > 0 && (
                   <button className="ghost" onClick={commit} style={{ marginTop: 10 }}>
@@ -273,7 +281,7 @@ export function CaptureSheet({
                 </button>
                 {isRecipe && includedCount > 0 && (
                   <button className="ghost" onClick={saveRecipeOnly} style={{ marginTop: 10 }}>
-                    📖 Save to recipes only (don’t add to list)
+                    <Icon name="book" size={18} /> Save to recipes only
                   </button>
                 )}
               </>
@@ -300,22 +308,22 @@ export function AddMenu({
     <Sheet className="menu" onClose={onClose}>
       {meta.kind !== 'tasks' && (
         <button className="menu-item" onClick={() => onPick('quick')}>
-          ⭐ Quick add (favorites)
+          <Icon name="star" size={20} /> Quick add (favorites)
         </button>
       )}
       <button className="menu-item" onClick={() => onPick('one')}>
-        ✏️ {meta.due ? 'Type a task' : 'Type one item'}
+        <Icon name="edit" size={20} /> {meta.due ? 'Type a task' : 'Type one item'}
       </button>
       {AI_ENABLED && meta.recipes && (
         <>
           <button className="menu-item" onClick={() => onPick('image')}>
-            📷 Snap a photo
+            <Icon name="camera" size={20} /> Snap a photo
           </button>
           <button className="menu-item" onClick={() => onPick('text')}>
-            📋 Paste a list or recipe
+            <Icon name="clipboard" size={20} /> Paste a list or recipe
           </button>
           <button className="menu-item" onClick={() => onPick('url')}>
-            🔗 From a recipe link
+            <Icon name="link" size={20} /> From a recipe link
           </button>
         </>
       )}
@@ -335,16 +343,16 @@ export function AddRecipeMenu({
   return (
     <Sheet className="menu" onClose={onClose}>
       <button className="menu-item" onClick={() => onPick('image')}>
-        📷 Snap a recipe
+        <Icon name="camera" size={20} /> Snap a recipe
       </button>
       <button className="menu-item" onClick={() => onPick('text')}>
-        📋 Paste a recipe
+        <Icon name="clipboard" size={20} /> Paste a recipe
       </button>
       <button className="menu-item" onClick={() => onPick('url')}>
-        🔗 From a recipe link
+        <Icon name="link" size={20} /> From a recipe link
       </button>
       <button className="menu-item" onClick={() => onPick('manual')}>
-        ✏️ Enter it manually
+        <Icon name="edit" size={20} /> Enter it manually
       </button>
     </Sheet>
   )

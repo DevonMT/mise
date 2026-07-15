@@ -1847,3 +1847,35 @@ button {
   font-size: 0.78rem;
   font-weight: 800;
 }
+
+/* ---- Redesign: align icons inside text buttons/labels ---- */
+.primary,
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.sheet-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sheet-title .icon {
+  color: var(--accent);
+}
+.detail-note,
+.steps-head-icon {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.refine-done,
+.qa-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.fav-btn.on .icon {
+  color: var(--fav);
+}

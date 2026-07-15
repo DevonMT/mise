@@ -341,7 +341,9 @@ export default function App() {
     return (
       <div className="app">
         <div className="blocked">
-          <div className="blocked-emoji">🔒</div>
+          <div className="blocked-emoji">
+            <Icon name="lock" size={40} />
+          </div>
           <h2>Storage is locked</h2>
           <p>
             Mise looks like it’s open in more than one place at once, and the copies are blocking
@@ -913,7 +915,9 @@ function ItemSheet({
       />
 
       {editing && initial?.detail && (
-        <p className="detail-note">🏷️ {initial.detail}</p>
+        <p className="detail-note">
+          <Icon name="tag" size={15} /> {initial.detail}
+        </p>
       )}
 
       {kind.quantities && (
@@ -966,7 +970,7 @@ function ItemSheet({
               className={section === s.key ? 'chip on' : 'chip'}
               onClick={() => setSection(s.key)}
             >
-              {s.emoji} {s.label}
+              {s.label}
             </button>
           ))}
         </div>
@@ -997,13 +1001,14 @@ function ItemSheet({
               onClick={toggleFav}
               style={{ marginTop: 10 }}
             >
-              {fav ? '★ Favorited — shows in Quick add' : '☆ Add to favorites'}
+              <Icon name="star" size={17} />
+              {fav ? 'Favorited — shows in Quick add' : 'Add to favorites'}
             </button>
           )}
           <div className="edit-actions">
             {kind.backlog && (
               <button className="ghost" onClick={moveBacklog}>
-                {initial!.backlog ? '↑ Move to list' : `↓ Save for ${kind.backlogLabel.toLowerCase()}`}
+                {initial!.backlog ? 'Move to list' : `Save for ${kind.backlogLabel.toLowerCase()}`}
               </button>
             )}
             <button className="ghost danger" onClick={remove}>

@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type CatalogEntry } from './db'
 import { addItem } from './list'
 import { toggleFavorite } from './catalog'
-import { SECTION_META } from './sections'
+import { Icon } from './Icon'
 import { Sheet } from './Sheet'
 
 export function QuickAddSheet({
@@ -45,32 +45,41 @@ export function QuickAddSheet({
   return (
     <Sheet className="quickadd" onClose={onClose}>
       <div className="qa-header">
-        <h3 className="sheet-title">⭐ Quick add</h3>
+        <h3 className="sheet-title">
+          <Icon name="star" size={20} /> Quick add
+        </h3>
         <button className="add-btn" onClick={onAddNew}>
-          ＋ New
+          <Icon name="plus" size={18} /> New
         </button>
       </div>
 
       {favorites.length === 0 ? (
         <p className="review-hint">
-          No favorites yet. Open any item on your list and tap the ☆ to keep it here for
-          one-tap adding — or use ＋ New to add something.
+          No favorites yet. Open any item on your list and tap the star to keep it here for one-tap
+          adding — or use New to add something.
         </p>
       ) : (
         <div className="qa-grid">
           {favorites.map((c) => (
             <div key={c.id} className={added.has(c.canonicalKey) ? 'qa-chip added' : 'qa-chip'}>
               <button className="qa-add" onClick={() => add(c)}>
-                <span className="qa-emoji">{SECTION_META[c.section].emoji}</span>
                 <span className="qa-name">{c.displayName}</span>
-                <span className="qa-hint">{added.has(c.canonicalKey) ? '✓ added' : '＋'}</span>
+                <span className="qa-hint">
+                  {added.has(c.canonicalKey) ? (
+                    <>
+                      <Icon name="check" size={15} strokeWidth={3} /> added
+                    </>
+                  ) : (
+                    <Icon name="plus" size={18} />
+                  )}
+                </span>
               </button>
               <button
                 className="qa-star on"
                 aria-label="Unfavorite"
                 onClick={() => toggleFavorite(c)}
               >
-                ★
+                <Icon name="star" size={19} />
               </button>
             </div>
           ))}

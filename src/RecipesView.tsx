@@ -5,6 +5,7 @@ import { addRecipeToList } from './recipes'
 import { formatQty } from './list'
 import { defaultGroceryListId } from './lists'
 import { encodeShare, shareLink, shareRecipePayload } from './share'
+import { Icon } from './Icon'
 import { AI_ENABLED } from './edition'
 
 export function RecipesView({
@@ -49,12 +50,12 @@ export function RecipesView({
       <div className="view-head">
         <h2 className="view-title">Recipes</h2>
         <button className="add-btn" onClick={onAddRecipe}>
-          ＋ Add
+          <Icon name="plus" size={18} /> Add
         </button>
       </div>
       {recipes.length === 0 ? (
         <p className="view-empty">
-          No recipes yet. Tap <strong>＋ Add</strong> to{' '}
+          No recipes yet. Tap <strong>Add</strong> to{' '}
           {AI_ENABLED ? 'snap, paste, link, or type one in.' : 'enter one.'}
         </p>
       ) : (
@@ -66,7 +67,7 @@ export function RecipesView({
                 {r.servings ? `serves ${r.servings} · ` : ''}
                 {r.ingredients.length} ingredients
                 {r.instructions ? ' · has steps' : ''}
-                {r.tips && r.tips.length > 0 ? ' · 💡 tips' : ''}
+                {r.tips && r.tips.length > 0 ? ' · has tips' : ''}
               </span>
             </button>
           ))}
@@ -146,11 +147,11 @@ function RecipeDetail({
     <>
       <div className="detail-head">
         <button className="icon-back" onClick={onBack} aria-label="Back to recipes">
-          ‹
+          <Icon name="back" size={22} />
         </button>
         <h2 className="detail-title">{recipe.title}</h2>
         <button className="icon-share" onClick={share} aria-label="Share recipe">
-          ↗
+          <Icon name="share" size={20} />
         </button>
       </div>
 
@@ -204,7 +205,9 @@ function RecipeDetail({
 
       {tips.length > 0 && (
         <div className="tips">
-          <h4 className="steps-head">💡 Tips &amp; ideas</h4>
+          <h4 className="steps-head steps-head-icon">
+            <Icon name="bulb" size={16} /> Tips &amp; ideas
+          </h4>
           <ul className="tips-list">
             {tips.map((t, i) => (
               <li key={i}>{t}</li>

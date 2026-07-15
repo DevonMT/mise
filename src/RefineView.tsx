@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { db, type Item } from './db'
 import { applyRefinement } from './catalog'
 import { refineItems, type RefineOption } from './parse'
+import { Icon } from './Icon'
 
 type Stage = 'loading' | 'ready' | 'empty' | 'error'
 
@@ -81,9 +82,9 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
     <div className="fullview refine-view">
       <div className="fullview-head">
         <button className="icon-back" onClick={onClose} aria-label="Back to list">
-          ‹
+          <Icon name="back" size={22} />
         </button>
-        <h2 className="detail-title">🔎 Refine your list</h2>
+        <h2 className="detail-title">Refine your list</h2>
       </div>
 
       <div className="fullview-body">
@@ -111,7 +112,11 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
                   <div key={item.id} className="refine-card">
                     <div className="refine-item">
                       {item.displayName}
-                      {chosen && <span className="refine-done">✓ {chosen}</span>}
+                      {chosen && (
+                        <span className="refine-done">
+                          <Icon name="check" size={13} strokeWidth={3} /> {chosen}
+                        </span>
+                      )}
                     </div>
                     {opts.length === 0 ? (
                       <p className="refine-none">No options suggested.</p>

@@ -4,6 +4,7 @@ import { db, canonicalize, readAllWithTimeout } from './db'
 import { PARSE_URL } from './parse'
 import { estimateStorePrices, priceableKeys } from './catalog'
 import { downloadBackup, importAll } from './backup'
+import { Icon } from './Icon'
 import { AI_ENABLED } from './edition'
 
 export function SettingsView() {
@@ -153,10 +154,10 @@ export function SettingsView() {
         </p>
         <div className="two-btn">
           <button className="ghost" onClick={onExport}>
-            💾 Back up to a file
+            <Icon name="save" size={18} /> Back up to a file
           </button>
           <button className="ghost" onClick={() => fileRef.current?.click()}>
-            📂 Restore from a file
+            <Icon name="folder" size={18} /> Restore from a file
           </button>
         </div>
         <input
@@ -192,7 +193,7 @@ export function SettingsView() {
           </div>
           {priceMsg && (
             <p className="group-hint">
-              {busy ? '⏳ ' : ''}
+              {busy ? '… ' : ''}
               {priceMsg}
             </p>
           )}
