@@ -14,6 +14,7 @@ import {
   type Group,
 } from './list'
 import { KINDS, listIcon } from './kinds'
+import { rankFrom, useAisleOrder } from './aisles'
 import { Icon } from './Icon'
 import {
   addOutToGroceries,
@@ -149,14 +150,18 @@ export default function App() {
   // Pantry reads "checked" as out-of-stock; grocery/tasks read it as done.
   const outCount = kind.kind === 'pantry' ? active.filter((i) => i.checked).length : 0
 
+  // Group items in the active store's aisle order (custom or store-walk default).
+  const aisleOrder = useAisleOrder()
+  const rank = useMemo(() => rankFrom(aisleOrder), [aisleOrder])
+
   const groups: Group[] = useMemo(() => {
     const rows = view === 'list' ? active : backlog
     if (view === 'backlog')
       return rows.length ? [{ key: 'backlog', label: '', emoji: '', items: rows }] : []
     if (kind.due) return groupByDue(rows, Date.now())
-    if (kind.sections) return groupBySection(rows, SECTION_META)
+    if (kind.sections) return groupBySection(rows, SECTION_META, rank)
     return rows.length ? [{ key: 'all', label: '', emoji: '', items: rows }] : []
-  }, [active, backlog, view, kind])
+  }, [active, backlog, view, kind, rank])
 
   const total = useMemo(
     () =>

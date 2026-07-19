@@ -1,5 +1,4 @@
 import { db, canonicalize, type Item, type Section } from './db'
-import { SECTION_ORDER } from './sections'
 import { recordCatalog } from './catalog'
 
 /** Units that just mean "a count of whole things" — treated as interchangeable
@@ -110,8 +109,13 @@ export interface Group {
   items: Item[]
 }
 
-/** Group items by store section, in store-walk order. */
-export function groupBySection(items: Item[], meta: Record<Section, { label: string; emoji: string }>): Group[] {
+/** Group items by store section, ordered by `rank` (the active store's aisle
+ *  order — see aisles.ts — or the built-in store-walk default). */
+export function groupBySection(
+  items: Item[],
+  meta: Record<Section, { label: string; emoji: string }>,
+  rank: Record<Section, number>,
+): Group[] {
   const map = new Map<Section, Item[]>()
   for (const item of items) {
     const arr = map.get(item.section) ?? []
@@ -119,7 +123,7 @@ export function groupBySection(items: Item[], meta: Record<Section, { label: str
     map.set(item.section, arr)
   }
   return [...map.entries()]
-    .sort((a, b) => SECTION_ORDER[a[0]] - SECTION_ORDER[b[0]])
+    .sort((a, b) => rank[a[0]] - rank[b[0]])
     .map(([section, list]) => ({
       key: section,
       label: meta[section].label,

@@ -13,6 +13,7 @@ const PATHS: Record<string, string> = {
   // --- app chrome ---
   dots: '<circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>',
   chevronDown: '<path d="M6 9l6 6 6-6"/>',
+  chevronUp: '<path d="M6 15l6-6 6 6"/>',
   chevronRight: '<path d="M9 6l6 6-6 6"/>',
   back: '<path d="M15 6l-6 6 6 6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',

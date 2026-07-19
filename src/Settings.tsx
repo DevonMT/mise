@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, canonicalize, readAllWithTimeout } from './db'
+import { db, canonicalize, readAllWithTimeout, type Section } from './db'
 import { PARSE_URL } from './parse'
 import { estimateStorePrices, priceableKeys } from './catalog'
 import { downloadBackup, importAll } from './backup'
+import { SECTION_META } from './sections'
+import {
+  AISLE_EVENT,
+  getAisleOrder,
+  hasCustomOrder,
+  resetAisleOrder,
+  setAisleOrder,
+} from './aisles'
 import { Icon } from './Icon'
 import { AI_ENABLED } from './edition'
 
@@ -21,6 +29,28 @@ export function SettingsView() {
   const [store, setStore] = useState(() => localStorage.getItem('mise.store') ?? '')
   const [busy, setBusy] = useState(false)
   const [priceMsg, setPriceMsg] = useState('')
+
+  // Per-store aisle order — reseeds when you switch stores. Saving dispatches
+  // AISLE_EVENT so the list regroups live (see aisles.ts / App.tsx).
+  const [aisles, setAisles] = useState<Section[]>(() => getAisleOrder(store))
+  useEffect(() => setAisles(getAisleOrder(store)), [store])
+  const moveAisle = (from: number, dir: -1 | 1) => {
+    const to = from + dir
+    if (to < 0 || to >= aisles.length) return
+    const next = aisles.slice()
+    ;[next[from], next[to]] = [next[to], next[from]]
+    setAisles(next)
+    setAisleOrder(store, next)
+  }
+  const resetAisles = () => {
+    resetAisleOrder(store)
+    setAisles(getAisleOrder(store))
+  }
+  /** Persist the active store so pricing, refine, and grouping all agree on it. */
+  const commitStore = () => {
+    localStorage.setItem('mise.store', store.trim())
+    window.dispatchEvent(new CustomEvent(AISLE_EVENT))
+  }
 
   // "What's actually stored" readout — the no-console way to see whether data
   // is present. Loaded explicitly (not useLiveQuery) so a read error is shown
@@ -182,6 +212,7 @@ export function SettingsView() {
             placeholder="Your store (e.g. Walmart, Aldi)"
             value={store}
             onChange={(e) => setStore(e.target.value)}
+            onBlur={commitStore}
           />
           <div className="two-btn">
             <button className="ghost" onClick={() => estimate('missing')} disabled={busy || !priceCount}>
@@ -199,6 +230,42 @@ export function SettingsView() {
           )}
         </section>
       )}
+
+      <section className="settings-group">
+        <h3 className="group-title">Aisle order</h3>
+        <p className="group-hint">
+          The order your list groups sections while you shop. Arrange it to match{' '}
+          {store.trim() ? store.trim() : 'your store'}’s layout.
+        </p>
+        <ul className="aisle-editor">
+          {aisles.map((s, i) => (
+            <li key={s} className="aisle-row">
+              <span className="aisle-name">{SECTION_META[s].label}</span>
+              <div className="aisle-moves">
+                <button
+                  className="aisle-move"
+                  aria-label={`Move ${SECTION_META[s].label} up`}
+                  disabled={i === 0}
+                  onClick={() => moveAisle(i, -1)}
+                >
+                  <Icon name="chevronUp" size={18} />
+                </button>
+                <button
+                  className="aisle-move"
+                  aria-label={`Move ${SECTION_META[s].label} down`}
+                  disabled={i === aisles.length - 1}
+                  onClick={() => moveAisle(i, 1)}
+                >
+                  <Icon name="chevronDown" size={18} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <button className="ghost" onClick={resetAisles} disabled={!hasCustomOrder(store)}>
+          Reset to store-walk default
+        </button>
+      </section>
 
       <section className="settings-group">
         <h3 className="group-title">Staples you always have</h3>
