@@ -1,14 +1,23 @@
 import Dexie, { type Table } from 'dexie'
 
-/** Fixed store-section taxonomy — drives the aisle grouping order. */
+/** Fixed store-section taxonomy — drives the aisle grouping order.
+ *  Additive only: `section` is a plain string index in IndexedDB, so new keys
+ *  need no migration, but the existing keys must never be renamed/removed or
+ *  items already filed under them would orphan. */
 export type Section =
   | 'produce'
+  | 'bakery'
+  | 'deli'
   | 'meat'
   | 'dairy'
-  | 'bakery'
   | 'frozen'
   | 'pantry'
+  | 'baking'
+  | 'condiments'
+  | 'snacks'
+  | 'beverages'
   | 'household'
+  | 'personal'
   | 'other'
 
 /**

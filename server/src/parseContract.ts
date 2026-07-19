@@ -1,13 +1,21 @@
 /** Shared parse contract — the JSON shape Claude must return. */
 
+/** Store-section taxonomy — MUST stay in sync with the Section union in
+ *  src/db.ts and the ordered list in src/sections.ts. */
 export const SECTIONS = [
   'produce',
+  'bakery',
+  'deli',
   'meat',
   'dairy',
-  'bakery',
   'frozen',
   'pantry',
+  'baking',
+  'condiments',
+  'snacks',
+  'beverages',
   'household',
+  'personal',
   'other',
 ] as const
 
@@ -54,7 +62,21 @@ Return ONLY structured data matching the schema. Rules:
 - canonicalKey: a normalized merge key — lowercase, singular, no brand/adjectives that don't change what you buy. "yellow onions" and "1 diced onion" both -> "onion"; "boneless skinless chicken breasts" -> "chicken breast". This is how duplicates across sources get merged, so be consistent.
 - quantity: a number if one is stated or clearly implied, else null. Convert written numbers ("two") and simple fractions ("1/2" -> 0.5). Do not invent quantities.
 - unit: the unit of measure if present (cup, lb, oz, clove, can, bunch, whole...), else null. If the item is just a count of whole things (e.g. "2 onions"), use "whole".
-- section: the store section, chosen ONLY from: produce, meat, dairy, bakery, frozen, pantry, household, other. Pick the best fit; use "other" only when nothing fits.
+- section: the store section, chosen ONLY from the list below. Pick the single best fit; use "other" only when nothing else fits.
+    - produce: fresh fruit & vegetables, fresh herbs, bagged salad.
+    - bakery: fresh bread, buns, rolls, tortillas, bagels, pastries, cakes.
+    - deli: sliced deli meats & cheeses, rotisserie chicken, prepared/ready-to-eat foods, hummus & fresh dips.
+    - meat: raw/packaged meat, poultry, and seafood.
+    - dairy: milk, cheese, yogurt, butter, eggs, and other refrigerated dairy.
+    - frozen: anything sold frozen (frozen veg, ice cream, frozen meals, etc.).
+    - pantry: shelf-stable dry & canned staples — pasta, rice, grains, dried/canned beans, canned vegetables/fruit/soup, broth/stock, cereal, oats, coffee & tea, cooking oil.
+    - baking: baking supplies and spices/seasonings — flour, sugar, baking soda/powder, yeast, chocolate chips, extracts, salt, pepper, dried herbs & spices.
+    - condiments: ketchup, mustard, mayo, salad dressing, cooking & pasta sauces, salsa, pickles, jam, honey, syrup, peanut butter.
+    - snacks: chips, crackers, cookies, candy, nuts, granola/protein bars, popcorn.
+    - beverages: water, soda, juice, sports/energy drinks, drink mixes.
+    - household: paper goods, cleaning supplies, trash bags, foil/wrap, batteries.
+    - personal: personal care & health — shampoo, soap, toothpaste, deodorant, cosmetics, vitamins, over-the-counter medicine.
+    - other: only when nothing above fits (e.g. baby, pet, flowers).
 - sourceType: "recipe" if the input is clearly a single recipe (title + ingredients, maybe steps), otherwise "list".
 - recipeTitle: the recipe's name when sourceType is "recipe", else null.
 - servings: the number of servings/yield when clearly stated for a recipe, else null.
@@ -104,11 +126,12 @@ export const REFINE_SCHEMA = {
             items: {
               type: 'object',
               additionalProperties: false,
-              required: ['label', 'unit', 'price'],
+              required: ['label', 'unit', 'price', 'section'],
               properties: {
                 label: { type: 'string' },
                 unit: { type: 'string' },
                 price: { type: 'number' },
+                section: { type: 'string', enum: SECTIONS },
               },
             },
           },
@@ -131,6 +154,21 @@ For each option provide:
 - label: a short, specific product name including the size/type (e.g. "Large eggs, 18 ct", "Store brand salsa, 16 oz jar").
 - unit: the size or unit that label represents (e.g. "18 ct", "gallon", "lb", "3 lb pack").
 - price: realistic ${store} price in US dollars for that option (a plain number).
+- section: the store aisle where THAT specific product is actually found, chosen ONLY from the list below. The right section can differ between a product's options — e.g. jarred salsa is "condiments" but fresh pico de gallo is "produce"; shelf-stable broth is "pantry" but a rotisserie chicken is "deli". Classify each option on its own merits.
+    - produce: fresh fruit & vegetables, fresh herbs, bagged salad.
+    - bakery: fresh bread, buns, rolls, tortillas, bagels, pastries, cakes.
+    - deli: sliced deli meats & cheeses, rotisserie chicken, prepared/ready-to-eat foods, hummus & fresh dips.
+    - meat: raw/packaged meat, poultry, and seafood.
+    - dairy: milk, cheese, yogurt, butter, eggs, and other refrigerated dairy.
+    - frozen: anything sold frozen.
+    - pantry: shelf-stable dry & canned staples — pasta, rice, grains, dried/canned beans, canned vegetables/fruit/soup, broth/stock, cereal, oats, coffee & tea, cooking oil.
+    - baking: baking supplies and spices/seasonings — flour, sugar, baking soda/powder, yeast, chocolate chips, extracts, salt, pepper, dried herbs & spices.
+    - condiments: ketchup, mustard, mayo, salad dressing, cooking & pasta sauces, salsa, pickles, jam, honey, syrup, peanut butter.
+    - snacks: chips, crackers, cookies, candy, nuts, granola/protein bars, popcorn.
+    - beverages: water, soda, juice, sports/energy drinks, drink mixes.
+    - household: paper goods, cleaning supplies, trash bags, foil/wrap, batteries.
+    - personal: personal care & health — shampoo, soap, toothpaste, deodorant, cosmetics, vitamins, over-the-counter medicine.
+    - other: only when nothing above fits (e.g. baby, pet, flowers).
 
 Return exactly one entry per canonicalKey you were given, with its options ordered from most common/cheapest to larger/pricier. Use realistic ${store} pricing.`
 }

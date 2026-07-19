@@ -96,6 +96,9 @@ export interface RefineOption {
   label: string
   unit: string
   price: number
+  /** The store aisle for THIS specific product — lets refine re-file a
+   *  mis-categorized item (jarred salsa → condiments, fresh pico → produce). */
+  section: Section
 }
 export interface RefineItem {
   canonicalKey: string

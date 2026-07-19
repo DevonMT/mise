@@ -63,16 +63,20 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
     setApplied((a) => ({ ...a, [item.canonicalKey]: opt.label }))
     try {
       // Update the name to a clean product name (no size — that's the pill), keep
-      // the full product string as `detail` (shown on tap), and clear the recipe
-      // quantity: you buy one package of this size whatever the recipe called for.
+      // the full product string as `detail` (shown on tap), re-file it into the
+      // aisle the chosen product actually lives in, and clear the recipe quantity:
+      // you buy one package of this size whatever the recipe called for.
+      // Fall back to the item's current section if a stale server omits it.
       const name = conciseName(opt.label, opt.unit)
+      const section = opt.section ?? item.section
       await db.items.update(item.id!, {
         displayName: name,
         detail: opt.label,
         unit: opt.unit,
+        section,
         quantity: undefined,
       })
-      await applyRefinement(item.canonicalKey, name, opt.label, opt.unit, item.section, opt.price)
+      await applyRefinement(item.canonicalKey, name, opt.label, opt.unit, section, opt.price)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
