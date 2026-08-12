@@ -42,8 +42,29 @@ export interface Item {
   displayName: string
   /** Normalized key used to merge duplicates across sources (e.g. "onion"). */
   canonicalKey: string
+  /**
+   * The "Need" layer — how much a recipe calls for: a *measure*.
+   * `quantity` 0.5 + `unit` "cup"; `quantity` 3 + `unit` "clove". This scales
+   * with servings and drives duplicate-merging. Left untouched by Refine — the
+   * specific product you buy lives in the Buy layer below.
+   */
   quantity?: number
   unit?: string
+  /**
+   * The "Buy" layer — the specific purchase, set by Refine (or edited by hand).
+   * Separate from quantity/unit so refining never destroys the recipe amount.
+   * A purchase is: `buyCount` of a package, each package being `sizeAmount`
+   * `sizeUnit` of `packaging`. e.g. 3 × (15 oz) can; 1 × (16 oz) jar; 2 lb.
+   */
+  /** How many packages/units to put in the cart. Undefined = no pack chosen. */
+  buyCount?: number
+  /** How much is in ONE package — the number (16). Null when the packaging is
+   *  self-describing (a dozen, a bunch, a single pound). */
+  sizeAmount?: number
+  /** The measure that `sizeAmount` is in: oz, lb, ct, ml, g, gallon… */
+  sizeUnit?: string
+  /** The countable purchase noun: jar, can, bag, box, dozen, bunch, lb, each. */
+  packaging?: string
   section: Section
   /**
    * grocery: in the cart · tasks: done · pantry: out of stock.
@@ -67,7 +88,17 @@ export interface Item {
  *  by default — you opt into them. */
 export type RecipeIngredient = Pick<
   Item,
-  'displayName' | 'canonicalKey' | 'quantity' | 'unit' | 'section'
+  | 'displayName'
+  | 'canonicalKey'
+  | 'quantity'
+  | 'unit'
+  // The pack the recipe itself named ("2 × 10½ oz can") — kept so adding the
+  // recipe to a list tells you which size to grab, not just "2 can".
+  | 'buyCount'
+  | 'sizeAmount'
+  | 'sizeUnit'
+  | 'packaging'
+  | 'section'
 > & { optional?: boolean }
 
 /** A saved recipe. */
@@ -102,10 +133,17 @@ export interface CatalogEntry {
   count: number
   favorite: boolean
   lastAdded: number
-  /** Remembered unit price for the cost estimate. */
+  /** Remembered price for the cost estimate — the price of ONE package
+   *  (one jar/can/lb), so the line total is price × buyCount. */
   price?: number
   /** Remembered specific product from Refine (brand/size), shown on tap. */
   detail?: string
+  /** Remembered Buy layer, so re-adding a refined favorite brings its pack
+   *  spec back. Mirrors the fields on Item. */
+  buyCount?: number
+  sizeAmount?: number
+  sizeUnit?: string
+  packaging?: string
 }
 
 export class MiseDB extends Dexie {

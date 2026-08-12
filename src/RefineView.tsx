@@ -62,21 +62,35 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
     // tap always registers even if the writes are slow or fail.
     setApplied((a) => ({ ...a, [item.canonicalKey]: opt.label }))
     try {
-      // Update the name to a clean product name (no size — that's the pill), keep
-      // the full product string as `detail` (shown on tap), re-file it into the
-      // aisle the chosen product actually lives in, and clear the recipe quantity:
-      // you buy one package of this size whatever the recipe called for.
-      // Fall back to the item's current section if a stale server omits it.
-      const name = conciseName(opt.label, opt.unit)
+      // Set the Buy layer (count × size + packaging) and a clean product name
+      // (no size — that's the pill); keep the full product string as `detail`
+      // (shown on tap), and re-file into the aisle the chosen product lives in.
+      // The recipe Need (quantity/unit) is left untouched so servings can still
+      // scale. Fall back to the item's current section if a stale server omits it.
+      const sizeStr = [
+        opt.sizeAmount != null && opt.sizeUnit ? `${opt.sizeAmount} ${opt.sizeUnit}` : '',
+        opt.packaging ?? '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .trim()
+      const name = conciseName(opt.label, sizeStr)
       const section = opt.section ?? item.section
-      await db.items.update(item.id!, {
+      const buyCount = opt.count && opt.count > 0 ? opt.count : 1
+      const buy = {
+        buyCount,
+        sizeAmount: opt.sizeAmount ?? undefined,
+        sizeUnit: opt.sizeUnit ?? undefined,
+        packaging: opt.packaging ?? undefined,
+      }
+      await db.items.update(item.id!, { displayName: name, detail: opt.label, section, ...buy })
+      await applyRefinement(item.canonicalKey, {
         displayName: name,
         detail: opt.label,
-        unit: opt.unit,
         section,
-        quantity: undefined,
+        price: opt.price,
+        ...buy,
       })
-      await applyRefinement(item.canonicalKey, name, opt.label, opt.unit, section, opt.price)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }

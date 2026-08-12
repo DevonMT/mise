@@ -5,11 +5,13 @@ import { SECTIONS, SECTION_META } from './sections'
 import {
   addItem,
   buyMultiplier,
+  formatBuy,
   formatDue,
   formatQty,
   fromDateInput,
   groupByDue,
   groupBySection,
+  hasBuySpec,
   toDateInput,
   type Group,
 } from './list'
@@ -523,9 +525,16 @@ export default function App() {
                                   ${(p * buyMultiplier(item)).toFixed(2)}
                                 </span>
                               )}
-                              {kind.quantities && (formatQty(item) || item.unit) && (
-                                <span className="qty">{formatQty(item) || item.unit}</span>
-                              )}
+                              {kind.quantities &&
+                                (() => {
+                                  // Prefer the bought pack ("3 × 15 oz can"); fall
+                                  // back to the recipe amount when nothing's been
+                                  // refined/chosen yet.
+                                  const qtyText = hasBuySpec(item)
+                                    ? formatBuy(item)
+                                    : formatQty(item) || item.unit
+                                  return qtyText ? <span className="qty">{qtyText}</span> : null
+                                })()}
                             </span>
                           </button>
                         </>
@@ -830,6 +839,16 @@ function ItemSheet({
   const [name, setName] = useState(initial?.displayName ?? '')
   const [qty, setQty] = useState(initial?.quantity != null ? String(initial.quantity) : '')
   const [unit, setUnit] = useState(initial?.unit ?? '')
+  // Buy layer — the specific purchase (count × size + packaging), kept separate
+  // from the recipe amount above so editing one never clobbers the other.
+  const [buyCount, setBuyCount] = useState(
+    initial?.buyCount != null ? String(initial.buyCount) : '',
+  )
+  const [sizeAmount, setSizeAmount] = useState(
+    initial?.sizeAmount != null ? String(initial.sizeAmount) : '',
+  )
+  const [sizeUnit, setSizeUnit] = useState(initial?.sizeUnit ?? '')
+  const [packaging, setPackaging] = useState(initial?.packaging ?? '')
   const [section, setSection] = useState<Section>(initial?.section ?? 'other')
   const [priceStr, setPriceStr] = useState(catalogPrice != null ? String(catalogPrice) : '')
   const [fav, setFav] = useState(Boolean(catalogFavorite))
@@ -854,10 +873,21 @@ function ItemSheet({
   const save = async () => {
     const trimmed = name.trim()
     if (!trimmed) return
-    const parsed = qty.trim() ? Number(qty) : undefined
-    const quantity =
-      kind.quantities && Number.isFinite(parsed as number) ? parsed : undefined
+    const num = (s: string) => {
+      const n = s.trim() ? Number(s) : undefined
+      return Number.isFinite(n as number) ? n : undefined
+    }
+    const quantity = kind.quantities ? num(qty) : undefined
     const dueAt = kind.due ? fromDateInput(dueStr) : undefined
+    // Buy layer (grocery/pantry only). Empty inputs clear it.
+    const buy = kind.quantities
+      ? {
+          buyCount: num(buyCount),
+          sizeAmount: num(sizeAmount),
+          sizeUnit: sizeUnit.trim() || undefined,
+          packaging: packaging.trim() || undefined,
+        }
+      : { buyCount: undefined, sizeAmount: undefined, sizeUnit: undefined, packaging: undefined }
 
     if (editing) {
       await db.items.update(initial!.id!, {
@@ -867,6 +897,7 @@ function ItemSheet({
         section,
         dueAt,
         notes: kind.due ? notes.trim() || undefined : undefined,
+        ...buy,
       })
       if (kind.prices) {
         const pp = priceStr.trim() ? Number(priceStr) : undefined
@@ -888,6 +919,7 @@ function ItemSheet({
         backlog: defaultBacklog,
         dueAt,
         notes: kind.due ? notes.trim() || undefined : undefined,
+        ...buy,
       })
     }
     onClose()
@@ -926,21 +958,59 @@ function ItemSheet({
       )}
 
       {kind.quantities && (
-        <div className="qty-row">
-          <input
-            className="field"
-            placeholder="Qty"
-            inputMode="decimal"
-            value={qty}
-            onChange={(e) => setQty(e.target.value)}
-          />
-          <input
-            className="field"
-            placeholder="Unit (cup, lb…)"
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-          />
-        </div>
+        <>
+          {/* The "Need" — how much the recipe/you call for (a measure). */}
+          <div className="qty-row">
+            <input
+              className="field"
+              placeholder="Amount needed"
+              inputMode="decimal"
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+            />
+            <input
+              className="field"
+              placeholder="Unit (cup, lb…)"
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+            />
+          </div>
+          {/* The "Buy" — the specific package: count × size + packaging. Usually
+              set by Refine; editable here. Auto-opens when already populated. */}
+          <details className="buy-edit" open={initial != null && hasBuySpec(initial)}>
+            <summary>What you buy</summary>
+            <div className="qty-row">
+              <input
+                className="field"
+                placeholder="Count (e.g. 2)"
+                inputMode="decimal"
+                value={buyCount}
+                onChange={(e) => setBuyCount(e.target.value)}
+              />
+              <input
+                className="field"
+                placeholder="Package (jar, can, dozen…)"
+                value={packaging}
+                onChange={(e) => setPackaging(e.target.value)}
+              />
+            </div>
+            <div className="qty-row">
+              <input
+                className="field"
+                placeholder="Size (e.g. 16)"
+                inputMode="decimal"
+                value={sizeAmount}
+                onChange={(e) => setSizeAmount(e.target.value)}
+              />
+              <input
+                className="field"
+                placeholder="Size unit (oz, ct…)"
+                value={sizeUnit}
+                onChange={(e) => setSizeUnit(e.target.value)}
+              />
+            </div>
+          </details>
+        </>
       )}
 
       {kind.due && (

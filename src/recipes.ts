@@ -1,5 +1,5 @@
 import { db, canonicalize, type Recipe } from './db'
-import { addItem } from './list'
+import { addItem, packCount } from './list'
 import { getStapleKeys, type ParseResult } from './parse'
 
 const KNOWN_UNITS = new Set([
@@ -57,6 +57,10 @@ export async function saveRecipeFromParse(result: ParseResult): Promise<number |
       canonicalKey: i.canonicalKey,
       quantity: i.quantity ?? undefined,
       unit: i.unit ?? undefined,
+      buyCount: i.buyCount ?? undefined,
+      sizeAmount: i.sizeAmount ?? undefined,
+      sizeUnit: i.sizeUnit ?? undefined,
+      packaging: i.packaging ?? undefined,
       section: i.section,
       optional: i.optional || undefined,
     })),
@@ -96,6 +100,12 @@ export async function addRecipeToList(
       canonicalKey: ing.canonicalKey,
       quantity: ing.quantity != null ? round2(ing.quantity * factor) : undefined,
       unit: ing.unit,
+      // Doubling the recipe doubles the cans — and half a can still means
+      // buying one, so the scaled pack count rounds up.
+      buyCount: ing.buyCount != null ? packCount(ing.buyCount * factor) : undefined,
+      sizeAmount: ing.sizeAmount,
+      sizeUnit: ing.sizeUnit,
+      packaging: ing.packaging,
       section: ing.section,
     })
     added++

@@ -10,6 +10,12 @@ export interface ParsedItem {
   canonicalKey: string
   quantity: number | null
   unit: string | null
+  /** Buy layer, when the SOURCE stated a package size ("2 (10½ oz) cans").
+   *  All null when it didn't — Refine fills it in later. */
+  buyCount?: number | null
+  sizeAmount?: number | null
+  sizeUnit?: string | null
+  packaging?: string | null
   section: Section
   /** The recipe marks this ingredient as optional — not added by default. */
   optional?: boolean
@@ -94,7 +100,15 @@ export async function estimatePrices(
 
 export interface RefineOption {
   label: string
-  unit: string
+  /** Packages a shopper typically buys (usually 1). */
+  count: number
+  /** Size of one package (16), or null when packaging is self-describing. */
+  sizeAmount: number | null
+  /** Measure the size is in: oz, lb, ct, gallon… (null with sizeAmount). */
+  sizeUnit: string | null
+  /** Countable purchase noun: jar, can, dozen, lb, each… */
+  packaging: string | null
+  /** Price of ONE package; the line total is price × count. */
   price: number
   /** The store aisle for THIS specific product — lets refine re-file a
    *  mis-categorized item (jarred salsa → condiments, fresh pico → produce). */

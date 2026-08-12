@@ -25,15 +25,52 @@ const MEASURE_UNITS = new Set([
 
 /**
  * How many purchase-units of an item go into the cost estimate.
- * Recipe measures (cup, tbsp, g, oz…) → 1: you buy one package regardless of
- * the amount the recipe calls for. Real purchase units (whole, lb, can, dozen,
- * bunch, gallon…) → the quantity, so "3 cans" or "2 lb" scale.
+ * A refined item carries an explicit `buyCount` (packages in the cart) and a
+ * per-package `price`, so the line total is simply price × buyCount. Otherwise
+ * fall back to the legacy heuristic on the recipe measure: measures (cup, tbsp,
+ * g, oz…) → 1 (one package whatever the recipe amount); real purchase units
+ * (whole, lb, can, dozen…) → the quantity, so "3 cans" or "2 lb" scale.
  */
-export function buyMultiplier(item: Pick<Item, 'quantity' | 'unit'>): number {
+export function buyMultiplier(item: Pick<Item, 'quantity' | 'unit' | 'buyCount'>): number {
+  if (item.buyCount != null) return item.buyCount > 0 ? item.buyCount : 1
   const u = (item.unit ?? '').trim().toLowerCase()
   if (MEASURE_UNITS.has(u)) return 1
   const q = item.quantity
   return q != null && q > 0 ? q : 1
+}
+
+/** Whole packages to actually buy for a scaled/fractional container count —
+ *  you can't buy 1.5 cans, and never fewer than one. */
+export function packCount(n: number): number {
+  return Number.isFinite(n) ? Math.max(1, Math.ceil(n)) : 1
+}
+
+/** Format a number for display: integers plain, decimals trimmed ("0.50" → "0.5"). */
+function fmtNum(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '')
+}
+
+/** True once an item has a chosen purchase (Refine or manual pack edit). */
+export function hasBuySpec(
+  item: Pick<Item, 'buyCount' | 'sizeAmount' | 'packaging'>,
+): boolean {
+  return item.buyCount != null || item.sizeAmount != null || !!item.packaging
+}
+
+/**
+ * Human string for the *bought* pack spec, e.g. "16 oz jar", "3 × 15 oz can",
+ * "2 lb", "dozen". Empty when no pack spec is set. `buyCount` is shown only when
+ * it's more than one; a self-describing size (dozen, lb) may have no sizeAmount.
+ */
+export function formatBuy(
+  item: Pick<Item, 'buyCount' | 'sizeAmount' | 'sizeUnit' | 'packaging'>,
+): string {
+  const size =
+    item.sizeAmount != null && item.sizeUnit ? `${fmtNum(item.sizeAmount)} ${item.sizeUnit}` : ''
+  const unitLabel = [size, item.packaging?.trim()].filter(Boolean).join(' ').trim()
+  if (!unitLabel) return ''
+  const n = item.buyCount
+  return n != null && n > 1 ? `${fmtNum(n)} × ${unitLabel}` : unitLabel
 }
 
 export interface NewItem {
@@ -47,6 +84,13 @@ export interface NewItem {
   backlog?: boolean
   dueAt?: number
   notes?: string
+  /** Buy layer — carried through so re-adding a refined favorite keeps its pack. */
+  buyCount?: number
+  sizeAmount?: number
+  sizeUnit?: string
+  packaging?: string
+  /** The full refined product string, shown on tap (🏷️). */
+  detail?: string
 }
 
 /**
@@ -98,6 +142,11 @@ export async function addItem(input: NewItem): Promise<number> {
     createdAt: Date.now(),
     dueAt: input.dueAt,
     notes: input.notes,
+    buyCount: input.buyCount,
+    sizeAmount: input.sizeAmount,
+    sizeUnit: input.sizeUnit,
+    packaging: input.packaging,
+    detail: input.detail,
   })
 }
 
@@ -181,9 +230,7 @@ export function groupByDue(items: Item[], now: number): Group[] {
 
 export function formatQty(item: Pick<Item, 'quantity' | 'unit'>): string {
   if (item.quantity == null) return ''
-  const q = Number.isInteger(item.quantity)
-    ? String(item.quantity)
-    : item.quantity.toFixed(2).replace(/\.?0+$/, '')
+  const q = fmtNum(item.quantity)
   return item.unit ? `${q} ${item.unit}` : q
 }
 

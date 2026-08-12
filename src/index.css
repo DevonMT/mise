@@ -838,6 +838,35 @@ button {
 .qty-row .field:first-child {
   flex: 0 0 34%;
 }
+.buy-edit {
+  margin-top: 12px;
+}
+.buy-edit > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 2px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted, #6b7280);
+  letter-spacing: 0.01em;
+}
+.buy-edit > summary::-webkit-details-marker {
+  display: none;
+}
+.buy-edit > summary::before {
+  content: '＋';
+  font-weight: 700;
+  color: var(--accent);
+}
+.buy-edit[open] > summary::before {
+  content: '−';
+}
+.buy-edit .qty-row:first-of-type {
+  margin-top: 6px;
+}
 .chips {
   display: flex;
   flex-wrap: wrap;

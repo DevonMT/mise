@@ -29,6 +29,13 @@ export function QuickAddSheet({
       canonicalKey: c.canonicalKey,
       unit: c.unit,
       section: c.section,
+      // Bring back the remembered purchase (size/count/packaging) if this
+      // favorite was refined, so the pill and price are right on re-add.
+      buyCount: c.buyCount,
+      sizeAmount: c.sizeAmount,
+      sizeUnit: c.sizeUnit,
+      packaging: c.packaging,
+      detail: c.detail,
     })
     setAdded((s) => new Set(s).add(c.canonicalKey))
     setTimeout(

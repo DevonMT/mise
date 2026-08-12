@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { ListKind, Section } from './db'
 import { KINDS } from './kinds'
 import { SECTIONS } from './sections'
-import { addItem } from './list'
+import { addItem, packCount } from './list'
 import {
   parseCapture,
   getStapleKeys,
@@ -24,6 +24,11 @@ interface Row {
   canonicalKey: string
   quantityStr: string
   unit: string | null
+  /** Pack the source named ("2 (10½ oz) cans") — undefined when it named none. */
+  buyCount?: number
+  sizeAmount?: number
+  sizeUnit?: string
+  packaging?: string
   section: Section
   include: boolean
   isStaple: boolean
@@ -76,6 +81,10 @@ export function CaptureSheet({
           canonicalKey: it.canonicalKey,
           quantityStr: it.quantity != null ? String(it.quantity) : '',
           unit: it.unit,
+          buyCount: it.buyCount ?? undefined,
+          sizeAmount: it.sizeAmount ?? undefined,
+          sizeUnit: it.sizeUnit ?? undefined,
+          packaging: it.packaging ?? undefined,
           section: it.section,
           // Staples and recipe-optional items are pre-skipped but toggleable.
           include: !isStaple && !optional,
@@ -100,13 +109,20 @@ export function CaptureSheet({
     for (const r of rows) {
       if (!r.include) continue
       const qty = r.quantityStr.trim() ? Number(r.quantityStr) : undefined
+      const quantity = Number.isFinite(qty as number) ? qty : undefined
       await addItem({
         listId: target,
         displayName: r.displayName,
         canonicalKey: r.canonicalKey,
-        quantity: Number.isFinite(qty as number) ? qty : undefined,
+        quantity,
         unit: r.unit ?? undefined,
         section: r.section,
+        // When the source named a pack, buyCount *is* the container count — so
+        // editing the qty here ("2 cans" → "3") has to carry into what you buy.
+        buyCount: r.buyCount != null ? packCount(quantity ?? r.buyCount) : undefined,
+        sizeAmount: r.sizeAmount,
+        sizeUnit: r.sizeUnit,
+        packaging: r.packaging,
       })
     }
     if (parsed) await saveRecipeFromParse(parsed)

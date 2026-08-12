@@ -159,7 +159,7 @@ app.post('/api/prices', async (c) => {
 /**
  * POST /api/refine
  * body: { store: string, items: [{canonicalKey, displayName, unit?}] }
- * -> { items: [{canonicalKey, options: [{label, unit, price}]}] }
+ * -> { items: [{canonicalKey, options: [{label, count, sizeAmount, sizeUnit, packaging, price, section}]}] }
  */
 app.post('/api/refine', async (c) => {
   if (!client) return c.json({ error: 'Server has no ANTHROPIC_API_KEY set.' }, 503)
