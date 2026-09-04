@@ -130,13 +130,21 @@ app.use('/api/*', async (c, next) => {
   return next()
 })
 
-app.get('/api/health', (c) =>
+// Public (Access bypass) so the tunnel and Mission Control can probe it.
+// Liveness ONLY — anything about how this server is configured belongs behind
+// the door, not in an unauthenticated response.
+app.get('/api/health', (c) => c.json({ ok: true }))
+
+// The detail that /api/health used to leak. Sits under /api/* so it is covered
+// by the auth middleware.
+app.get('/api/status', (c) =>
   c.json({
     ok: true,
     hasKey: Boolean(apiKey),
     locked: Boolean(JWKS) || Boolean(PARSE_KEY),
     auth: JWKS ? 'access' : PARSE_KEY ? 'key' : 'none',
     model: 'claude-sonnet-5',
+    dailyCap: DAILY_CALL_CAP,
   }),
 )
 
