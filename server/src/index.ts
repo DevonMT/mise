@@ -391,7 +391,12 @@ app.get('*', serveStatic({ path: `${STATIC_ROOT}/index.html` }))
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`Mise parse server on http://localhost:${info.port}`)
   console.log(apiKey ? 'ANTHROPIC_API_KEY: set' : 'ANTHROPIC_API_KEY: MISSING — /api/parse will 503')
-  console.log(PARSE_KEY ? `PARSE_KEY: set (daily cap ${DAILY_CALL_CAP})` : 'PARSE_KEY: MISSING — /api/* will 503')
+  const doors = [JWKS && ACCESS_AUD ? 'Access' : null, PARSE_KEY ? 'PARSE_KEY' : null].filter(Boolean)
+  console.log(
+    doors.length
+      ? `Auth: ${doors.join(' + ')} (daily cap ${DAILY_CALL_CAP})`
+      : 'Auth: NONE CONFIGURED — /api/* will 503',
+  )
   console.log(`CORS: ${ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS.join(', ') : 'any origin (no allow-list)'}`)
   console.log(JWKS ? `Access: ${ACCESS_TEAM_DOMAIN} (aud ${ACCESS_AUD.slice(0, 8)}…)` : 'Access: not configured')
 })
