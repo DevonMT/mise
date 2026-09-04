@@ -14,6 +14,7 @@ import {
 } from './aisles'
 import { Icon } from './Icon'
 import { AI_ENABLED } from './edition'
+import { PARSE_KEY_STORAGE } from './parse'
 
 export function SettingsView() {
   const staples =
@@ -27,6 +28,10 @@ export function SettingsView() {
     useLiveQuery(async () => (await priceableKeys()).size, []) ?? 0
   const [name, setName] = useState('')
   const [store, setStore] = useState(() => localStorage.getItem('mise.store') ?? '')
+  const [parseKey, setParseKey] = useState(
+    () => localStorage.getItem(PARSE_KEY_STORAGE) ?? '',
+  )
+  const [keyMsg, setKeyMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const [priceMsg, setPriceMsg] = useState('')
 
@@ -147,6 +152,41 @@ export function SettingsView() {
   return (
     <div className="view">
       <h2 className="view-title">Settings</h2>
+
+      {AI_ENABLED && (
+        <section className="settings-group">
+          <h3 className="group-title">Parse key</h3>
+          <p className="group-hint">
+            The AI features talk to your mini over the internet, so they need a
+            key. Paste the one from <code>server/.env</code>. It stays on this
+            device.
+          </p>
+          <input
+            className="text-input"
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="Paste your parse key"
+            value={parseKey}
+            onChange={(e) => {
+              setParseKey(e.target.value)
+              setKeyMsg('')
+            }}
+          />
+          <button
+            className="btn"
+            onClick={() => {
+              const v = parseKey.trim()
+              if (v) localStorage.setItem(PARSE_KEY_STORAGE, v)
+              else localStorage.removeItem(PARSE_KEY_STORAGE)
+              setKeyMsg(v ? 'Saved.' : 'Cleared.')
+            }}
+          >
+            Save key
+          </button>
+          {keyMsg && <p className="group-hint">{keyMsg}</p>}
+        </section>
+      )}
 
       <section className="settings-group">
         <h3 className="group-title">Your data &amp; backup</h3>

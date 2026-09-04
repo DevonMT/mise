@@ -1,7 +1,8 @@
 import { db, type Section } from './db'
 
 /** Where the parse endpoint lives. Override at build with VITE_PARSE_URL
- *  (e.g. the mini PC's Tailscale HTTPS address); defaults to localhost for dev. */
+ *  (the mini via Cloudflare Tunnel: https://mise.devondoes.dev);
+ *  defaults to localhost for dev. */
 const envUrl = (import.meta.env.VITE_PARSE_URL as string | undefined)?.trim()
 export const PARSE_URL = envUrl ? envUrl.replace(/\/$/, '') : 'http://localhost:8787'
 
@@ -43,17 +44,33 @@ export function fileToDataUrl(file: File): Promise<string> {
 
 /**
  * POST JSON to the parse server with a timeout and human error messages.
- * The endpoint lives on the mini over Tailscale, so the usual failure is
- * "phone isn't on the tailnet" — say that, don't surface a raw "NetworkError".
+ * The endpoint lives on the mini behind Cloudflare Tunnel and requires the
+ * parse key from Settings. Errors are phrased for a phone, not a console.
  */
+/** localStorage key holding the parse key (Settings -> Parse key). */
+export const PARSE_KEY_STORAGE = 'mise.parseKey'
+
+/** The server is now internet-reachable and requires this on every /api call. */
+export function getParseKey(): string {
+  try {
+    return localStorage.getItem(PARSE_KEY_STORAGE)?.trim() ?? ''
+  } catch {
+    return ''
+  }
+}
+
 async function postJson<T>(path: string, body: unknown, label: string): Promise<T> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), 45_000)
+  const key = getParseKey()
   let res: Response
   try {
     res = await fetch(`${PARSE_URL}${path}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...(key ? { 'x-mise-key': key } : {}),
+      },
       body: JSON.stringify(body),
       signal: ctrl.signal,
     })
@@ -62,12 +79,20 @@ async function postJson<T>(path: string, body: unknown, label: string): Promise<
       throw new Error(`${label} timed out. Check your connection and try again.`)
     }
     // fetch rejects (TypeError "Failed to fetch") when the server is
-    // unreachable — on this app that's almost always Tailscale being off.
-    throw new Error("Can't reach the parser. Make sure Tailscale is on, then try again.")
+    // unreachable. Since the move off the tailnet this is an ordinary
+    // connectivity problem, not "Tailscale is off".
+    throw new Error("Can't reach the parser. Check your connection and try again.")
   } finally {
     clearTimeout(timer)
   }
   const data = await res.json().catch(() => ({}))
+  if (res.status === 401) {
+    throw new Error(
+      key
+        ? 'The parse key was rejected. Check it in Settings.'
+        : 'This needs a parse key. Add one in Settings.',
+    )
+  }
   if (!res.ok) throw new Error((data as { error?: string })?.error ?? `${label} failed (${res.status})`)
   return data as T
 }

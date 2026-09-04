@@ -1,6 +1,8 @@
 import { serve } from '@hono/node-server'
+import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import * as jose from 'jose'
 import Anthropic from '@anthropic-ai/sdk'
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages'
 import {
@@ -26,13 +28,116 @@ const PORT = Number(process.env.PORT ?? 8787)
 const apiKey = process.env.ANTHROPIC_API_KEY
 const client = apiKey ? new Anthropic({ apiKey }) : null
 
+// This server used to be tailnet-only, so "no auth" was safe: Tailscale WAS
+// the auth. It is now reachable from the internet via Cloudflare Tunnel at
+// mise.devondoes.dev, so it needs its own door.
+//
+// Cloudflare Access cannot be that door: the PWA is served from
+// devontroedel.com and calls this cross-origin, and Access answers an
+// unauthenticated request with a 302 to an interactive login page — which an
+// XHR cannot complete. So the check lives here, and the key is entered by hand
+// in Settings (localStorage) rather than shipped in the public bundle.
+// Preferred door: Cloudflare Access. The app is served from this same origin
+// (mise.devondoes.dev), so the browser sends the Access cookie automatically and
+// Cloudflare hands us a signed JWT. We verify it here rather than trusting the
+// header, because :8787 is still reachable on the LAN and over the tailnet —
+// the edge is not the only way in.
+const ACCESS_TEAM_DOMAIN = (process.env.ACCESS_TEAM_DOMAIN ?? '').trim()
+const ACCESS_AUD = (process.env.ACCESS_AUD ?? '').trim()
+const JWKS =
+  ACCESS_TEAM_DOMAIN
+    ? jose.createRemoteJWKSet(
+        new URL(`https://${ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs`),
+      )
+    : null
+
+/** Verified Access email, or null. Never throws. */
+async function accessEmail(token: string | undefined): Promise<string | null> {
+  if (!token || !JWKS || !ACCESS_AUD) return null
+  try {
+    const { payload } = await jose.jwtVerify(token, JWKS, {
+      issuer: `https://${ACCESS_TEAM_DOMAIN}`,
+      audience: ACCESS_AUD,
+    })
+    return (payload.email as string | undefined) ?? 'unknown'
+  } catch {
+    return null
+  }
+}
+
+// Legacy fallback, kept only so the old devontroedel.com install keeps working
+// during the migration. Unset PARSE_KEY once everything is on Access.
+const PARSE_KEY = (process.env.PARSE_KEY ?? '').trim()
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean)
+// Backstop: if the key ever leaks, this caps the damage at a known number of
+// calls per day instead of an unbounded API bill.
+const DAILY_CALL_CAP = Number(process.env.DAILY_CALL_CAP ?? 200)
+
 const app = new Hono()
 
-// Personal LAN app — allow any origin (the PWA calls this from the phone).
-app.use('/api/*', cors())
+app.use(
+  '/api/*',
+  cors({
+    // No allow-list configured -> stay permissive, so a LAN/dev setup still
+    // works. With one configured, only those origins may call.
+    origin: (origin) =>
+      !origin || ALLOWED_ORIGINS.length === 0
+        ? origin || '*'
+        : ALLOWED_ORIGINS.includes(origin)
+          ? origin
+          : null,
+    allowHeaders: ['content-type', 'x-mise-key'],
+    allowMethods: ['GET', 'POST', 'OPTIONS'],
+  }),
+)
+
+let capDay = ''
+let capCount = 0
+
+app.use('/api/*', async (c, next) => {
+  // /api/health stays open: it is the tunnel's and Mission Control's probe and
+  // it reveals nothing but liveness.
+  if (c.req.path === '/api/health' || c.req.method === 'OPTIONS') return next()
+
+  const email = await accessEmail(c.req.header('cf-access-jwt-assertion'))
+  const keyOk = Boolean(PARSE_KEY) && c.req.header('x-mise-key') === PARSE_KEY
+
+  if (!email && !keyOk) {
+    if (!JWKS && !PARSE_KEY) {
+      return c.json(
+        { error: 'Server has neither Access nor PARSE_KEY configured.' },
+        503,
+      )
+    }
+    return c.json({ error: 'Sign in to use the AI features.' }, 401)
+  }
+
+  const today = new Date().toISOString().slice(0, 10)
+  if (today !== capDay) {
+    capDay = today
+    capCount = 0
+  }
+  if (capCount >= DAILY_CALL_CAP) {
+    return c.json(
+      { error: `Daily cap of ${DAILY_CALL_CAP} AI calls reached. Try tomorrow.` },
+      429,
+    )
+  }
+  capCount += 1
+  return next()
+})
 
 app.get('/api/health', (c) =>
-  c.json({ ok: true, hasKey: Boolean(apiKey), model: 'claude-sonnet-5' }),
+  c.json({
+    ok: true,
+    hasKey: Boolean(apiKey),
+    locked: Boolean(JWKS) || Boolean(PARSE_KEY),
+    auth: JWKS ? 'access' : PARSE_KEY ? 'key' : 'none',
+    model: 'claude-sonnet-5',
+  }),
 )
 
 /**
@@ -273,7 +378,20 @@ async function fetchReadable(url: string): Promise<string> {
   return combined.slice(0, 16000)
 }
 
+// Serve the built PWA from this same origin. Same-origin is the whole point:
+// it means the browser sends the Access cookie on every /api fetch, so there is
+// no CORS and no key for the user to paste.
+// Paths are relative to the service's WorkingDirectory (server/), which must
+// stay there so process.loadEnvFile() still finds server/.env.
+const STATIC_ROOT = process.env.STATIC_DIR ?? '../dist'
+app.use('/*', serveStatic({ root: STATIC_ROOT }))
+// SPA fallback so deep links and the PWA start_url resolve.
+app.get('*', serveStatic({ path: `${STATIC_ROOT}/index.html` }))
+
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`Mise parse server on http://localhost:${info.port}`)
   console.log(apiKey ? 'ANTHROPIC_API_KEY: set' : 'ANTHROPIC_API_KEY: MISSING — /api/parse will 503')
+  console.log(PARSE_KEY ? `PARSE_KEY: set (daily cap ${DAILY_CALL_CAP})` : 'PARSE_KEY: MISSING — /api/* will 503')
+  console.log(`CORS: ${ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS.join(', ') : 'any origin (no allow-list)'}`)
+  console.log(JWKS ? `Access: ${ACCESS_TEAM_DOMAIN} (aud ${ACCESS_AUD.slice(0, 8)}…)` : 'Access: not configured')
 })
