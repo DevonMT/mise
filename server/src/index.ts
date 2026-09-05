@@ -3,8 +3,7 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import * as jose from 'jose'
-import Anthropic from '@anthropic-ai/sdk'
-import type { MessageParam } from '@anthropic-ai/sdk/resources/messages'
+import { askStructured, BrokerError } from './broker.js'
 import {
   PARSE_SCHEMA,
   SYSTEM_PROMPT,
@@ -26,8 +25,8 @@ try {
 }
 
 const PORT = Number(process.env.PORT ?? 8787)
-const apiKey = process.env.ANTHROPIC_API_KEY
-const client = apiKey ? new Anthropic({ apiKey }) : null
+// No Anthropic client and no key here: every model call goes to the ai-broker.
+const BROKER_URL = (process.env.BROKER_URL ?? 'http://172.18.0.1:8610').replace(/\/+$/, '')
 
 // This server used to be tailnet-only, so "no auth" was safe: Tailscale WAS
 // the auth. It is now reachable from the internet via Cloudflare Tunnel at
@@ -169,7 +168,9 @@ app.get('/api/health', (c) => c.json({ ok: true }))
 app.get('/api/status', (c) =>
   c.json({
     ok: true,
-    hasKey: Boolean(apiKey),
+    // This server holds no key; the broker does. What matters here is
+    // whether the broker is reachable at all, which /api/parse reports.
+    broker: BROKER_URL,
     locked: Boolean(GATEWAY_TOKEN) || Boolean(JWKS),
     auth: GATEWAY_TOKEN ? 'gateway' : JWKS ? 'access' : 'none',
     model: 'claude-sonnet-5',
@@ -183,13 +184,6 @@ app.get('/api/status', (c) =>
  * -> the parse contract (sourceType, recipeTitle, servings, items[])
  */
 app.post('/api/parse', async (c) => {
-  if (!client) {
-    return c.json(
-      { error: 'Server has no ANTHROPIC_API_KEY set. Add it to server/.env.' },
-      503,
-    )
-  }
-
   let body: { type?: string; content?: string; mediaType?: string }
   try {
     body = await c.req.json()
@@ -202,18 +196,17 @@ app.post('/api/parse', async (c) => {
   const raw = (body.content ?? '').trim()
   if (!raw) return c.json({ error: 'Empty content.' }, 400)
 
-  let userContent: MessageParam['content']
+  let userContent: string
+  // Images travel beside the prompt rather than inside it: the broker builds
+  // the provider-shaped message, so this file no longer has to know that shape.
+  let images: { media_type: string; data: string }[] = []
 
   if (type === 'image') {
     const img = parseImage(raw, body.mediaType)
     if (!img) return c.json({ error: 'Unsupported or malformed image.' }, 400)
-    userContent = [
-      { type: 'image', source: { type: 'base64', media_type: img.media, data: img.data } },
-      {
-        type: 'text',
-        text: 'This is a photo of a handwritten or whiteboard grocery list, or a recipe. Read every item and parse it.',
-      },
-    ]
+    images = [{ media_type: img.media, data: img.data }]
+    userContent =
+      'This is a photo of a handwritten or whiteboard grocery list, or a recipe. Read every item and parse it.'
   } else if (type === 'url') {
     let text: string
     try {
@@ -231,26 +224,25 @@ app.post('/api/parse', async (c) => {
   }
 
   try {
-    const message = await client.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 8000,
-      thinking: { type: 'disabled' },
+    const data = await askStructured<unknown>({
+      prompt: userContent,
+      schema: PARSE_SCHEMA,
       system: SYSTEM_PROMPT,
-      output_config: { format: { type: 'json_schema', schema: PARSE_SCHEMA } },
-      messages: [{ role: 'user', content: userContent }],
+      images,
     })
-
-    if (message.stop_reason === 'refusal') {
-      return c.json({ error: 'The model declined to parse that input.' }, 422)
-    }
-
-    const textBlock = message.content.find((b) => b.type === 'text')
-    if (!textBlock || textBlock.type !== 'text') {
-      return c.json({ error: 'No structured output returned.' }, 502)
-    }
-    return c.json(JSON.parse(textBlock.text))
+    return c.json(data)
   } catch (e) {
     console.error('parse error:', e)
+    // Keep the broker's status. A refusal (422) and an exhausted budget (429)
+    // are not server faults, and flattening them to 500 tells the person
+    // holding the phone the wrong thing about what to do next.
+    if (e instanceof BrokerError) {
+      const msg =
+        e.code === 'model_refused' ? 'The model declined to parse that input.'
+        : e.code === 'budget_exceeded' ? 'The AI budget for Mise is spent for this month.'
+        : `Parse failed: ${e.message}`
+      return c.json({ error: msg }, e.status as 400)
+    }
     return c.json({ error: `Parse failed: ${String(e)}` }, 500)
   }
 })
@@ -261,9 +253,6 @@ app.post('/api/parse', async (c) => {
  * -> { prices: [{canonicalKey, price}] }
  */
 app.post('/api/prices', async (c) => {
-  if (!client) {
-    return c.json({ error: 'Server has no ANTHROPIC_API_KEY set.' }, 503)
-  }
   let body: { store?: string; items?: Array<{ canonicalKey: string; displayName: string; unit?: string }> }
   try {
     body = await c.req.json()
@@ -279,21 +268,24 @@ app.post('/api/prices', async (c) => {
     .join('\n')
 
   try {
-    const message = await client.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 8000,
-      thinking: { type: 'disabled' },
+    const data = await askStructured<unknown>({
+      prompt: `Price these items:\n${list}`,
+      schema: PRICES_SCHEMA,
       system: pricesSystem(store),
-      output_config: { format: { type: 'json_schema', schema: PRICES_SCHEMA } },
-      messages: [{ role: 'user', content: `Price these items:\n${list}` }],
     })
-    const textBlock = message.content.find((b) => b.type === 'text')
-    if (!textBlock || textBlock.type !== 'text') {
-      return c.json({ error: 'No prices returned.' }, 502)
-    }
-    return c.json(JSON.parse(textBlock.text))
+    return c.json(data)
   } catch (e) {
     console.error('prices error:', e)
+    // Keep the broker's status. A refusal (422) and an exhausted budget (429)
+    // are not server faults, and flattening them to 500 tells the person
+    // holding the phone the wrong thing about what to do next.
+    if (e instanceof BrokerError) {
+      const msg =
+        e.code === 'model_refused' ? 'The model declined to prices that input.'
+        : e.code === 'budget_exceeded' ? 'The AI budget for Mise is spent for this month.'
+        : `Pricing failed: ${e.message}`
+      return c.json({ error: msg }, e.status as 400)
+    }
     return c.json({ error: `Pricing failed: ${String(e)}` }, 500)
   }
 })
@@ -304,7 +296,6 @@ app.post('/api/prices', async (c) => {
  * -> { items: [{canonicalKey, options: [{label, count, sizeAmount, sizeUnit, packaging, price, section}]}] }
  */
 app.post('/api/refine', async (c) => {
-  if (!client) return c.json({ error: 'Server has no ANTHROPIC_API_KEY set.' }, 503)
   let body: { store?: string; items?: Array<{ canonicalKey: string; displayName: string; unit?: string }> }
   try {
     body = await c.req.json()
@@ -320,21 +311,24 @@ app.post('/api/refine', async (c) => {
     .join('\n')
 
   try {
-    const message = await client.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 8000,
-      thinking: { type: 'disabled' },
+    const data = await askStructured<unknown>({
+      prompt: `Give options for these items:\n${list}`,
+      schema: REFINE_SCHEMA,
       system: refineSystem(store),
-      output_config: { format: { type: 'json_schema', schema: REFINE_SCHEMA } },
-      messages: [{ role: 'user', content: `Give options for these items:\n${list}` }],
     })
-    const textBlock = message.content.find((b) => b.type === 'text')
-    if (!textBlock || textBlock.type !== 'text') {
-      return c.json({ error: 'No options returned.' }, 502)
-    }
-    return c.json(JSON.parse(textBlock.text))
+    return c.json(data)
   } catch (e) {
     console.error('refine error:', e)
+    // Keep the broker's status. A refusal (422) and an exhausted budget (429)
+    // are not server faults, and flattening them to 500 tells the person
+    // holding the phone the wrong thing about what to do next.
+    if (e instanceof BrokerError) {
+      const msg =
+        e.code === 'model_refused' ? 'The model declined to refine that input.'
+        : e.code === 'budget_exceeded' ? 'The AI budget for Mise is spent for this month.'
+        : `Refine failed: ${e.message}`
+      return c.json({ error: msg }, e.status as 400)
+    }
     return c.json({ error: `Refine failed: ${String(e)}` }, 500)
   }
 })
@@ -427,7 +421,7 @@ app.get('*', serveStatic({ path: `${STATIC_ROOT}/index.html` }))
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`Mise parse server on http://localhost:${info.port}`)
-  console.log(apiKey ? 'ANTHROPIC_API_KEY: set' : 'ANTHROPIC_API_KEY: MISSING — /api/parse will 503')
+    console.log(`AI: via ai-broker at ${BROKER_URL} (no key held here)`)
   const doors = [GATEWAY_TOKEN ? 'platform gateway' : null, JWKS && ACCESS_AUD ? 'Access' : null].filter(Boolean)
   console.log(
     doors.length
