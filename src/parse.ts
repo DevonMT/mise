@@ -44,33 +44,21 @@ export function fileToDataUrl(file: File): Promise<string> {
 
 /**
  * POST JSON to the parse server with a timeout and human error messages.
- * The endpoint lives on the mini behind Cloudflare Tunnel and requires the
- * parse key from Settings. Errors are phrased for a phone, not a console.
+ * The endpoint lives on the mini behind the platform gateway; being signed in
+ * is what authorises the call. Errors are phrased for a phone, not a console.
  */
-/** localStorage key holding the parse key (Settings -> Parse key). */
-export const PARSE_KEY_STORAGE = 'mise.parseKey'
-
-/** The server is now internet-reachable and requires this on every /api call. */
-export function getParseKey(): string {
-  try {
-    return localStorage.getItem(PARSE_KEY_STORAGE)?.trim() ?? ''
-  } catch {
-    return ''
-  }
-}
-
 async function postJson<T>(path: string, body: unknown, label: string): Promise<T> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), 45_000)
-  const key = getParseKey()
   let res: Response
   try {
     res = await fetch(`${PARSE_URL}${path}`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...(key ? { 'x-mise-key': key } : {}),
-      },
+      // The app is served from the same origin as this API, so the platform
+      // session cookie rides along. Stated explicitly because authentication
+      // now depends on it, rather than on a key the user pasted in.
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
       signal: ctrl.signal,
     })
@@ -86,12 +74,14 @@ async function postJson<T>(path: string, body: unknown, label: string): Promise<
     clearTimeout(timer)
   }
   const data = await res.json().catch(() => ({}))
+  // 401 and 403 are different problems: one is "you are signed out", the other
+  // is "you are signed in but nobody has given you this app". Sending someone
+  // to the wrong fix wastes their time.
   if (res.status === 401) {
-    throw new Error(
-      key
-        ? 'The parse key was rejected. Check it in Settings.'
-        : 'This needs a parse key. Add one in Settings.',
-    )
+    throw new Error('You are signed out. Sign in at id.devondoes.dev and try again.')
+  }
+  if (res.status === 403) {
+    throw new Error('Your account does not have access to Mise yet. Ask Devon for it.')
   }
   if (!res.ok) throw new Error((data as { error?: string })?.error ?? `${label} failed (${res.status})`)
   return data as T

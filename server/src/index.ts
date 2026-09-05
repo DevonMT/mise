@@ -93,9 +93,6 @@ function gatewayEmail(
   return email ? email : null
 }
 
-// Legacy fallback, kept only so the old devontroedel.com install keeps working
-// during the migration. Unset PARSE_KEY once everything is on Access.
-const PARSE_KEY = (process.env.PARSE_KEY ?? '').trim()
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '')
   .split(',')
   .map((o) => o.trim())
@@ -117,7 +114,7 @@ app.use(
         : ALLOWED_ORIGINS.includes(origin)
           ? origin
           : null,
-    allowHeaders: ['content-type', 'x-mise-key'],
+    allowHeaders: ['content-type'],
     allowMethods: ['GET', 'POST', 'OPTIONS'],
   }),
 )
@@ -135,12 +132,12 @@ app.use('/api/*', async (c, next) => {
   const email =
     gatewayEmail(c.req.header('x-gateway-token'), c.req.header('x-platform-user'))
     ?? await accessEmail(c.req.header('cf-access-jwt-assertion'))
-  const keyOk = Boolean(PARSE_KEY) && c.req.header('x-mise-key') === PARSE_KEY
-
-  if (!email && !keyOk) {
-    if (!JWKS && !PARSE_KEY && !GATEWAY_TOKEN) {
+  if (!email) {
+    // Fail closed. With no door at all this is a deployment mistake, and saying
+    // so is more useful than a 401 that reads like a rejected password.
+    if (!JWKS && !GATEWAY_TOKEN) {
       return c.json(
-        { error: 'Server has no gateway token, no Access and no PARSE_KEY configured.' },
+        { error: 'Server misconfigured: neither GATEWAY_TOKEN nor Access is set.' },
         503,
       )
     }
@@ -173,8 +170,8 @@ app.get('/api/status', (c) =>
   c.json({
     ok: true,
     hasKey: Boolean(apiKey),
-    locked: Boolean(JWKS) || Boolean(PARSE_KEY),
-    auth: JWKS ? 'access' : PARSE_KEY ? 'key' : 'none',
+    locked: Boolean(GATEWAY_TOKEN) || Boolean(JWKS),
+    auth: GATEWAY_TOKEN ? 'gateway' : JWKS ? 'access' : 'none',
     model: 'claude-sonnet-5',
     dailyCap: DAILY_CALL_CAP,
   }),
@@ -431,7 +428,7 @@ app.get('*', serveStatic({ path: `${STATIC_ROOT}/index.html` }))
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`Mise parse server on http://localhost:${info.port}`)
   console.log(apiKey ? 'ANTHROPIC_API_KEY: set' : 'ANTHROPIC_API_KEY: MISSING — /api/parse will 503')
-  const doors = [JWKS && ACCESS_AUD ? 'Access' : null, PARSE_KEY ? 'PARSE_KEY' : null].filter(Boolean)
+  const doors = [GATEWAY_TOKEN ? 'platform gateway' : null, JWKS && ACCESS_AUD ? 'Access' : null].filter(Boolean)
   console.log(
     doors.length
       ? `Auth: ${doors.join(' + ')} (daily cap ${DAILY_CALL_CAP})`
