@@ -13,6 +13,7 @@ import {
   REFINE_SCHEMA,
   refineSystem,
 } from './parseContract.js'
+import { timingSafeEqual } from 'node:crypto'
 
 const IMAGE_MEDIA = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const
 type ImageMedia = (typeof IMAGE_MEDIA)[number]
@@ -65,6 +66,33 @@ async function accessEmail(token: string | undefined): Promise<string | null> {
   }
 }
 
+/**
+ * The platform gateway's door.
+ *
+ * Two headers, and both are required. X-Platform-User carries the email and the
+ * gateway sets it unconditionally, so a browser cannot smuggle its own value
+ * through. But :8787 is reachable from every container on the Docker bridge,
+ * and any of them could send that header directly -- so X-Gateway-Token is a
+ * shared secret proving the request actually came through the gateway. Without
+ * it, trusting the identity header would mean trusting every container on the
+ * network to be honest about who it claims to be.
+ *
+ * Compared byte-for-byte in constant time, like any other secret here.
+ */
+const GATEWAY_TOKEN = (process.env.GATEWAY_TOKEN ?? '').trim()
+
+function gatewayEmail(
+  token: string | undefined,
+  user: string | undefined,
+): string | null {
+  if (!GATEWAY_TOKEN || !token) return null
+  const a = Buffer.from(token, 'utf8')
+  const b = Buffer.from(GATEWAY_TOKEN, 'utf8')
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null
+  const email = user?.trim()
+  return email ? email : null
+}
+
 // Legacy fallback, kept only so the old devontroedel.com install keeps working
 // during the migration. Unset PARSE_KEY once everything is on Access.
 const PARSE_KEY = (process.env.PARSE_KEY ?? '').trim()
@@ -102,13 +130,17 @@ app.use('/api/*', async (c, next) => {
   // it reveals nothing but liveness.
   if (c.req.path === '/api/health' || c.req.method === 'OPTIONS') return next()
 
-  const email = await accessEmail(c.req.header('cf-access-jwt-assertion'))
+  // The gateway is checked first: it is the door this service is meant to be
+  // behind now, and Access remains only until its application is removed.
+  const email =
+    gatewayEmail(c.req.header('x-gateway-token'), c.req.header('x-platform-user'))
+    ?? await accessEmail(c.req.header('cf-access-jwt-assertion'))
   const keyOk = Boolean(PARSE_KEY) && c.req.header('x-mise-key') === PARSE_KEY
 
   if (!email && !keyOk) {
-    if (!JWKS && !PARSE_KEY) {
+    if (!JWKS && !PARSE_KEY && !GATEWAY_TOKEN) {
       return c.json(
-        { error: 'Server has neither Access nor PARSE_KEY configured.' },
+        { error: 'Server has no gateway token, no Access and no PARSE_KEY configured.' },
         503,
       )
     }
