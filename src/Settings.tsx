@@ -302,6 +302,19 @@ export function SettingsView() {
         )}
       </section>
 
+      {/* The way back. Mise is reached from devondoes.dev and, once installed,
+          runs with no browser chrome at all — so without this there is no route
+          out of it on the device where it is most used. Settings rather than the
+          bottom bar: leaving is rare, and the bottom bar is for the three things
+          that are not. */}
+      <section className="settings-group">
+        <h3 className="group-title">Elsewhere</h3>
+        <a className="home-link" href="https://devondoes.dev/">
+          <span className="home-dot" aria-hidden="true" />
+          All apps on devondoes.dev
+        </a>
+      </section>
+
       <p className="endpoint-note">
         Build {__BUILD__}
         {AI_ENABLED && (
