@@ -1,23 +1,40 @@
 :root {
-  /* Mise 2.0 — deep pine-green on warm-oat. Light-only, store-readable,
-     kind-neutral (no grocery branding baked into the palette). */
+  /* Mise — copper on warm-oat. Light Mesh: the estate's accent, kept on a
+     light ground on purpose.
+
+     Everything else on devondoes.dev is dark, and this app is not, because it
+     is read one-handed in a supermarket. Ground, ink and muted are unchanged;
+     only the accent family moves, so the app belongs to the estate without
+     becoming harder to use where it is actually used.
+
+     The accent is NOT the estate's #C86A3A. That copper carries white text at
+     only 3.76:1, below AA, where the pine green it replaces managed 6.93:1 —
+     re-theming to it would have quietly made the primary buttons worse. This
+     is the same hue darkened to 6.15:1, so nothing is lost to the change.
+
+     Typography stays on system fonts. This is a VitePWA used offline in a
+     shop; a Google-hosted face would not be in the service worker's cache and
+     would swap in only when there is signal, which is the one place the app is
+     not. Bricolage and Inter Tight belong to the pages that are always online. */
   --bg: #f1f4ed;
   --surface: #ffffff;
   --ink: #1a1a14;
   --muted: #8a8578;
   --line: #e5e2d7;
-  --accent: #14664a;
+  --accent: #9c4a22;
   --accent-ink: #ffffff;
-  --accent-soft: #e2ede6;
-  --accent-deep: #0b3d2c;
+  --accent-soft: #f3e7df;
+  --accent-deep: #7f3a1c;
   --danger: #b23a2e;
   --danger-soft: #f7e4e1;
-  --fav: #d6970f;
+  /* Was #d6970f, which sat at 2.28:1 on the oat ground — under the 3.0 a
+     non-text mark needs. Darkened to 3.91:1 while staying recognisably gold. */
+  --fav: #9a730c;
   --fav-soft: #f6ecd2;
   --seg: #eae7dc;
   --nav-h: 62px;
-  --shadow: 0 12px 30px -14px rgba(20, 60, 44, 0.28);
-  --shadow-fab: 0 12px 24px -8px rgba(20, 102, 74, 0.55);
+  --shadow: 0 12px 30px -14px rgba(90, 46, 20, 0.26);
+  --shadow-fab: 0 12px 24px -8px rgba(156, 74, 34, 0.5);
 
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
   color: var(--ink);

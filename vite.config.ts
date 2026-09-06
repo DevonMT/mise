@@ -27,7 +27,7 @@ export default defineConfig({
         description: lite
           ? 'A clean, offline smart grocery list — aisle-grouped, swipe to check.'
           : 'Snap it, paste it, or type it — one smart grocery list.',
-        theme_color: '#0e7c5b',
+        theme_color: '#9c4a22',
         background_color: '#f7f3ec',
         display: 'standalone',
         orientation: 'portrait',
