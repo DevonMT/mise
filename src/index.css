@@ -1185,8 +1185,6 @@ button {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 56vh;
-  overflow-y: auto;
   margin-top: 6px;
 }
 .recipe-card {
@@ -2312,5 +2310,30 @@ button {
   .tabs,
   .hint-banner {
     max-width: 460px;
+  }
+}
+
+/* ---- Recipes on a wide screen ---------------------------------------------
+   Settings is a form and wants a readable column; this is a collection of
+   cards and wants the width. Five recipes in a 720px strip left most of the
+   window empty, and a recipe card carries a title and one line of meta — it
+   does not need 720px to say "serves 4 · 5 ingredients". */
+.view-wide {
+  max-width: none;
+}
+@media (min-width: 700px) {
+  .recipe-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+    gap: 10px;
+    align-items: start;
+  }
+  /* The empty state is a sentence and a button, not a grid. */
+  .view-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    max-width: 46ch;
   }
 }

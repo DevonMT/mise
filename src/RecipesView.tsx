@@ -46,17 +46,17 @@ export function RecipesView({
   }
 
   return (
-    <div className="view">
-      <div className="view-head">
-        <button className="add-btn" onClick={onAddRecipe}>
-          <Icon name="plus" size={18} /> Add
-        </button>
-      </div>
+    <div className="view view-wide">
       {recipes.length === 0 ? (
-        <p className="view-empty">
-          No recipes yet. Tap <strong>Add</strong> to{' '}
-          {AI_ENABLED ? 'snap, paste, link, or type one in.' : 'enter one.'}
-        </p>
+        <div className="view-empty">
+          <p>
+            No recipes yet —{' '}
+            {AI_ENABLED ? 'snap, paste, link, or type one in.' : 'enter one by hand.'}
+          </p>
+          <button className="add-btn" onClick={onAddRecipe}>
+            <Icon name="plus" size={18} /> New recipe
+          </button>
+        </div>
       ) : (
         <div className="recipe-list">
           {recipes.map((r) => (

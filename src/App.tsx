@@ -406,6 +406,15 @@ export default function App() {
             <Icon name="dots" size={22} />
           </button>
         )}
+        {tab === 'recipes' && (
+          <button
+            className="add-btn"
+            aria-label="New recipe"
+            onClick={() => (AI_ENABLED ? setRecipeMenuOpen(true) : setRecipeFormOpen(true))}
+          >
+            <Icon name="plus" size={18} /> New
+          </button>
+        )}
       </header>
 
       <main className="scroll">
