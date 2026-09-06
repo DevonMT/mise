@@ -2245,7 +2245,7 @@ button {
   transform: none;
   margin: 0 auto;
   width: max-content;
-  max-width: 100%;
+  max-width: calc(100% - 16px - var(--fab-lane));
 }
 .clear-pill:active {
   transform: scale(0.96);
