@@ -121,9 +121,9 @@ for (const { kind, table } of TABLES) {
 // The wire format
 // ---------------------------------------------------------------------------
 
-type WireRecord = { kind: Kind; uid: string; updatedAt: number; body: Record<string, unknown> }
-type WireTombstone = { kind: Kind; uid: string; deletedAt: number }
-type State = { records: WireRecord[]; tombstones: WireTombstone[] }
+export type WireRecord = { kind: Kind; uid: string; updatedAt: number; body: Record<string, unknown> }
+export type WireTombstone = { kind: Kind; uid: string; deletedAt: number }
+export type State = { records: WireRecord[]; tombstones: WireTombstone[] }
 
 /**
  * Strip the row down to what is portable.
@@ -192,11 +192,18 @@ async function localState(): Promise<State> {
 /**
  * Fold the server's answer into the local database.
  *
+ * Exported for the tests. This is the function that writes to a database of
+ * real groceries, and the bug that matters here is not an exception but a row
+ * that quietly vanishes or quietly comes back, so it is exercised directly
+ * rather than only through a live sync.
+ *
  * The server has already merged this device's push into its own copy, so what
  * comes back is the agreed state; the job here is only to make local match it
  * without disturbing rows the server has not heard about yet.
  */
-async function applyRemote(state: State): Promise<{ added: number; updated: number; removed: number }> {
+export async function applyRemote(
+  state: State,
+): Promise<{ added: number; updated: number; removed: number }> {
   let added = 0
   let updated = 0
   let removed = 0

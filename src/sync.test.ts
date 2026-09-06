@@ -233,3 +233,171 @@ test('a bulk write stamps every row', async () => {
     assert.ok(row?.updatedAt, 'every bulk-written row has a timestamp')
   }
 })
+
+// ---------------------------------------------------------------------------
+// The client-side merge. This is the code that writes to a database of real
+// groceries, so each case below is a way it could quietly lose or duplicate
+// something rather than a way it could throw.
+// ---------------------------------------------------------------------------
+
+const { applyRemote } = await import('./sync')
+
+/** A fresh list to scope each merge test to, so they cannot interfere. */
+async function freshList() {
+  const id = await db.lists.add({ name: `L${Math.random()}`, kind: 'grocery', createdAt: 1 })
+  const uid = (await db.lists.get(id))!.uid!
+  return { id, uid }
+}
+
+const itemRec = (uid: string, listUid: string, name: string, updatedAt: number) => ({
+  kind: 'item' as const,
+  uid,
+  updatedAt,
+  body: {
+    listUid, displayName: name, canonicalKey: name.toLowerCase(),
+    section: 'other', checked: false, backlog: false, createdAt: 1,
+  },
+})
+
+test('an item from another device arrives on the right list', async () => {
+  const list = await freshList()
+  const uid = `remote-${Math.random()}`
+  const r = await applyRemote({
+    records: [itemRec(uid, list.uid, 'Remote Apples', 500)],
+    tombstones: [],
+  })
+
+  assert.equal(r.added, 1)
+  const row = await db.items.filter((i) => i.uid === uid).first()
+  assert.ok(row, 'the item landed')
+  assert.equal(row?.displayName, 'Remote Apples')
+  // The local listId is this device's counter; the wire carried the list uid.
+  assert.equal(row?.listId, list.id, 'resolved back to the local list id')
+  assert.equal((row as Record<string, unknown>).listUid, undefined, 'wire field is not stored')
+})
+
+test('applying the same record twice does not duplicate it', async () => {
+  const list = await freshList()
+  const uid = `dupe-${Math.random()}`
+  const state = { records: [itemRec(uid, list.uid, 'Once', 500)], tombstones: [] }
+  await applyRemote(state)
+  await applyRemote(state)
+
+  const rows = await db.items.filter((i) => i.uid === uid).toArray()
+  assert.equal(rows.length, 1, 'uid is the identity, not the local id')
+})
+
+test('a newer remote edit overwrites, an older one does not', async () => {
+  const list = await freshList()
+  const uid = `lww-${Math.random()}`
+  await applyRemote({ records: [itemRec(uid, list.uid, 'First', 500)], tombstones: [] })
+
+  await applyRemote({ records: [itemRec(uid, list.uid, 'Second', 900)], tombstones: [] })
+  assert.equal((await db.items.filter((i) => i.uid === uid).first())?.displayName, 'Second')
+
+  await applyRemote({ records: [itemRec(uid, list.uid, 'Stale', 100)], tombstones: [] })
+  assert.equal(
+    (await db.items.filter((i) => i.uid === uid).first())?.displayName,
+    'Second',
+    'a stale copy from a lagging device does not win',
+  )
+})
+
+test('a local edit newer than the server copy survives the merge', async () => {
+  // The case that matters most: you change something on this device, then a
+  // sync brings back the server's older version. Yours must stand.
+  const list = await freshList()
+  const uid = `local-${Math.random()}`
+  await applyRemote({ records: [itemRec(uid, list.uid, 'Server', 500)], tombstones: [] })
+
+  const row = await db.items.filter((i) => i.uid === uid).first()
+  await db.items.update(row!.id!, { displayName: 'Mine' }) // hooks stamp it now
+
+  await applyRemote({ records: [itemRec(uid, list.uid, 'Server', 500)], tombstones: [] })
+  assert.equal(
+    (await db.items.filter((i) => i.uid === uid).first())?.displayName,
+    'Mine',
+    'the local edit was not clobbered by the older server copy',
+  )
+})
+
+test('a tombstone removes the row, and absence does not', async () => {
+  const list = await freshList()
+  const keep = `keep-${Math.random()}`
+  const kill = `kill-${Math.random()}`
+  await applyRemote({
+    records: [itemRec(keep, list.uid, 'Keep', 500), itemRec(kill, list.uid, 'Kill', 500)],
+    tombstones: [],
+  })
+
+  // A state that mentions neither record, and tombstones only one.
+  const r = await applyRemote({
+    records: [],
+    tombstones: [{ kind: 'item', uid: kill, deletedAt: 900 }],
+  })
+
+  assert.equal(r.removed, 1)
+  assert.equal(await db.items.filter((i) => i.uid === kill).count(), 0, 'tombstoned row is gone')
+  assert.equal(
+    await db.items.filter((i) => i.uid === keep).count(),
+    1,
+    'a row simply absent from the payload is untouched',
+  )
+})
+
+test('a local edit after a delete elsewhere keeps the row', async () => {
+  const list = await freshList()
+  const uid = `resurrect-${Math.random()}`
+  await applyRemote({ records: [itemRec(uid, list.uid, 'Contested', 500)], tombstones: [] })
+
+  const row = await db.items.filter((i) => i.uid === uid).first()
+  await db.items.update(row!.id!, { displayName: 'Edited after the delete' })
+  const editedAt = (await db.items.filter((i) => i.uid === uid).first())!.updatedAt!
+
+  await applyRemote({ records: [], tombstones: [{ kind: 'item', uid, deletedAt: editedAt - 1 }] })
+  assert.equal(
+    await db.items.filter((i) => i.uid === uid).count(),
+    1,
+    'the newer edit beats the older delete, matching the server rule',
+  )
+})
+
+test('merging does not restamp rows and start a ping-pong', async () => {
+  // If applying a remote row bumped its updatedAt to now, this device would
+  // think it held the newest copy of everything it just received and push it
+  // straight back — forever.
+  const list = await freshList()
+  const uid = `stamp-${Math.random()}`
+  await applyRemote({ records: [itemRec(uid, list.uid, 'Incoming', 500)], tombstones: [] })
+
+  const row = await db.items.filter((i) => i.uid === uid).first()
+  assert.equal(row?.updatedAt, 500, "kept the server's timestamp, not this device's clock")
+})
+
+test('an item whose list has not arrived yet is skipped, not misfiled', async () => {
+  const uid = `orphan-${Math.random()}`
+  const r = await applyRemote({
+    records: [itemRec(uid, 'a-list-this-device-has-never-seen', 'Orphan', 500)],
+    tombstones: [],
+  })
+  assert.equal(r.added, 0)
+  assert.equal(await db.items.filter((i) => i.uid === uid).count(), 0, 'not dropped into some other list')
+})
+
+test('a list and its items arrive together in one merge', async () => {
+  const listUid = `newlist-${Math.random()}`
+  const itemUid = `newitem-${Math.random()}`
+  const r = await applyRemote({
+    records: [
+      itemRec(itemUid, listUid, 'Arrived', 500),
+      { kind: 'list', uid: listUid, updatedAt: 500,
+        body: { name: 'From the phone', kind: 'grocery', createdAt: 1 } },
+    ],
+    tombstones: [],
+  })
+
+  assert.equal(r.added, 2, 'both landed despite the item being listed first')
+  const list = await db.lists.filter((l) => l.uid === listUid).first()
+  const item = await db.items.filter((i) => i.uid === itemUid).first()
+  assert.equal(item?.listId, list?.id, 'the item found the list that arrived with it')
+})
