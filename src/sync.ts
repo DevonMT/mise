@@ -293,14 +293,30 @@ export function lastSyncedAt(): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/** Whether this browser could sync at all: the right edition, and a session. */
-export async function syncAvailable(): Promise<boolean> {
-  if (EDITION !== 'personal') return false
+/**
+ * Whether this browser could sync, and if not, why.
+ *
+ * The distinction matters for what Settings says. A page served from the wrong
+ * origin can never sync and should be told so plainly; a signed-out or expired
+ * session on the right origin is one sign-in away, and telling that person to
+ * "use the copy at mise.devondoes.dev" when they are already looking at it is
+ * the kind of wrong advice that sends someone hunting for a second install.
+ */
+export type Availability = 'ok' | 'signin' | 'unavailable'
+
+export async function syncAvailable(): Promise<Availability> {
+  if (EDITION !== 'personal') return 'unavailable'
   try {
     const res = await fetch(`${ENDPOINT}/health`, { credentials: 'include' })
-    return res.ok
+    if (res.ok) return 'ok'
+    // The request reached the platform and was answered, so the origin is
+    // allowed and CORS is fine — this is only about who is signed in.
+    if (res.status === 401 || res.status === 403) return 'signin'
+    return 'unavailable'
   } catch {
-    return false
+    // A network failure, or a CORS rejection because this origin is not on the
+    // allow-list. Indistinguishable from here, and both mean "not from here".
+    return 'unavailable'
   }
 }
 

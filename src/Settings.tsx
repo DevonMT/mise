@@ -14,7 +14,10 @@ import {
 } from './aisles'
 import { Icon } from './Icon'
 import { AI_ENABLED } from './edition'
-import { lastSyncedAt, setSyncEnabled, sync, syncAvailable, syncEnabled, type SyncResult } from './sync'
+import {
+  lastSyncedAt, setSyncEnabled, sync, syncAvailable, syncEnabled,
+  type Availability, type SyncResult,
+} from './sync'
 
 export function SettingsView() {
   const staples =
@@ -29,9 +32,9 @@ export function SettingsView() {
   const [name, setName] = useState('')
   const [store, setStore] = useState(() => localStorage.getItem('mise.store') ?? '')
 
-  // Sync. `canSync` is undefined until the health check answers, so the section
-  // can say "checking" instead of flickering through "not available".
-  const [canSync, setCanSync] = useState<boolean | undefined>(undefined)
+  // Sync. Undefined until the health check answers, so the section can say
+  // "checking" instead of flickering through "not available".
+  const [canSync, setCanSync] = useState<Availability | undefined>(undefined)
   const [syncOn, setSyncOn] = useState(syncEnabled)
   const [syncBusy, setSyncBusy] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
@@ -257,7 +260,7 @@ export function SettingsView() {
           <h3 className="group-title">Sync across devices</h3>
           {canSync === undefined ? (
             <p className="group-hint">Checking…</p>
-          ) : canSync ? (
+          ) : canSync === 'ok' ? (
             <>
               <label className="row-toggle">
                 <input
@@ -290,12 +293,18 @@ export function SettingsView() {
               )}
               {syncMsg && <p className="group-hint">{syncMsg}</p>}
             </>
+          ) : canSync === 'signin' ? (
+            <p className="group-hint">
+              You’re signed out. Sign in at{' '}
+              <a href="https://id.devondoes.dev">id.devondoes.dev</a> and reopen Settings —
+              nothing here changes until you do, and your list is untouched.
+            </p>
           ) : (
             <p className="group-hint">
               Not available here. Sync needs the copy of Mise at{' '}
-              <a href="https://mise.devondoes.dev">mise.devondoes.dev</a>, signed in to your
-              account — a browser will only hand the session to that address. This copy stays
-              fully local, and “Back up to a file” above moves data between the two.
+              <a href="https://mise.devondoes.dev">mise.devondoes.dev</a> — a browser will
+              only hand the session to that address. This copy stays fully local, and “Back
+              up to a file” above moves data between the two.
             </p>
           )}
         </section>
