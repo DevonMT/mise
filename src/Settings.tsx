@@ -199,7 +199,6 @@ export function SettingsView() {
 
   return (
     <div className="view">
-      <h2 className="view-title">Settings</h2>
 
       <section className="settings-group">
         <h3 className="group-title">Your data &amp; backup</h3>

@@ -48,7 +48,6 @@ export function RecipesView({
   return (
     <div className="view">
       <div className="view-head">
-        <h2 className="view-title">Recipes</h2>
         <button className="add-btn" onClick={onAddRecipe}>
           <Icon name="plus" size={18} /> Add
         </button>

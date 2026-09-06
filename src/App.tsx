@@ -399,7 +399,7 @@ export default function App() {
             <Icon name="chevronDown" size={16} className="list-pick-caret" />
           </button>
         ) : (
-          <div className="brand">{tab === 'recipes' ? 'Recipes' : 'Settings'}</div>
+          <h1 className="brand">{tab === 'recipes' ? 'Recipes' : 'Settings'}</h1>
         )}
         {tab === 'list' && (
           <button className="icon-btn" aria-label="List actions" onClick={() => setMenuOpen(true)}>
@@ -473,7 +473,8 @@ export default function App() {
                 <p className="hint">{kind.emptyHint}</p>
               </div>
             ) : (
-              groups.map((g) => (
+              <div className="groups">
+                {groups.map((g) => (
                 <section key={g.key} className="group">
                   {g.label && <h2 className="group-head">{g.label}</h2>}
                   <ul className="rows">
@@ -568,7 +569,8 @@ export default function App() {
                     })}
                   </ul>
                 </section>
-              ))
+                ))}
+              </div>
             )}
           </>
         )}
