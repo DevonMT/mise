@@ -14,6 +14,7 @@ import {
 } from './aisles'
 import { Icon } from './Icon'
 import { AI_ENABLED } from './edition'
+import { lastSyncedAt, setSyncEnabled, sync, syncAvailable, syncEnabled, type SyncResult } from './sync'
 
 export function SettingsView() {
   const staples =
@@ -27,6 +28,14 @@ export function SettingsView() {
     useLiveQuery(async () => (await priceableKeys()).size, []) ?? 0
   const [name, setName] = useState('')
   const [store, setStore] = useState(() => localStorage.getItem('mise.store') ?? '')
+
+  // Sync. `canSync` is undefined until the health check answers, so the section
+  // can say "checking" instead of flickering through "not available".
+  const [canSync, setCanSync] = useState<boolean | undefined>(undefined)
+  const [syncOn, setSyncOn] = useState(syncEnabled)
+  const [syncBusy, setSyncBusy] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
+  const [syncedAt, setSyncedAt] = useState<number | null>(lastSyncedAt)
   const [busy, setBusy] = useState(false)
   const [priceMsg, setPriceMsg] = useState('')
 
@@ -94,6 +103,47 @@ export function SettingsView() {
   }, [])
   const [dataMsg, setDataMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    let alive = true
+    void syncAvailable().then((ok) => alive && setCanSync(ok))
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const describe = (r: SyncResult): string => {
+    if (!r.ok) return r.message
+    const { added, updated, removed, sent } = r
+    if (!added && !updated && !removed) return `Up to date — ${sent} records checked.`
+    const parts = []
+    if (added) parts.push(`${added} added`)
+    if (updated) parts.push(`${updated} updated`)
+    if (removed) parts.push(`${removed} removed`)
+    return `Synced: ${parts.join(', ')}.`
+  }
+
+  const runSync = async () => {
+    setSyncBusy(true)
+    setSyncMsg('')
+    try {
+      const r = await sync()
+      setSyncMsg(describe(r))
+      setSyncedAt(lastSyncedAt())
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  const onToggleSync = async (on: boolean) => {
+    setSyncEnabled(on)
+    setSyncOn(on)
+    setSyncMsg('')
+    // Sync immediately on turning it on: the first thing anyone wants to know
+    // is whether their list actually made it, and waiting for the next app
+    // open to find out is the worst possible time to learn it did not.
+    if (on) await runSync()
+  }
 
   const onExport = async () => {
     try {
@@ -178,7 +228,9 @@ export function SettingsView() {
           <p className="group-hint">Reading storage…</p>
         )}
         <p className="group-hint">
-          Everything lives on this device only. Keep a backup so a browser reset can never lose it.
+          {syncOn
+            ? 'Synced to your account, and kept on this device too. A backup is still the only copy you hold yourself.'
+            : 'Everything lives on this device only. Keep a backup so a browser reset can never lose it.'}{' '}
           {persisted === false && ' Storage isn’t marked persistent yet — reopening the app requests it.'}
           {persisted === true && ' ✓ Storage is protected from automatic clearing.'}
         </p>
@@ -199,6 +251,55 @@ export function SettingsView() {
         />
         {dataMsg && <p className="group-hint">{dataMsg}</p>}
       </section>
+
+      {AI_ENABLED && (
+        <section className="settings-group">
+          <h3 className="group-title">Sync across devices</h3>
+          {canSync === undefined ? (
+            <p className="group-hint">Checking…</p>
+          ) : canSync ? (
+            <>
+              <label className="row-toggle">
+                <input
+                  type="checkbox"
+                  checked={syncOn}
+                  disabled={syncBusy}
+                  onChange={(e) => void onToggleSync(e.target.checked)}
+                />
+                <span>Keep this device in step with your account</span>
+              </label>
+              <p className="group-hint">
+                Your lists, recipes, staples and saved items are shared with every device
+                signed in to the same account. Edits merge — the most recent change to a
+                given item wins, and deleting on one device deletes it everywhere.
+                Everything keeps working offline and syncs when you come back.
+              </p>
+              {syncOn && (
+                <>
+                  <div className="two-btn">
+                    <button className="ghost" disabled={syncBusy} onClick={() => void runSync()}>
+                      <Icon name="save" size={18} /> {syncBusy ? 'Syncing…' : 'Sync now'}
+                    </button>
+                  </div>
+                  <p className="group-hint">
+                    {syncedAt
+                      ? `Last synced ${new Date(syncedAt).toLocaleString()}.`
+                      : 'Not synced yet.'}
+                  </p>
+                </>
+              )}
+              {syncMsg && <p className="group-hint">{syncMsg}</p>}
+            </>
+          ) : (
+            <p className="group-hint">
+              Not available here. Sync needs the copy of Mise at{' '}
+              <a href="https://mise.devondoes.dev">mise.devondoes.dev</a>, signed in to your
+              account — a browser will only hand the session to that address. This copy stays
+              fully local, and “Back up to a file” above moves data between the two.
+            </p>
+          )}
+        </section>
+      )}
 
       {AI_ENABLED && (
         <section className="settings-group">

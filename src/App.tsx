@@ -42,6 +42,7 @@ import { EditListSheet } from './EditListSheet'
 import { ImportSheet, ImportLinkSheet } from './ImportSheet'
 import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayload } from './share'
 import { AI_ENABLED } from './edition'
+import { startAutoSync } from './sync'
 
 type ListView = 'list' | 'backlog'
 type SheetState = null | 'new' | Item
@@ -76,6 +77,12 @@ export default function App() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [toast, setToast] = useState<{ msg: string; undo?: () => void } | null>(null)
   const [showHint, setShowHint] = useState(() => !localStorage.getItem('mise.swipeHint'))
+
+  // Sync, if it is switched on. Nothing here reads the result: the tables are
+  // behind useLiveQuery, so a merge re-renders the list on its own, and a
+  // failure is a thing Settings reports rather than a thing to interrupt a
+  // shopping trip with.
+  useEffect(() => startAutoSync(), [])
   const undoTimer = useRef<number | undefined>(undefined)
 
   // Seed the DB and settle on a list before rendering anything list-shaped.

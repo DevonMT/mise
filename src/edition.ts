@@ -7,7 +7,7 @@
  * Selected at build time with VITE_MISE_EDITION=lite.
  */
 export const EDITION =
-  import.meta.env.VITE_MISE_EDITION === 'lite' ? 'lite' : 'personal'
+  import.meta.env?.VITE_MISE_EDITION === 'lite' ? 'lite' : 'personal'
 
 /** Whether the AI-powered (server-backed, billable) features are available. */
 export const AI_ENABLED = EDITION !== 'lite'

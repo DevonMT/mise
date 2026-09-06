@@ -28,6 +28,15 @@ export type ListKind = 'grocery' | 'tasks' | 'pantry'
 
 export interface List {
   id?: number
+  /**
+   * Sync identity. Minted on the device that created the row and never reused.
+   * The `id` above is a per-device Dexie counter — item 5 on the phone is not
+   * item 5 on the laptop — so `uid` is the only thing a merge can key on.
+   * Optional because rows created before sync existed are backfilled in v4.
+   */
+  uid?: string
+  /** Epoch ms of the last local edit. The last-write-wins comparand. */
+  updatedAt?: number
   name: string
   kind: ListKind
   /** Icon key (see Icon.tsx LIST_ICON_KEYS). Falls back to the kind's default. */
@@ -37,6 +46,15 @@ export interface List {
 
 export interface Item {
   id?: number
+  /**
+   * Sync identity. Minted on the device that created the row and never reused.
+   * The `id` above is a per-device Dexie counter — item 5 on the phone is not
+   * item 5 on the laptop — so `uid` is the only thing a merge can key on.
+   * Optional because rows created before sync existed are backfilled in v4.
+   */
+  uid?: string
+  /** Epoch ms of the last local edit. The last-write-wins comparand. */
+  updatedAt?: number
   /** Which list this belongs to. */
   listId: number
   displayName: string
@@ -104,6 +122,15 @@ export type RecipeIngredient = Pick<
 /** A saved recipe. */
 export interface Recipe {
   id?: number
+  /**
+   * Sync identity. Minted on the device that created the row and never reused.
+   * The `id` above is a per-device Dexie counter — item 5 on the phone is not
+   * item 5 on the laptop — so `uid` is the only thing a merge can key on.
+   * Optional because rows created before sync existed are backfilled in v4.
+   */
+  uid?: string
+  /** Epoch ms of the last local edit. The last-write-wins comparand. */
+  updatedAt?: number
   title: string
   servings: number
   ingredients: RecipeIngredient[]
@@ -118,6 +145,15 @@ export interface Recipe {
 /** A staple you always have — filtered out of grocery lists. */
 export interface Staple {
   id?: number
+  /**
+   * Sync identity. Minted on the device that created the row and never reused.
+   * The `id` above is a per-device Dexie counter — item 5 on the phone is not
+   * item 5 on the laptop — so `uid` is the only thing a merge can key on.
+   * Optional because rows created before sync existed are backfilled in v4.
+   */
+  uid?: string
+  /** Epoch ms of the last local edit. The last-write-wins comparand. */
+  updatedAt?: number
   canonicalKey: string
   displayName: string
 }
@@ -126,6 +162,15 @@ export interface Staple {
  *  the remembered price per item. Global, not per-list: it describes *you*. */
 export interface CatalogEntry {
   id?: number
+  /**
+   * Sync identity. Minted on the device that created the row and never reused.
+   * The `id` above is a per-device Dexie counter — item 5 on the phone is not
+   * item 5 on the laptop — so `uid` is the only thing a merge can key on.
+   * Optional because rows created before sync existed are backfilled in v4.
+   */
+  uid?: string
+  /** Epoch ms of the last local edit. The last-write-wins comparand. */
+  updatedAt?: number
   canonicalKey: string
   displayName: string
   unit?: string
@@ -146,12 +191,28 @@ export interface CatalogEntry {
   packaging?: string
 }
 
+/** The record kinds that sync. Matches the server's allow-list. */
+export type SyncKind = 'list' | 'item' | 'recipe' | 'staple' | 'catalog'
+
+/**
+ * A delete, remembered. Without this a delete cannot travel: the next pull from
+ * any other device — which still has the row — would put it straight back.
+ * Grow-only locally; the server forgets them after 90 days.
+ */
+export interface Tombstone {
+  id?: number
+  kind: SyncKind
+  uid: string
+  deletedAt: number
+}
+
 export class MiseDB extends Dexie {
   items!: Table<Item, number>
   recipes!: Table<Recipe, number>
   staples!: Table<Staple, number>
   catalog!: Table<CatalogEntry, number>
   lists!: Table<List, number>
+  tombstones!: Table<Tombstone, number>
 
   constructor() {
     super('mise')
@@ -183,7 +244,53 @@ export class MiseDB extends Dexie {
             i.listId = id as number
           })
       })
+
+    // v4: sync. Every row gains a `uid` (its identity across devices) and an
+    // `updatedAt` (which edit wins), and deletes start leaving tombstones.
+    //
+    // Purely additive: no existing field is renamed, moved or dropped, and the
+    // local `++id` primary keys are untouched, so every call site that holds an
+    // id keeps working. A device that never signs in behaves exactly as before,
+    // just with two more fields it ignores.
+    this.version(4)
+      .stores({
+        lists: '++id, &uid, kind',
+        items: '++id, &uid, listId, canonicalKey, section, checked, backlog',
+        recipes: '++id, &uid, title',
+        staples: '++id, &uid, &canonicalKey',
+        catalog: '++id, &uid, &canonicalKey, favorite, count',
+        tombstones: '++id, &[kind+uid]',
+      })
+      .upgrade(async (tx) => {
+        // Backfill. `updatedAt` falls back to createdAt where there is one, so
+        // rows keep a truthful order rather than all claiming to be edited at
+        // the moment of the upgrade — which would make this device beat every
+        // other device on every row the first time it syncs.
+        const now = Date.now()
+        for (const name of ['lists', 'items', 'recipes', 'staples', 'catalog']) {
+          await tx
+            .table(name)
+            .toCollection()
+            .modify((row: { uid?: string; updatedAt?: number; createdAt?: number }) => {
+              if (!row.uid) row.uid = newUid()
+              if (row.updatedAt == null) row.updatedAt = row.createdAt ?? now
+            })
+        }
+      })
   }
+}
+
+/**
+ * A record id that is unique across devices without coordination.
+ * `randomUUID` needs a secure context; Mise is HTTPS everywhere it syncs, but
+ * the fallback keeps a plain-HTTP dev server working.
+ */
+export function newUid(): string {
+  const c = globalThis.crypto
+  if (c?.randomUUID) return c.randomUUID()
+  const b = new Uint8Array(16)
+  c.getRandomValues(b)
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
 }
 
 export const db = new MiseDB()
