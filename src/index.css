@@ -2159,117 +2159,9 @@ button {
   }
 }
 
-/* ---- The rail -------------------------------------------------------------
-   Above this width there is room to show where you are without spending a
-   whole edge of the screen on it, and a bottom bar stops being reachable
-   anyway — the pointer is wherever you left it, not at the bottom of the
-   glass. 900px is where the content column stops being the whole story. */
-@media (min-width: 900px) {
-  .app {
-    max-width: 1320px;
-    display: grid;
-    grid-template-columns: var(--rail) minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-    grid-template-areas:
-      'rail topbar'
-      'rail main';
-  }
-  .topbar {
-    grid-area: topbar;
-    padding: 18px 28px;
-  }
-  .scroll {
-    grid-area: main;
-    padding: 16px 28px 0;
-  }
 
-  .bottomnav {
-    grid-area: rail;
-    position: static;
-    max-width: none;
-    margin: 0;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: 4px;
-    height: auto;
-    padding: 18px 12px;
-    border-top: none;
-    border-right: 1px solid var(--line);
-    background: transparent;
-  }
-  .navbtn {
-    flex: 0 0 auto;
-    flex-direction: row;
-    justify-content: flex-start;
-    gap: 12px;
-    height: 44px;
-    padding: 0 12px;
-    border-radius: 12px;
-    text-align: left;
-  }
-  .navbtn-icon {
-    padding: 0;
-    background: none;
-  }
-  .navbtn-label {
-    font-size: 0.95rem;
-    /* A list can be called anything; the rail is a fixed width. */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .navbtn.on {
-    background: var(--accent-soft);
-  }
-  .navbtn.on .navbtn-icon {
-    background: none;
-  }
 
-  /* Denser rows. A pointer is precise where a thumb is not, so the 44px touch
-     floor that governs the phone layout is not doing any work here. */
-  .row {
-    min-height: 46px;
-  }
-  .group {
-    margin-bottom: 22px;
-  }
 
-  /* Both floating controls were pinned to a 640px column and drifted to the
-     middle of the window with it. They belong to the content area now. */
-  .fab {
-    right: 34px;
-    bottom: 30px;
-  }
-  .clear-pill {
-    left: auto;
-    right: 112px;
-    bottom: 34px;
-    transform: none;
-  }
-  .clear-pill:active {
-    transform: scale(0.96);
-  }
-  .toast {
-    left: auto;
-    right: 34px;
-    bottom: 30px;
-    width: min(420px, calc(100% - 68px));
-    margin: 0;
-  }
-  /* The bottom bar is gone, so the runway it needed is too. */
-  .bottom-space {
-    height: 24px;
-  }
-}
-
-/* Wider still: cap the reading column so rows do not stretch to arm's length,
-   and let a fourth aisle in. */
-@media (min-width: 1500px) {
-  .app {
-    max-width: 1560px;
-  }
-}
 
 /* ---- Typography, applied ---- */
 .row-name,
@@ -2492,7 +2384,14 @@ button {
       'rail topbar'
       'rail main';
   }
-  .topbar { grid-area: topbar; padding: 18px 28px; }
+  .topbar {
+    grid-area: topbar;
+    padding: 18px 28px;
+    /* Restated, because the shorthand above resets the safe-area padding set
+       on .topbar near the top of this file. A landscape phone wide enough to
+       reach this breakpoint still has a status bar to clear. */
+    padding-top: max(18px, env(safe-area-inset-top, 0px));
+  }
   .scroll { grid-area: main; padding: 16px 28px 0; }
 
   .bottomnav {
@@ -2506,6 +2405,11 @@ button {
     gap: 4px;
     height: auto;
     padding: 18px 12px;
+    /* Same reason, other edges. In landscape the notch is on the left, which is
+       exactly where this rail now lives, and the rail runs to the bottom of the
+       screen where the home indicator is. */
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-bottom: max(18px, env(safe-area-inset-bottom, 0px));
     border-top: none;
     border-right: 1px solid var(--line);
     background: transparent;
@@ -2713,4 +2617,32 @@ button {
     margin-top: 6px;
     color: var(--muted);
   }
+}
+
+/* The details button on a row. Only rendered with a pointer (see App), where
+   clicking the row itself ticks it off. Hidden until the row is hovered or the
+   button is focused — visible on every row at once would be fifteen identical
+   dots down the page — but never hidden from a keyboard. */
+.row-info {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  align-self: stretch;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.rows > li:hover .row-info,
+.row-info:focus-visible {
+  opacity: 1;
+}
+.row-info:hover {
+  color: var(--ink);
+}
+@media (prefers-reduced-motion: reduce) {
+  .row-info { transition: none; }
 }

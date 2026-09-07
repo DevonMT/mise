@@ -43,12 +43,18 @@ import { ImportSheet, ImportLinkSheet } from './ImportSheet'
 import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayload } from './share'
 import { useAiEnabled } from './edition'
 import { startAutoSync } from './sync'
+import { usePointer } from './usePointer'
 
 type ListView = 'list' | 'backlog'
 type SheetState = null | 'new' | Item
 
 export default function App() {
   const aiOn = useAiEnabled()
+  // With a mouse, clicking a row ticks it off; details move to a button that
+  // appears on hover. With a finger the row opens details, because a tap is
+  // imprecise and ticking something off by accident in an aisle is worse than
+  // an extra tap. See usePointer for why this is not a width test.
+  const pointer = usePointer()
   const [activeId, setActiveId] = useState<number | null>(null)
   const [storageBlocked, setStorageBlocked] = useState(false)
   const [pending, setPending] = useState<SharePayload | null>(null)
@@ -537,7 +543,11 @@ export default function App() {
                           <button
                             className="row-main"
                             onClick={() =>
-                              selectMode ? toggleSelect(item.id!) : setSheet(item)
+                              selectMode
+                                ? toggleSelect(item.id!)
+                                : pointer
+                                  ? toggle(item)
+                                  : setSheet(item)
                             }
                           >
                             <span className="row-name-wrap">
@@ -570,6 +580,19 @@ export default function App() {
                                 })()}
                             </span>
                           </button>
+                          {/* A sibling, not a child: .row-main is a <button> and
+                              nesting one inside it is invalid. Only rendered with
+                              a pointer, where the row itself now ticks off and
+                              details would otherwise have nowhere to live. */}
+                          {pointer && !selectMode && (
+                            <button
+                              className="row-info"
+                              aria-label={`Details for ${item.displayName}`}
+                              onClick={() => setSheet(item)}
+                            >
+                              <Icon name="dots" size={18} />
+                            </button>
+                          )}
                         </>
                       )
                       if (selectMode) {

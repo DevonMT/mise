@@ -455,9 +455,16 @@ export function SettingsView() {
       </section>
 
       <section className="settings-group">
-        <h3 className="group-title">Staples you always have</h3>
+        <h3 className="group-title">Never add these</h3>
         <p className="group-hint">
-          These are skipped when parsing lists and recipes, so they never clutter your list.
+          Things you always have, so a recipe asking for them shouldn’t put them on
+          your shopping list. Salt, oil, pepper. They’re skipped when a list or
+          recipe is parsed — nothing is filtered out of a list you typed yourself.
+        </p>
+        <p className="group-hint">
+          Not the same as a <b>Pantry</b> list, which tracks what you’ve run out of
+          so you can add it back. These are the opposite: things you never want
+          added.
         </p>
         <div className="two-btn">
           <input
