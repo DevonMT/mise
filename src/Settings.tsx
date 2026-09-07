@@ -22,7 +22,7 @@ import {
 function describeLayout(): string {
   const w = window.innerWidth
   const mode = w >= 900 ? 'rail' : w >= 700 ? 'wide tabs' : 'phone'
-  return `${w}px · ${mode}`
+  return `${location.host} · ${w}px · ${mode}`
 }
 
 export function SettingsView() {
