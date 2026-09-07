@@ -12,6 +12,7 @@
 @import './ds/tokens.css';
 @import './ds/base.css';
 @import './ds/app-shell.css';
+@import './ds/chrome.css';
 
 /*
  * Mise's typography stays on system fonts, deliberately. This is a PWA used
@@ -19,10 +20,22 @@
  * cache and would swap in only where there is signal, which is the one place
  * the app is not.
  */
+/*
+ * The estate bar is a sibling of .app, not a child: at 900px .app becomes a
+ * grid whose first column is the rail. So #root becomes the column that holds
+ * both, and .app takes the remaining height instead of a flat 100%.
+ */
+#root {
+  display: flex;
+  flex-direction: column;
+}
+#root > .ds-bar { flex: 0 0 auto; }
+
 .app {
   max-width: 640px;
   margin: 0 auto;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;

@@ -49,6 +49,7 @@ import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayloa
 import { useAiEnabled } from './edition'
 import { startAutoSync } from './sync'
 import { usePointer } from './ds/usePointer'
+import { EstateBar } from './EstateBar'
 import { RecipePickSheet } from './RecipePick'
 import { addPlanToList } from './recipes'
 
@@ -454,7 +455,11 @@ export default function App() {
   const isEmpty = groups.every((g) => g.items.length === 0)
 
   return (
-    <div className="app">
+    // The bar sits OUTSIDE .app: at 900px .app becomes a grid whose first
+    // column is the rail, so a bar inside it would be placed in the rail.
+    <>
+      <EstateBar />
+      <div className="app">
       <header className="topbar">
         {tab === 'list' ? (
           <button className="list-pick" onClick={() => setSwitcherOpen(true)}>
@@ -958,7 +963,8 @@ export default function App() {
           onClose={() => setSheet(null)}
         />
       )}
-    </div>
+      </div>
+    </>
   )
 }
 
