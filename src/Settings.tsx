@@ -19,6 +19,12 @@ import {
   type Availability, type SyncResult,
 } from './sync'
 
+function describeLayout(): string {
+  const w = window.innerWidth
+  const mode = w >= 900 ? 'rail' : w >= 700 ? 'wide tabs' : 'phone'
+  return `${w}px · ${mode}`
+}
+
 export function SettingsView() {
   const aiOn = useAiEnabled()
   const staples =
@@ -32,6 +38,20 @@ export function SettingsView() {
     useLiveQuery(async () => (await priceableKeys()).size, []) ?? 0
   const [name, setName] = useState('')
   const [store, setStore] = useState(() => localStorage.getItem('mise.store') ?? '')
+
+  // Which layout is actually in force, next to the build stamp.
+  //
+  // "It still looks like a phone app" has two completely different causes — an
+  // old bundle, or a window under 900px — and from the outside they are
+  // indistinguishable, which cost an evening of telling Devon to reload
+  // something that was already current. One line answers both: the stamp says
+  // which build, the width says which layout it chose and why.
+  const [layout, setLayout] = useState(describeLayout)
+  useEffect(() => {
+    const onResize = () => setLayout(describeLayout())
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   // Sync. Undefined until the health check answers, so the section can say
   // "checking" instead of flickering through "not available".
@@ -426,7 +446,7 @@ export function SettingsView() {
       </section>
 
       <p className="endpoint-note">
-        Build {__BUILD__}
+        Build {__BUILD__} · {layout}
         {aiOn && (
           <>
             <br />
