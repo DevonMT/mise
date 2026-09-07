@@ -49,6 +49,22 @@ const ENDPOINT = 'https://id.devondoes.dev/api/mise'
 
 const ENABLED_KEY = 'mise.sync.enabled'
 const LAST_KEY = 'mise.sync.last'
+const DEVICE_KEY = 'mise.sync.device'
+
+/**
+ * This browser's identity, so the server can avoid waking the device that just
+ * pushed with news of its own change. Not a security boundary — forging it
+ * costs one redundant sync — and not tied to the account, so signing out and
+ * back in on the same device does not create a second one.
+ */
+function deviceId(): string {
+  let id = localStorage.getItem(DEVICE_KEY)
+  if (!id) {
+    id = newUid()
+    localStorage.setItem(DEVICE_KEY, id)
+  }
+  return id
+}
 
 /** How long a local tombstone is kept before it is assumed to have reached
  *  every device. Matches the server's window; keeping it longer would only
@@ -78,6 +94,19 @@ const TABLES: Array<{ kind: Kind; table: Dexie.Table<AnyRow, number> }> = [
  */
 let applyingRemote = false
 
+/**
+ * Set by startAutoSync while the app is running. The hooks call it on every
+ * local write so a change is pushed within a couple of seconds rather than
+ * waiting for the next time you open the app.
+ *
+ * Indirect on purpose: sync must not become a thing the database layer depends
+ * on. When nothing is listening — sync off, Lite build, a unit test — this is
+ * null and every write behaves exactly as it did before any of this existed.
+ */
+function touched(): void {
+  scheduleLocalSync?.()
+}
+
 // ---------------------------------------------------------------------------
 // Stamping
 // ---------------------------------------------------------------------------
@@ -87,10 +116,12 @@ for (const { kind, table } of TABLES) {
     if (applyingRemote) return
     if (!obj.uid) obj.uid = newUid()
     obj.updatedAt = Date.now()
+    touched()
   })
 
   table.hook('updating', (_mods, _pk, obj) => {
     if (applyingRemote) return
+    touched()
     // Returning a patch merges it into the update Dexie is already doing, so
     // this costs no extra write.
     return obj.uid ? { updatedAt: Date.now() } : { uid: newUid(), updatedAt: Date.now() }
@@ -105,6 +136,7 @@ for (const { kind, table } of TABLES) {
     // a record of a deletion that did not happen — which would delete the row
     // on every other device.
     this.onsuccess = () => {
+      touched()
       // A new transaction, because the one being committed is scoped to this
       // table alone and cannot touch `tombstones`.
       void Dexie.ignoreTransaction(() =>
@@ -353,7 +385,7 @@ export async function sync(): Promise<SyncResult> {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, deviceId: deviceId() }),
     })
   } catch {
     return { ok: false, reason: 'offline', message: 'Could not reach the server.' }
@@ -385,17 +417,42 @@ export async function sync(): Promise<SyncResult> {
 }
 
 /**
- * Sync when it is worth syncing: on open, when the app comes back to the
- * foreground, and when the network returns.
+ * Keep this device in step, in both directions, without anyone pressing
+ * anything.
  *
- * Not on every keystroke. A grocery list is edited in bursts while you stand in
- * an aisle, and a request per tick would be mostly noise; coming back to the
- * app is the moment the other device's changes actually matter.
+ * OUTBOUND: local writes are already visible to this file through the Dexie
+ * hooks above, so a change schedules a push. Debounced, because ticking four
+ * things off in an aisle is four writes in as many seconds and they belong in
+ * one request — but short enough that the other device sees it while you are
+ * still standing there.
+ *
+ * INBOUND: an SSE stream that says only "something changed"; this device then
+ * does an ordinary sync. Keeping the data out of the stream means the merge
+ * stays the single path that writes to the database, and a dropped event costs
+ * one stale minute rather than a divergence.
+ *
+ * The fallbacks matter more than the stream. EventSource is not available
+ * everywhere, connections die quietly, and phones suspend them on lock — so the
+ * old triggers stay exactly as they were, and a poll runs whenever the stream is
+ * NOT confirmed open. Live updates are an improvement on the floor, not the
+ * floor itself.
  */
+const PUSH_DEBOUNCE_MS = 1_200
+const POLL_MS = 20_000
+
+let scheduleLocalSync: (() => void) | null = null
+
 export function startAutoSync(onResult?: (r: SyncResult) => void): () => void {
   let running = false
+  let stopped = false
+  let live = false
+  let debounce: ReturnType<typeof setTimeout> | undefined
+  let poll: ReturnType<typeof setInterval> | undefined
+  let es: EventSource | null = null
+  let retry = 0
+
   const run = async () => {
-    if (running || !syncEnabled()) return
+    if (stopped || running || !syncEnabled()) return
     running = true
     try {
       onResult?.(await sync())
@@ -404,14 +461,73 @@ export function startAutoSync(onResult?: (r: SyncResult) => void): () => void {
     }
   }
 
-  const onVisible = () => {
-    if (document.visibilityState === 'visible') void run()
+  // Called by the Dexie hooks on any local write.
+  scheduleLocalSync = () => {
+    if (stopped || !syncEnabled()) return
+    clearTimeout(debounce)
+    debounce = setTimeout(() => void run(), PUSH_DEBOUNCE_MS)
   }
+
+  // Poll only while the stream is not carrying the load, and only while the tab
+  // is visible — a backgrounded tab polling a grocery list helps nobody.
+  const startPoll = () => {
+    if (poll) return
+    poll = setInterval(() => {
+      if (!live && document.visibilityState === 'visible') void run()
+    }, POLL_MS)
+  }
+  const stopPoll = () => {
+    clearInterval(poll)
+    poll = undefined
+  }
+
+  const connect = () => {
+    if (stopped || !syncEnabled() || typeof EventSource === 'undefined') return
+    try {
+      es = new EventSource(`${ENDPOINT}/events?device=${encodeURIComponent(deviceId())}`, {
+        withCredentials: true,
+      })
+    } catch {
+      startPoll()
+      return
+    }
+    es.addEventListener('ready', () => {
+      live = true
+      retry = 0
+    })
+    es.addEventListener('changed', () => void run())
+    es.onerror = () => {
+      // EventSource retries on its own, but not after the server closes the
+      // stream cleanly, and never with a backoff. Take it over: back off to a
+      // minute so a signed-out or restarting server is not hammered, and lean
+      // on the poll in the meantime.
+      live = false
+      es?.close()
+      es = null
+      if (stopped) return
+      retry = Math.min(retry + 1, 6)
+      setTimeout(connect, Math.min(1_000 * 2 ** retry, 60_000))
+    }
+  }
+
+  const onVisible = () => {
+    if (document.visibilityState !== 'visible') return
+    void run()
+    if (!live && !es) connect()
+  }
+
   document.addEventListener('visibilitychange', onVisible)
   window.addEventListener('online', run)
+  startPoll()
+  connect()
   void run()
 
   return () => {
+    stopped = true
+    scheduleLocalSync = null
+    clearTimeout(debounce)
+    stopPoll()
+    es?.close()
     document.removeEventListener('visibilitychange', onVisible)
     window.removeEventListener('online', run)
   }

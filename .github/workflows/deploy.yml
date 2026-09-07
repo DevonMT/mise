@@ -27,18 +27,33 @@ jobs:
         with:
           enablement: true
       - run: npm ci
-      # Personal edition (AI on, points at the mini) -> /mise/
-      - run: npm run build
+      # ONLY Lite ships here now.
+      #
+      # The personal edition used to be published at /mise/ as well, and having
+      # two installable copies of the same app was the whole problem: IndexedDB
+      # is per-ORIGIN, so the two copies on this domain shared one database
+      # while the copy on mise.devondoes.dev had its own — and only that one can
+      # sync, because a browser will only hand it the platform session cookie.
+      # The result was a personal app whose data was in whichever copy you
+      # happened to open. The personal edition now lives at
+      # https://mise.devondoes.dev and nowhere else.
+      - run: npx vite build
         env:
           BASE_PATH: /mise/
-          # Set repo variable VITE_PARSE_URL to the mini's HTTPS endpoint to
-          # make AI capture live. Until then, capture errors gracefully.
-          VITE_PARSE_URL: ${{ vars.VITE_PARSE_URL }}
-      # Lite edition (public, no AI, no backend) -> /mise/lite/
-      - run: npx vite build --outDir dist/lite --emptyOutDir false
-        env:
-          BASE_PATH: /mise/lite/
           VITE_MISE_EDITION: lite
+      # /mise/lite/ was Lite's address for months. Anything bookmarked or
+      # installed there keeps working; it just lands on /mise/ now.
+      - name: Keep the old /mise/lite/ URL alive
+        run: |
+          mkdir -p dist/lite
+          cat > dist/lite/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>Mise Lite</title>
+          <meta http-equiv="refresh" content="0; url=/mise/">
+          <link rel="canonical" href="/mise/">
+          <p>Mise Lite has moved to <a href="/mise/">/mise/</a>.</p>
+          HTML
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
