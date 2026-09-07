@@ -443,6 +443,10 @@ const POLL_MS = 20_000
 let scheduleLocalSync: (() => void) | null = null
 
 export function startAutoSync(onResult?: (r: SyncResult) => void): () => void {
+  // Lite has no account to sync to, and App mounts this unconditionally. Bail
+  // before starting a timer that can only ever decide to do nothing.
+  if (EDITION !== 'personal') return () => {}
+
   let running = false
   let stopped = false
   let live = false
