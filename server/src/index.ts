@@ -415,6 +415,39 @@ async function fetchReadable(url: string): Promise<string> {
 // Paths are relative to the service's WorkingDirectory (server/), which must
 // stay there so process.loadEnvFile() still finds server/.env.
 const STATIC_ROOT = process.env.STATIC_DIR ?? '../dist'
+
+/**
+ * Cache headers, which this server was sending none of.
+ *
+ * That is worse here than it sounds. With no Cache-Control, no ETag and no
+ * Last-Modified, a browser falls back to heuristic caching — and it applied to
+ * `sw.js` as well as the page. A cacheable service worker means the update
+ * check can itself be answered from cache, so `registerType: 'autoUpdate'`
+ * never fires and the old precache keeps serving the old app indefinitely. A
+ * deploy would land on the server and simply not arrive.
+ *
+ * The split is the standard one and depends only on whether the filename
+ * carries a content hash:
+ *
+ *   /assets/*  Vite hashes these, so the name changes whenever the bytes do.
+ *              Immutable for a year; a stale one can never be wrong.
+ *   everything else  index.html, sw.js, the manifest, the icons — fixed names
+ *              whose contents change. `no-cache` does not mean "do not store",
+ *              it means "revalidate before use", so these stay fast on a 304
+ *              while never being served blind.
+ */
+app.use('/*', async (c, next) => {
+  await next()
+  if (c.res.headers.has('cache-control')) return
+  const path = new URL(c.req.url).pathname
+  c.header(
+    'Cache-Control',
+    path.startsWith('/assets/')
+      ? 'public, max-age=31536000, immutable'
+      : 'no-cache',
+  )
+})
+
 app.use('/*', serveStatic({ root: STATIC_ROOT }))
 // SPA fallback so deep links and the PWA start_url resolve.
 app.get('*', serveStatic({ path: `${STATIC_ROOT}/index.html` }))
