@@ -49,7 +49,7 @@ export function ListSwitcher({
 
   if (creating) {
     return (
-      <Sheet className="lists" onClose={() => setCreating(false)}>
+      <Sheet className="lists" label="Your lists" onClose={() => setCreating(false)}>
         <h3 className="sheet-title">New list</h3>
         <input
           className="field name-field"
@@ -90,7 +90,7 @@ export function ListSwitcher({
   }
 
   return (
-    <Sheet className="lists" onClose={onClose}>
+    <Sheet className="lists" label="Your lists" onClose={onClose}>
       <div className="qa-header">
         <h3 className="sheet-title">Your lists</h3>
         <button className="add-btn" onClick={() => setCreating(true)}>
@@ -165,7 +165,7 @@ export function ManageLists({
   if (mergeFrom) {
     const targets = lists.filter((l) => l.id !== mergeFrom.id)
     return (
-      <Sheet className="lists" onClose={() => setMergeFrom(null)}>
+      <Sheet className="lists" label="Your lists" onClose={() => setMergeFrom(null)}>
         <h3 className="sheet-title">Merge “{mergeFrom.name}” into…</h3>
         <p className="group-hint">
           Its items move over and duplicates merge automatically. “{mergeFrom.name}” is then
@@ -201,7 +201,7 @@ export function ManageLists({
   }
 
   return (
-    <Sheet className="lists" onClose={onClose}>
+    <Sheet className="lists" label="Your lists" onClose={onClose}>
       <h3 className="sheet-title">Manage lists</h3>
       <div className="manage-rows">
         {lists.map((l) => (

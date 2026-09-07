@@ -676,7 +676,7 @@ export default function App() {
       />
 
       {menuOpen && (
-        <Sheet className="menu" onClose={() => setMenuOpen(false)}>
+        <Sheet className="menu" label="List actions" onClose={() => setMenuOpen(false)}>
           <button
             className="menu-item"
             onClick={() => {
@@ -975,7 +975,7 @@ function ItemSheet({
     : 'Add to ' + (defaultBacklog ? kind.backlogLabel : kind.primaryLabel)
 
   return (
-    <Sheet onClose={onClose}>
+    <Sheet label="Item details" onClose={onClose}>
       <input
         className="field name-field"
         placeholder={kind.due ? 'What needs doing?' : 'What do you need?'}

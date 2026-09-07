@@ -29,7 +29,7 @@ export function ImportLinkSheet({
   }
 
   return (
-    <Sheet className="import" onClose={onClose}>
+    <Sheet className="import" label="Import" onClose={onClose}>
       <h3 className="sheet-title">Paste a shared link</h3>
       <p className="review-hint">
         Paste a Mise list or recipe link someone sent you — you’ll get to review it before anything’s
@@ -96,7 +96,7 @@ export function ImportSheet({
     }
 
     return (
-      <Sheet className="import" onClose={onClose}>
+      <Sheet className="import" label="Import" onClose={onClose}>
         <div className="import-badge">📖 Shared recipe</div>
         <h3 className="sheet-title">{payload.title}</h3>
         <p className="review-hint">
@@ -166,7 +166,7 @@ export function ImportSheet({
   }
 
   return (
-    <Sheet className="import" onClose={onClose}>
+    <Sheet className="import" label="Import" onClose={onClose}>
       <div className="import-badge">
         <Icon name={meta.icon} size={15} /> Shared {meta.label.toLowerCase()} list
       </div>

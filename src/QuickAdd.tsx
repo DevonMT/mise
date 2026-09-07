@@ -50,7 +50,7 @@ export function QuickAddSheet({
   }
 
   return (
-    <Sheet className="quickadd" onClose={onClose}>
+    <Sheet className="quickadd" label="Quick add from favourites" onClose={onClose}>
       <div className="qa-header">
         <h3 className="sheet-title">
           <Icon name="star" size={20} /> Quick add

@@ -39,7 +39,7 @@ export function EditListSheet({ list, onClose }: { list: List; onClose: () => vo
   }
 
   return (
-    <Sheet className="editlist" onClose={onClose}>
+    <Sheet className="editlist" label="Rename list" onClose={onClose}>
       <h3 className="sheet-title">Edit list</h3>
       <input
         className="field name-field"

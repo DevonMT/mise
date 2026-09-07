@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react'
+import { useDialog } from './useDialog'
 
 /**
  * Bottom sheet with two snap points.
@@ -20,12 +21,18 @@ const FLING = 240 // a long drag down from full closes outright
 export function Sheet({
   onClose,
   className = '',
+  label,
   children,
 }: {
   onClose: () => void
   className?: string
+  /** Names the dialog for a screen reader. Every sheet should pass one — the
+   *  fallback exists so an unnamed sheet is still announced as a dialog rather
+   *  than as an anonymous group of buttons. */
+  label?: string
   children: ReactNode
 }) {
+  const dialogRef = useDialog(onClose)
   const [snap, setSnap] = useState<Snap>('peek')
   const [dragY, setDragY] = useState(0)
   const [dragging, setDragging] = useState(false)
@@ -78,6 +85,13 @@ export function Sheet({
   return (
     <div className="backdrop" onClick={onClose}>
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label ?? 'Dialog'}
+        // Focusable so a sheet with no controls still receives focus rather
+        // than leaving it on the page behind the scrim.
+        tabIndex={-1}
         className={`sheet ${snap === 'full' ? 'full' : ''} ${className}`}
         onClick={(e) => e.stopPropagation()}
         style={{

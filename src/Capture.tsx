@@ -152,7 +152,7 @@ export function CaptureSheet({
           : 'Paste or type a list'
 
   return (
-    <Sheet className="capture" onClose={onClose}>
+    <Sheet className="capture" label="Add items" onClose={onClose}>
         {(stage === 'input' || stage === 'error') && (
           <>
             <h3 className="sheet-title">
@@ -322,7 +322,7 @@ export function AddMenu({
   const aiOn = useAiEnabled()
   const meta = KINDS[kind]
   return (
-    <Sheet className="menu" onClose={onClose}>
+    <Sheet className="menu" label="Add to list" onClose={onClose}>
       {meta.kind !== 'tasks' && (
         <button className="menu-item" onClick={() => onPick('quick')}>
           <Icon name="star" size={20} /> Quick add (favorites)
@@ -358,7 +358,7 @@ export function AddRecipeMenu({
   onClose: () => void
 }) {
   return (
-    <Sheet className="menu" onClose={onClose}>
+    <Sheet className="menu" label="Menu" onClose={onClose}>
       <button className="menu-item" onClick={() => onPick('image')}>
         <Icon name="camera" size={20} /> Snap a recipe
       </button>

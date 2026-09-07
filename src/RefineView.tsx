@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useDialog } from './useDialog'
 import { db, type Item } from './db'
 import { applyRefinement } from './catalog'
 import { refineItems, type RefineOption } from './parse'
@@ -96,13 +97,22 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
     }
   }
 
+  const dialogRef = useDialog(onClose)
+
   return (
-    <div className="fullview refine-view">
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="refine-title"
+      tabIndex={-1}
+      className="fullview refine-view"
+    >
       <div className="fullview-head">
         <button className="icon-back" onClick={onClose} aria-label="Back to list">
           <Icon name="back" size={22} />
         </button>
-        <h2 className="detail-title">Refine your list</h2>
+        <h2 className="detail-title" id="refine-title">Refine your list</h2>
       </div>
 
       <div className="fullview-body">

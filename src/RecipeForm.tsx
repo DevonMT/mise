@@ -24,7 +24,7 @@ export function RecipeForm({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Sheet className="recipe-form" onClose={onClose}>
+    <Sheet className="recipe-form" label="Recipe" onClose={onClose}>
       <h3 className="sheet-title">New recipe</h3>
       <input
         className="field name-field"

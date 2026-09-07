@@ -2601,3 +2601,11 @@ button {
   color: var(--ink);
   box-shadow: var(--shadow);
 }
+
+/* The list tab names the list on a phone and the section in the rail — see
+   BottomNav for why. Swapped here so a resize is enough to change it. */
+.lbl-wide { display: none; }
+@media (min-width: 900px) {
+  .lbl-narrow { display: none; }
+  .lbl-wide { display: inline; }
+}
