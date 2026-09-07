@@ -41,13 +41,14 @@ import { ListSwitcher, ManageLists } from './ListSwitcher'
 import { EditListSheet } from './EditListSheet'
 import { ImportSheet, ImportLinkSheet } from './ImportSheet'
 import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayload } from './share'
-import { AI_ENABLED } from './edition'
+import { useAiEnabled } from './edition'
 import { startAutoSync } from './sync'
 
 type ListView = 'list' | 'backlog'
 type SheetState = null | 'new' | Item
 
 export default function App() {
+  const aiOn = useAiEnabled()
   const [activeId, setActiveId] = useState<number | null>(null)
   const [storageBlocked, setStorageBlocked] = useState(false)
   const [pending, setPending] = useState<SharePayload | null>(null)
@@ -78,11 +79,26 @@ export default function App() {
   const [toast, setToast] = useState<{ msg: string; undo?: () => void } | null>(null)
   const [showHint, setShowHint] = useState(() => !localStorage.getItem('mise.swipeHint'))
 
-  // Sync, if it is switched on. Nothing here reads the result: the tables are
-  // behind useLiveQuery, so a merge re-renders the list on its own, and a
-  // failure is a thing Settings reports rather than a thing to interrupt a
-  // shopping trip with.
-  useEffect(() => startAutoSync(), [])
+  // Sync, if it is switched on. A merge needs no handling here — the tables are
+  // behind useLiveQuery and re-render themselves, and a failure is something
+  // Settings reports rather than something to interrupt a shopping trip with.
+  //
+  // The one result worth surfacing is a tier change. Three buttons appearing or
+  // vanishing with no explanation is its own kind of confusion, so it is said
+  // once, in the toast the app already uses for things that just happened.
+  useEffect(
+    () =>
+      startAutoSync((r) => {
+        if (!r.ok || !r.editionChanged) return
+        showToast(
+          aiOn
+            ? 'Capture, prices and refine are now available on this account.'
+            : 'Capture, prices and refine are no longer available on this account.',
+        )
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
   const undoTimer = useRef<number | undefined>(undefined)
 
   // Seed the DB and settle on a list before rendering anything list-shaped.
@@ -410,7 +426,7 @@ export default function App() {
           <button
             className="add-btn"
             aria-label="New recipe"
-            onClick={() => (AI_ENABLED ? setRecipeMenuOpen(true) : setRecipeFormOpen(true))}
+            onClick={() => (aiOn ? setRecipeMenuOpen(true) : setRecipeFormOpen(true))}
           >
             <Icon name="plus" size={18} /> New
           </button>
@@ -590,7 +606,7 @@ export default function App() {
             // With AI on, offer all the capture methods; in Lite, straight to
             // the manual form (it'd be the menu's only option).
             onAddRecipe={() =>
-              AI_ENABLED ? setRecipeMenuOpen(true) : setRecipeFormOpen(true)
+              aiOn ? setRecipeMenuOpen(true) : setRecipeFormOpen(true)
             }
             onAdded={(listId) => {
               // A recipe can't go on a pantry or task list, so it may have
@@ -675,7 +691,7 @@ export default function App() {
             <Icon name="share" size={20} />
             Share this list
           </button>
-          {AI_ENABLED && kind.recipes && (
+          {aiOn && kind.recipes && (
             <button
               className="menu-item"
               onClick={() => {

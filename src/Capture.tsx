@@ -14,7 +14,7 @@ import { saveRecipeFromParse } from './recipes'
 import { defaultGroceryListId } from './lists'
 import { Icon } from './Icon'
 import { Sheet } from './Sheet'
-import { AI_ENABLED } from './edition'
+import { useAiEnabled } from './edition'
 
 type Stage = 'input' | 'loading' | 'review' | 'error'
 export type CaptureMode = 'text' | 'url' | 'image'
@@ -319,6 +319,7 @@ export function AddMenu({
   onPick: (mode: 'one' | 'quick' | CaptureMode) => void
   onClose: () => void
 }) {
+  const aiOn = useAiEnabled()
   const meta = KINDS[kind]
   return (
     <Sheet className="menu" onClose={onClose}>
@@ -330,7 +331,7 @@ export function AddMenu({
       <button className="menu-item" onClick={() => onPick('one')}>
         <Icon name="edit" size={20} /> {meta.due ? 'Type a task' : 'Type one item'}
       </button>
-      {AI_ENABLED && meta.recipes && (
+      {aiOn && meta.recipes && (
         <>
           <button className="menu-item" onClick={() => onPick('image')}>
             <Icon name="camera" size={20} /> Snap a photo

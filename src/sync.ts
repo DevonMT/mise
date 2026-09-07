@@ -37,7 +37,7 @@
  */
 import Dexie from 'dexie'
 import { db, newUid, type SyncKind, type Item, type List } from './db'
-import { EDITION } from './edition'
+import { EDITION, grantedEdition, setGrantedVariant } from './edition'
 
 /**
  * Sync is a devondoes.dev feature: it needs the platform session cookie, which
@@ -155,7 +155,12 @@ for (const { kind, table } of TABLES) {
 
 export type WireRecord = { kind: Kind; uid: string; updatedAt: number; body: Record<string, unknown> }
 export type WireTombstone = { kind: Kind; uid: string; deletedAt: number }
-export type State = { records: WireRecord[]; tombstones: WireTombstone[] }
+export type State = {
+  records: WireRecord[]
+  tombstones: WireTombstone[]
+  /** The tier this account holds, per the platform. Absent means none. */
+  variant?: string | null
+}
 
 /**
  * Strip the row down to what is portable.
@@ -314,7 +319,12 @@ export async function applyRemote(
 // ---------------------------------------------------------------------------
 
 export type SyncResult =
-  | { ok: true; added: number; updated: number; removed: number; sent: number }
+  | {
+      ok: true; added: number; updated: number; removed: number; sent: number
+      /** True on the one sync where the account's tier changed, so the app can
+       *  say so once rather than silently growing or losing three buttons. */
+      editionChanged?: boolean
+    }
   | { ok: false; reason: 'off' | 'signin' | 'forbidden' | 'offline' | 'error'; message: string }
 
 export function syncEnabled(): boolean {
@@ -411,9 +421,16 @@ export async function sync(): Promise<SyncResult> {
     return { ok: false, reason: 'error', message: 'The server sent an unexpected shape.' }
   }
 
+  // The tier rides home on every sync, so a change made in admin applies here
+  // within seconds — no sign-out, no reinstall, no second app to move to. That
+  // is the whole reason the edition stopped being a build flag.
+  const before = grantedEdition()
+  setGrantedVariant(state.variant)
+  const editionChanged = grantedEdition() !== before
+
   const counts = await applyRemote(state)
   localStorage.setItem(LAST_KEY, String(Date.now()))
-  return { ok: true, ...counts, sent: payload.records.length }
+  return { ok: true, ...counts, sent: payload.records.length, editionChanged }
 }
 
 /**

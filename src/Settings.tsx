@@ -13,13 +13,14 @@ import {
   setAisleOrder,
 } from './aisles'
 import { Icon } from './Icon'
-import { AI_ENABLED } from './edition'
+import { useAiEnabled } from './edition'
 import {
   lastSyncedAt, setSyncEnabled, sync, syncAvailable, syncEnabled,
   type Availability, type SyncResult,
 } from './sync'
 
 export function SettingsView() {
+  const aiOn = useAiEnabled()
   const staples =
     useLiveQuery(async () => {
       const all = await db.staples.toArray()
@@ -254,7 +255,7 @@ export function SettingsView() {
         {dataMsg && <p className="group-hint">{dataMsg}</p>}
       </section>
 
-      {AI_ENABLED && (
+      {aiOn && (
         <section className="settings-group">
           <h3 className="group-title">Sync across devices</h3>
           {canSync === undefined ? (
@@ -309,7 +310,7 @@ export function SettingsView() {
         </section>
       )}
 
-      {AI_ENABLED && (
+      {aiOn && (
         <section className="settings-group">
           <h3 className="group-title">Store prices</h3>
           <p className="group-hint">
@@ -426,7 +427,7 @@ export function SettingsView() {
 
       <p className="endpoint-note">
         Build {__BUILD__}
-        {AI_ENABLED && (
+        {aiOn && (
           <>
             <br />
             Parse endpoint: {PARSE_URL}

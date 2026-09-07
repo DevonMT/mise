@@ -6,7 +6,7 @@ import { formatQty } from './list'
 import { defaultGroceryListId } from './lists'
 import { encodeShare, shareLink, shareRecipePayload } from './share'
 import { Icon } from './Icon'
-import { AI_ENABLED } from './edition'
+import { useAiEnabled } from './edition'
 
 export function RecipesView({
   activeListId,
@@ -21,6 +21,7 @@ export function RecipesView({
   onAdded: (listId: number) => void
   onToast: (msg: string) => void
 }) {
+  const aiOn = useAiEnabled()
   const recipes =
     useLiveQuery(async () => {
       const all = await db.recipes.toArray()
@@ -51,7 +52,7 @@ export function RecipesView({
         <div className="view-empty">
           <p>
             No recipes yet —{' '}
-            {AI_ENABLED ? 'snap, paste, link, or type one in.' : 'enter one by hand.'}
+            {aiOn ? 'snap, paste, link, or type one in.' : 'enter one by hand.'}
           </p>
           <button className="add-btn" onClick={onAddRecipe}>
             <Icon name="plus" size={18} /> New recipe

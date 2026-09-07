@@ -1,16 +1,79 @@
+import { useSyncExternalStore } from 'react'
+
 /**
- * Build editions:
- *  - 'personal' (default): full app, AI features on (parse / prices / refine via the mini).
- *  - 'lite': public/free build — every AI feature (and thus every call to the
- *    server / your key) is removed. 100% local, no backend, no cost.
+ * Which edition this app is running as.
  *
- * Selected at build time with VITE_MISE_EDITION=lite.
+ * This used to be decided entirely at build time, which meant offering both
+ * editions meant publishing two copies — and two copies went to two origins,
+ * IndexedDB is per-origin, and the groceries ended up in whichever one you
+ * happened to open. Which edition someone gets is a fact about that PERSON, so
+ * it now comes from their grant on the platform.
+ *
+ *   VITE_MISE_EDITION=lite   a genuinely standalone, account-free build.
+ *                            No server, no account, nothing to ask.
+ *   otherwise                the account decides, at runtime.
+ *
+ * The build flag still wins where it is set, because a standalone build has no
+ * account to ask and must never wait on a network call to know what it is.
  */
-export const EDITION =
-  import.meta.env?.VITE_MISE_EDITION === 'lite' ? 'lite' : 'personal'
+const BUILD_LITE = import.meta.env?.VITE_MISE_EDITION === 'lite'
+
+export type Edition = 'personal' | 'lite'
+
+/**
+ * The tier the platform says this account holds, once known.
+ *
+ * Starts as 'lite' and not 'personal'. That is the same deny-by-default posture
+ * as the rest of the estate, and here it has teeth: the ai-broker refuses the
+ * Claude Max path for any app reachable by non-admins, because the subscription
+ * may not serve third parties. Guessing 'personal' and being wrong would put
+ * someone's model calls on a metered key at Devon's cost, or on the
+ * subscription in breach of its terms. Guessing 'lite' and being wrong costs a
+ * few seconds of three buttons being absent.
+ */
+let granted: Edition = 'lite'
+const listeners = new Set<() => void>()
+
+export const EDITION: Edition = BUILD_LITE ? 'lite' : 'personal'
 
 /** Whether the AI-powered (server-backed, billable) features are available. */
-export const AI_ENABLED = EDITION !== 'lite'
+export function aiEnabled(): boolean {
+  return !BUILD_LITE && granted === 'personal'
+}
 
 /** Name shown in the header. */
-export const EDITION_NAME = EDITION === 'lite' ? 'Mise Lite' : 'Mise'
+export function editionName(): string {
+  return aiEnabled() ? 'Mise' : 'Mise Lite'
+}
+
+/**
+ * Called by sync with whatever the platform last said. `full` is the only value
+ * that unlocks anything — an unknown tier, a null, or a failed request all mean
+ * lite, so a server that starts answering nonsense degrades rather than opens
+ * up.
+ */
+export function setGrantedVariant(variant: string | null | undefined): void {
+  const next: Edition = variant === 'full' ? 'personal' : 'lite'
+  if (next === granted) return
+  granted = next
+  for (const fn of listeners) fn()
+}
+
+export function grantedEdition(): Edition {
+  return granted
+}
+
+/** Subscribe to tier changes so the UI can appear or disappear without a reload. */
+export function onEditionChange(fn: () => void): () => void {
+  listeners.add(fn)
+  return () => listeners.delete(fn)
+}
+
+/**
+ * React binding. `useSyncExternalStore` rather than a context, because the tier
+ * is process-wide, changes rarely, and every component that cares only needs a
+ * boolean — a provider would be ceremony around one variable.
+ */
+export function useAiEnabled(): boolean {
+  return useSyncExternalStore(onEditionChange, aiEnabled, () => false)
+}
