@@ -32,6 +32,15 @@ export type Edition = 'personal' | 'lite'
  * few seconds of three buttons being absent.
  */
 let granted: Edition = 'lite'
+/**
+ * Whether the server has told us yet.
+ *
+ * Without this, the opening 'lite' is indistinguishable from a real answer of
+ * lite, so the first successful sync of every session looks like a change from
+ * lite to full — and gets announced as one. Learning the tier is not a change
+ * to it.
+ */
+let known = false
 const listeners = new Set<() => void>()
 
 export const EDITION: Edition = BUILD_LITE ? 'lite' : 'personal'
@@ -54,9 +63,26 @@ export function editionName(): string {
  */
 export function setGrantedVariant(variant: string | null | undefined): void {
   const next: Edition = variant === 'full' ? 'personal' : 'lite'
+  const wasKnown = known
+  known = true
   if (next === granted) return
   granted = next
   for (const fn of listeners) fn()
+  // A caller can tell "we finally found out" from "it actually changed".
+  lastWasRealChange = wasKnown
+}
+
+let lastWasRealChange = false
+
+/** True only if the most recent update changed a tier we already knew. */
+export function tierActuallyChanged(): boolean {
+  const v = lastWasRealChange
+  lastWasRealChange = false
+  return v
+}
+
+export function editionKnown(): boolean {
+  return known
 }
 
 export function grantedEdition(): Edition {

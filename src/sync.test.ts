@@ -401,3 +401,50 @@ test('a list and its items arrive together in one merge', async () => {
   const item = await db.items.filter((i) => i.uid === itemUid).first()
   assert.equal(item?.listId, list?.id, 'the item found the list that arrived with it')
 })
+
+// ---------------------------------------------------------------------------
+// Tier changes. Both bugs here shipped and both were visible to Devon as one
+// wrong sentence: a tier-change message on a launch where nothing changed,
+// saying features had been REMOVED at the moment they were being granted.
+// ---------------------------------------------------------------------------
+
+const ed = await import('./edition')
+
+test('learning the tier for the first time is not a change', () => {
+  // The app opens assuming lite, so the first answer always "differs" from the
+  // starting value. Announcing that fired a tier-change message on every launch.
+  ed.setGrantedVariant('full')
+  assert.equal(ed.tierActuallyChanged(), false, 'the first answer is news, not a change')
+  assert.equal(ed.grantedEdition(), 'personal', 'but the tier is still adopted')
+})
+
+test('a later change to a known tier IS a change', () => {
+  ed.setGrantedVariant('full')
+  ed.tierActuallyChanged() // consume
+  ed.setGrantedVariant('lite')
+  assert.equal(ed.tierActuallyChanged(), true)
+  assert.equal(ed.grantedEdition(), 'lite')
+})
+
+test('re-confirming the same tier is not a change', () => {
+  ed.setGrantedVariant('lite')
+  ed.tierActuallyChanged()
+  ed.setGrantedVariant('lite')
+  assert.equal(ed.tierActuallyChanged(), false, 'every poll must not announce something')
+})
+
+test('the flag is consumed, so one change is announced once', () => {
+  ed.setGrantedVariant('full')
+  assert.equal(ed.tierActuallyChanged(), true)
+  assert.equal(ed.tierActuallyChanged(), false, 'reading it again reports nothing')
+})
+
+test('anything that is not exactly "full" means lite', () => {
+  // Fail closed: an unknown tier, a null, a typo, a server that starts
+  // answering nonsense — none of them may unlock the billable features.
+  for (const v of ['lite', null, undefined, '', 'FULL', 'full ', 'admin', 'personal']) {
+    ed.setGrantedVariant(v as string | null | undefined)
+    const expected = v === 'full' ? 'personal' : 'lite'
+    assert.equal(ed.grantedEdition(), expected, `${JSON.stringify(v)} -> ${expected}`)
+  }
+})

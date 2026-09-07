@@ -37,7 +37,7 @@
  */
 import Dexie from 'dexie'
 import { db, newUid, type SyncKind, type Item, type List } from './db'
-import { EDITION, grantedEdition, setGrantedVariant } from './edition'
+import { EDITION, grantedEdition, setGrantedVariant, tierActuallyChanged } from './edition'
 
 /**
  * Sync is a devondoes.dev feature: it needs the platform session cookie, which
@@ -322,8 +322,11 @@ export type SyncResult =
   | {
       ok: true; added: number; updated: number; removed: number; sent: number
       /** True on the one sync where the account's tier changed, so the app can
-       *  say so once rather than silently growing or losing three buttons. */
+       *  say so once rather than silently growing or losing three buttons.
+       *  False on the first sync of a session, which merely learns the tier. */
       editionChanged?: boolean
+      /** The tier as of this sync. */
+      edition?: 'personal' | 'lite'
     }
   | { ok: false; reason: 'off' | 'signin' | 'forbidden' | 'offline' | 'error'; message: string }
 
@@ -432,13 +435,22 @@ export async function sync(): Promise<SyncResult> {
   // The tier rides home on every sync, so a change made in admin applies here
   // within seconds — no sign-out, no reinstall, no second app to move to. That
   // is the whole reason the edition stopped being a build flag.
-  const before = grantedEdition()
+  //
+  // `tierActuallyChanged` is not the same as "the value differs from the one we
+  // started with". The app opens assuming lite, so the first sync of every
+  // session moves it to the truth — and reporting THAT as a change announced a
+  // tier change on every single launch.
   setGrantedVariant(state.variant)
-  const editionChanged = grantedEdition() !== before
+  const editionChanged = tierActuallyChanged()
 
   const counts = await applyRemote(state)
   localStorage.setItem(LAST_KEY, String(Date.now()))
-  return { ok: true, ...counts, sent: payload.records.length, editionChanged }
+  return {
+    ok: true, ...counts, sent: payload.records.length, editionChanged,
+    // The resulting tier, so a caller announcing the change describes what it
+    // became rather than what some captured variable said it used to be.
+    edition: grantedEdition(),
+  }
 }
 
 /**

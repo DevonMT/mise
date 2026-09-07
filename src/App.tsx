@@ -91,7 +91,7 @@ export default function App() {
       startAutoSync((r) => {
         if (!r.ok || !r.editionChanged) return
         showToast(
-          aiOn
+          r.edition === 'personal'
             ? 'Capture, prices and refine are now available on this account.'
             : 'Capture, prices and refine are no longer available on this account.',
         )
