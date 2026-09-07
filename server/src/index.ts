@@ -100,7 +100,7 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '')
 // calls per day instead of an unbounded API bill.
 const DAILY_CALL_CAP = Number(process.env.DAILY_CALL_CAP ?? 200)
 
-const app = new Hono()
+const app = new Hono<{ Variables: { caller: string } }>()
 
 app.use(
   '/api/*',
@@ -142,6 +142,11 @@ app.use('/api/*', async (c, next) => {
     }
     return c.json({ error: 'Sign in to use the AI features.' }, 401)
   }
+
+  // Carried to the broker so a per-person allowance can bite and the ledger can
+  // say who spent what. Not an authorization input — the door above already
+  // decided that.
+  c.set('caller', email)
 
   const today = new Date().toISOString().slice(0, 10)
   if (today !== capDay) {
@@ -225,6 +230,7 @@ app.post('/api/parse', async (c) => {
 
   try {
     const data = await askStructured<unknown>({
+      user: c.get('caller'),
       prompt: userContent,
       schema: PARSE_SCHEMA,
       system: SYSTEM_PROMPT,
@@ -269,6 +275,7 @@ app.post('/api/prices', async (c) => {
 
   try {
     const data = await askStructured<unknown>({
+      user: c.get('caller'),
       prompt: `Price these items:\n${list}`,
       schema: PRICES_SCHEMA,
       system: pricesSystem(store),
@@ -312,6 +319,7 @@ app.post('/api/refine', async (c) => {
 
   try {
     const data = await askStructured<unknown>({
+      user: c.get('caller'),
       prompt: `Give options for these items:\n${list}`,
       schema: REFINE_SCHEMA,
       system: refineSystem(store),

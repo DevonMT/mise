@@ -41,6 +41,8 @@ export class BrokerError extends Error {
  * from a malformed answer, because the two need different messages.
  */
 export async function askStructured<T>(opts: {
+  /** The signed-in person this call is on behalf of, if known. */
+  user?: string
   prompt: string
   schema: unknown
   system?: string
@@ -58,6 +60,10 @@ export async function askStructured<T>(opts: {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         app_id: APP_ID,
+        // Whose allowance this comes out of, and whose name the ledger carries.
+        // Absent when the caller is unknown, which the broker reads as "the app
+        // itself" — the app-wide cap still applies either way.
+        ...(opts.user ? { user: opts.user } : {}),
         prompt: opts.prompt,
         schema: opts.schema,
         max_tokens: opts.maxTokens ?? 8000,
