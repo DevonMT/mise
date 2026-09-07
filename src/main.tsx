@@ -2,9 +2,40 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { startTheme } from './theme'
+import { configureTheme, startTheme } from './ds/theme'
 import { migrateStaples } from './db'
-import { hydrateSettings, migrateSettings } from './prefs'
+import { hydrateSettings, migrateSettings, readSetting, setSetting } from './prefs'
+
+/*
+ * Persist the theme through the sync layer, so choosing dark on the phone
+ * reaches the laptop. The shared module defaults to localStorage; Mise is the
+ * app that has somewhere better to put it.
+ *
+ * Reads stay synchronous against localStorage underneath, which is what lets
+ * the first paint be correct — a synced value arriving later is applied by the
+ * settings hydration below.
+ */
+configureTheme({
+  read: () => readSetting('mise.theme'),
+  write: (choice) => {
+    void setSetting('mise.theme', choice).catch(() => {
+      try {
+        localStorage.setItem('mise.theme', choice)
+      } catch {
+        /* the choice still applies for this session */
+      }
+    })
+  },
+  clear: () => {
+    void setSetting('mise.theme', 'system').catch(() => {
+      try {
+        localStorage.removeItem('mise.theme')
+      } catch {
+        /* nothing cached */
+      }
+    })
+  },
+})
 
 // Before the first render: stamping the root afterwards means a frame of the
 // wrong theme, which on a dark-mode phone is a white flash in a dark room.

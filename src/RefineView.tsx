@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useDialog } from './useDialog'
+import { useDialog } from './ds/useDialog'
 import { db, type Item } from './db'
 import { applyRefinement } from './catalog'
 import { refineItems, type RefineOption } from './parse'

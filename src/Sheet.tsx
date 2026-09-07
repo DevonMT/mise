@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { useDialog } from './useDialog'
+import { useDialog } from './ds/useDialog'
 
 /**
  * Bottom sheet with two snap points.

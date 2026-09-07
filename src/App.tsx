@@ -48,7 +48,7 @@ import { ImportSheet, ImportLinkSheet } from './ImportSheet'
 import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayload } from './share'
 import { useAiEnabled } from './edition'
 import { startAutoSync } from './sync'
-import { usePointer } from './usePointer'
+import { usePointer } from './ds/usePointer'
 import { RecipePickSheet } from './RecipePick'
 import { addPlanToList } from './recipes'
 

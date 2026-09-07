@@ -16,7 +16,7 @@ import {
 import { Icon } from './Icon'
 import { EDITION, useAiEnabled } from './edition'
 import { setSetting } from './prefs'
-import { readTheme, setTheme, type ThemeChoice } from './theme'
+import { readTheme, setTheme, type ThemeChoice } from './ds/theme'
 import {
   lastSyncedAt, setSyncEnabled, sync, syncAvailable, syncEnabled,
   type Availability, type SyncResult,

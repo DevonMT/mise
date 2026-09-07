@@ -1,0 +1,40 @@
+/* Generated from devondoes/ds/app-shell.css — do not edit here.
+   Edit the source and run `node ds/sync.mjs`. `--check` fails on drift. */
+/*
+ * The fixed-viewport app frame. OPT-IN — include it only for an app that fills
+ * the screen and scrolls inside its own panes, never for a page that scrolls.
+ *
+ * Both rules here were bugs before they were rules.
+ */
+
+html,
+body,
+#root {
+  /*
+   * `100%` on a phone resolves against the LARGE viewport — the height the page
+   * would have if the browser's address bar were hidden. With the bar showing,
+   * which is most of the time, the app is taller than what you can see and the
+   * thing at the very bottom (a tab bar) sits below the fold. That is the
+   * "seems too tall" report, and it is worst in a browser tab where the bar is
+   * always there; an installed PWA has no bar and is closer to right.
+   *
+   * `100dvh` is the visible height and tracks the bar appearing and going.
+   *
+   * The `100%` is a fallback that does not ship — a minifier drops it for any
+   * target supporting dvh. Kept so lowering those targets restores it rather
+   * than silently shipping a broken height.
+   */
+  height: 100%;
+  height: 100dvh;
+}
+
+/*
+ * The document must never scroll — only an inner pane does. Otherwise dragging
+ * the app rubber-bands the whole page while a fixed bottom bar stays put, which
+ * opens an empty panel at the bottom that reads as a drawer.
+ */
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}

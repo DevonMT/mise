@@ -1,3 +1,5 @@
+# Generated from devondoes/ds/lint/check-shorthands.py — do not edit here.
+# Edit the source and run `node ds/sync.mjs`. `--check` fails on drift.
 """
 Find CSS shorthands that silently reset a longhand set earlier for the same
 selector.

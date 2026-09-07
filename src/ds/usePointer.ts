@@ -1,3 +1,5 @@
+/* Generated from devondoes/ds/react/usePointer.ts — do not edit here.
+   Edit the source and run `node ds/sync.mjs`. `--check` fails on drift. */
 import { useSyncExternalStore } from 'react'
 
 /**

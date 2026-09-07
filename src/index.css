@@ -1,205 +1,24 @@
-:root {
-  /* Mise — enamelware.
-   *
-   * Replaces copper-on-warm-oat. Two reasons, one measured and one about
-   * identity.
-   *
-   * MEASURED: the old --muted sat at 3.31:1 on the app ground, under the 4.5
-   * that normal text needs, and it is used 38 times — every hint, every aisle
-   * heading, every secondary line. The whole second layer of the interface was
-   * under-contrast, which is what made it read as washed out. It is 5.95:1
-   * now. Every pair the app renders was scored rather than eyeballed, in both
-   * themes, and the lowest text pair is 5.37:1.
-   *
-   * IDENTITY: cream ground plus terracotta accent is the single most generic
-   * pairing an interface can land on, and the warmth was also what made the
-   * greys muddy. Porcelain and petrol-teal instead — the cool off-white and
-   * dark rim of enamel kitchenware, which is what the app is about.
-   *
-   * Typography stays on system fonts. This is a PWA used offline in a shop; a
-   * Google-hosted face would not be in the service worker's cache and would
-   * swap in only where there is signal, which is the one place the app is not.
-   */
-  --bg: #f2f4f3;
-  --surface: #ffffff;
-  --ink: #12171a;
-  --muted: #535f66;
-  --line: #d6dedc;
-  --accent: #0a6a60;
-  --accent-ink: #ffffff;
-  --accent-soft: #dbeeea;
-  --accent-deep: #064c45;
-  --danger: #a3302a;
-  --danger-soft: #f8e5e3;
-  --fav: #7a5a06;
-  --fav-soft: #f6edd6;
-  --seg: #e5e9e8;
-
-  /* Scrims and shadows were the only literal colours left in the stylesheet,
-     which meant they were the only things a theme could not reach. A dark
-     scrim over a dark page is invisible, so they are tokens now. */
-  --scrim: rgba(12, 23, 26, 0.45);
-  --scrim-strong: rgba(12, 23, 26, 0.58);
-  --shadow: 0 12px 30px -14px rgba(12, 23, 26, 0.28);
-  --shadow-fab: 0 12px 24px -8px rgba(10, 106, 96, 0.45);
-  --shadow-dialog: 0 30px 80px -20px rgba(12, 23, 26, 0.4);
-  --press: rgba(12, 23, 26, 0.08);
-
-  /* A deliberately contrasting surface for transient chips — the toast and the
-     "clear checked" pill. NOT `--ink` as a background: that only reads as dark
-     while ink happens to be dark, and in the dark theme it produced a white
-     chip with white text on it. Named for the job so each theme answers it. */
-  --notice-bg: #12171a;
-  --notice-ink: #f4f7f6;
-  --notice-action: #6fd8c2;
-  /* Unchecked checkbox rims and the favourite star, which were hard-coded to
-     the old warm palette and would have stayed warm on a cool ground. */
-  --control-rim: #b9c4c2;
-  --badge-bg: #c8d2d0;
-  --nav-h: 62px;
-
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
-  color: var(--ink);
-  color-scheme: light;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  -webkit-tap-highlight-color: transparent;
-}
-
 /*
- * Dark, designed rather than derived.
+ * Mise's own styles.
  *
- * Not an inversion: the accent is the same hue lifted to carry on a dark
- * ground, and it takes DARK text rather than white, because a bright teal with
- * white on it fails. Structured for all three states the viewer can be in —
- * an explicit choice stamps data-theme, and the default "system" stamps
- * nothing, so prefers-color-scheme has to be guarded against an explicit light.
+ * Tokens, the reset and the fixed app frame now come from the shared design
+ * system (devondoes/ds). Files under src/ds are GENERATED — edit the source in
+ * that repo and run `node ds/sync.mjs`; `npm run lint:ds` fails if a copy here
+ * has drifted.
+ *
+ * app-shell is imported because Mise is a full-screen PWA that scrolls inside
+ * its own panes. A page that scrolls must NOT import it.
  */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #0e1214;
-    --surface: #171e21;
-    --ink: #e9eeef;
-    --muted: #9dabb1;
-    --line: #263135;
-    --accent: #5ad3c0;
-    --accent-ink: #05201c;
-    --accent-soft: #12312d;
-    --accent-deep: #8ae6d6;
-    --danger: #ff9a90;
-    --danger-soft: #3a1f1c;
-    --fav: #e3bd5c;
-    --fav-soft: #332a12;
-    --seg: #1e262a;
-
-    --scrim: rgba(0, 0, 0, 0.6);
-    --scrim-strong: rgba(0, 0, 0, 0.72);
-    --shadow: 0 12px 30px -14px rgba(0, 0, 0, 0.7);
-    --shadow-fab: 0 12px 24px -8px rgba(0, 0, 0, 0.6);
-    --shadow-dialog: 0 30px 80px -20px rgba(0, 0, 0, 0.75);
-    --press: rgba(255, 255, 255, 0.09);
-
-    /* Raised, not inverted: a near-white toast in a dark room is a flashbulb. */
-    --notice-bg: #263135;
-    --notice-ink: #eef3f4;
-    --notice-action: #5ad3c0;
-    --control-rim: #3d4a4f;
-    --badge-bg: #2b3639;
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme='dark'] {
-  --bg: #0e1214;
-  --surface: #171e21;
-  --ink: #e9eeef;
-  --muted: #9dabb1;
-  --line: #263135;
-  --accent: #5ad3c0;
-  --accent-ink: #05201c;
-  --accent-soft: #12312d;
-  --accent-deep: #8ae6d6;
-  --danger: #ff9a90;
-  --danger-soft: #3a1f1c;
-  --fav: #e3bd5c;
-  --fav-soft: #332a12;
-  --seg: #1e262a;
-
-  --scrim: rgba(0, 0, 0, 0.6);
-  --scrim-strong: rgba(0, 0, 0, 0.72);
-  --shadow: 0 12px 30px -14px rgba(0, 0, 0, 0.7);
-  --shadow-fab: 0 12px 24px -8px rgba(0, 0, 0, 0.6);
-  --shadow-dialog: 0 30px 80px -20px rgba(0, 0, 0, 0.75);
-  --press: rgba(255, 255, 255, 0.09);
-
-  /* Raised, not inverted: a near-white toast in a dark room is a flashbulb. */
-  --notice-bg: #263135;
-  --notice-ink: #eef3f4;
-  --notice-action: #5ad3c0;
-  --control-rim: #3d4a4f;
-  --badge-bg: #2b3639;
-  color-scheme: dark;
-}
-
-/* Shared icon sizing — inherits color from its parent. */
-.icon {
-  display: block;
-  flex: 0 0 auto;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  margin: 0;
-  /*
-   * `100%` on a phone resolves against the LARGE viewport — the height the page
-   * would have if the browser's address bar were hidden. With the bar showing,
-   * which is most of the time, the app is therefore taller than what you can
-   * actually see, and the thing at the very bottom (the tab bar) sits below the
-   * fold. That is the "seems too tall" and it is worst in a browser tab, where
-   * the bar is always there; an installed PWA has no bar and is closer to right.
-   *
-   * `100dvh` is the visible height and tracks the bar appearing and
-   * disappearing.
-   *
-   * The `100%` below is written as a fallback but does NOT ship: the minifier
-   * drops it, because every browser in this project's targets supports dvh.
-   * Kept in the source anyway so lowering those targets restores it rather
-   * than silently shipping a broken height.
-   */
-  height: 100%;
-  height: 100dvh;
-}
+@import './ds/tokens.css';
+@import './ds/base.css';
+@import './ds/app-shell.css';
 
 /*
- * The document must never scroll — only .scroll does. Otherwise dragging the
- * app screen rubber-bands the whole page while the fixed bottom nav stays put,
- * which opens an empty white panel at the bottom that looks like a drawer.
+ * Mise's typography stays on system fonts, deliberately. This is a PWA used
+ * offline in a shop; a Google-hosted face would not be in the service worker's
+ * cache and would swap in only where there is signal, which is the one place
+ * the app is not.
  */
-html,
-body {
-  overflow: hidden;
-  overscroll-behavior: none;
-}
-body {
-  background: var(--bg);
-}
-
-button {
-  font-family: inherit;
-  cursor: pointer;
-  border: none;
-  background: none;
-  color: inherit;
-  /* Treat every button press as a tap — no double-tap-zoom wait, more reliable
-     taps in the installed standalone app. */
-  touch-action: manipulation;
-}
-
 .app {
   max-width: 640px;
   margin: 0 auto;
