@@ -26,17 +26,24 @@ jobs:
       - uses: actions/configure-pages@v5
         with:
           enablement: true
-      - run: npm ci
-      # Personal edition (AI on, points at the mini) -> /mise/
-      - run: npm run build
-        env:
-          BASE_PATH: /mise/
-          VITE_PARSE_URL: ${{ vars.VITE_PARSE_URL }}
-      # Lite edition (public, no AI, no backend) -> /mise/lite/
-      - run: npx vite build --outDir dist/lite --emptyOutDir false
-        env:
-          BASE_PATH: /mise/lite/
-          VITE_MISE_EDITION: lite
+      # NOTHING IS BUILT FOR THIS DOMAIN ANY MORE.
+      #
+      # devontroedel.com is a site about Devon; devondoes.dev is where things
+      # run. Mise lives only at https://mise.devondoes.dev, where the edition
+      # you get comes from your account rather than from which copy you opened.
+      #
+      # What ships here is a rescue page, not a redirect. IndexedDB is
+      # per-ORIGIN, so lists created at this address are still in the visitor's
+      # browser under devontroedel.com — serving a 404 or a redirect would leave
+      # them unreachable without deleting them. The page reads what is there,
+      # hands it over as the app's own backup format, unregisters the old
+      # service worker so no cached ghost of Mise keeps running here, and only
+      # then points at the new address.
+      - name: Publish the rescue page at /mise/ and /mise/lite/
+        run: |
+          mkdir -p dist/lite
+          cp retire/index.html dist/index.html
+          cp retire/index.html dist/lite/index.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

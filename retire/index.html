@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mise has moved</title>
+<meta name="theme-color" content="#9c4a22">
+<!--
+  What replaced Mise at devontroedel.com/mise/.
+
+  Mise now lives only at mise.devondoes.dev, where the edition you get comes
+  from your account rather than from which copy you opened. This page exists
+  because deleting the old one outright would have been destructive in a way
+  that is easy to miss: IndexedDB is per-ORIGIN, so any lists created here are
+  still sitting in this browser under devontroedel.com — and with no app served
+  here to read them, they would be unreachable without being deleted.
+
+  So this is a rescue hatch, not a redirect. It reads what is in this origin's
+  database, tells you what it found, and hands it to you as the same backup
+  file the app itself writes, which the new one restores. Only then does it
+  point you at the new address.
+
+  It also unregisters the old service worker. That worker precached the whole
+  app and would otherwise keep serving it from cache — a ghost copy of Mise
+  living at an address that is supposed to be retired, still accepting
+  groceries nobody will ever sync.
+
+  No framework, no build step, no service worker of its own. It has one job and
+  should still be able to do it years from now.
+-->
+<style>
+  :root {
+    --bg: #f1f4ed; --surface: #fff; --ink: #1a1a14; --muted: #6b6659;
+    --line: #e5e2d7; --accent: #9c4a22; --accent-soft: #f3e7df;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px 64px; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+  }
+  main { max-width: 34rem; margin: 0 auto; }
+  h1 { font-size: 1.6rem; line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.02em; text-wrap: balance; }
+  p { margin: 0 0 14px; text-wrap: pretty; }
+  .muted { color: var(--muted); }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+    padding: 18px; margin: 22px 0;
+  }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+  .stat { background: var(--accent-soft); border-radius: 10px; padding: 8px 12px; font-size: 0.92rem; }
+  .stat b { color: var(--accent); }
+  a.btn, button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 46px; padding: 0 20px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); font: inherit; font-weight: 700;
+    text-decoration: none; cursor: pointer;
+  }
+  a.btn.primary, button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: 0.55; cursor: default; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  code { background: var(--accent-soft); padding: 1px 6px; border-radius: 6px; font-size: 0.92em; }
+  :where(a, button):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Mise has moved to mise.devondoes.dev</h1>
+  <p>
+    It used to be published here as well as there, which meant two copies of the
+    same app with two separate databases — and whichever one you opened is where
+    that day's list ended up. There is one copy now.
+  </p>
+
+  <div class="card">
+    <h2 style="margin:0 0 10px;font-size:1.1rem">Anything left in this browser</h2>
+    <div id="out"><p class="muted">Checking…</p></div>
+  </div>
+
+  <p class="row">
+    <a class="btn primary" href="https://mise.devondoes.dev">Open Mise</a>
+  </p>
+  <p class="muted" style="margin-top:18px">
+    If you downloaded a backup above, open Mise, then
+    <b>Settings → Restore from a file</b>.
+  </p>
+</main>
+
+<script>
+(function () {
+  var out = document.getElementById('out');
+  function show(html) { out.innerHTML = html; }
+
+  // Stop the old app's service worker serving a cached copy of Mise from an
+  // address that no longer hosts it.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations()
+      .then(function (rs) { rs.forEach(function (r) { r.unregister(); }); })
+      .catch(function () {});
+  }
+  if (window.caches && caches.keys) {
+    caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); })
+      .catch(function () {});
+  }
+
+  var STORES = ['lists', 'items', 'recipes', 'staples', 'catalog'];
+
+  // Open WITHOUT a version so this can never trigger a schema upgrade. A
+  // version number here would be a guess, and guessing low throws while
+  // guessing high rewrites the database this page exists to rescue.
+  var req;
+  try { req = indexedDB.open('mise'); }
+  catch (e) { show('<p>Could not read this browser’s storage.</p>'); return; }
+
+  var settled = false;
+  // A blocked open hangs forever with no error — the same failure that once
+  // looked like "all my data vanished". Say so instead of spinning.
+  var timer = setTimeout(function () {
+    if (settled) return;
+    settled = true;
+    show('<p>Storage did not respond. Close any other tab or installed copy of '
+       + 'Mise and reload this page.</p>');
+  }, 8000);
+
+  req.onerror = function () {
+    if (settled) return;
+    settled = true; clearTimeout(timer);
+    show('<p>Could not open this browser’s storage.</p>');
+  };
+
+  req.onsuccess = function () {
+    if (settled) return;
+    settled = true; clearTimeout(timer);
+    var db = req.result;
+    var present = STORES.filter(function (s) { return db.objectStoreNames.contains(s); });
+    if (!present.length) {
+      show('<p>Nothing stored here — there is nothing to move.</p>');
+      return;
+    }
+    var tx = db.transaction(present, 'readonly');
+    var data = {};
+    var left = present.length;
+    present.forEach(function (name) {
+      var r = tx.objectStore(name).getAll();
+      r.onsuccess = function () {
+        data[name] = r.result || [];
+        if (--left === 0) done(data);
+      };
+      r.onerror = function () {
+        data[name] = [];
+        if (--left === 0) done(data);
+      };
+    });
+  };
+
+  function done(data) {
+    var total = STORES.reduce(function (n, s) { return n + ((data[s] || []).length); }, 0);
+    if (!total) {
+      show('<p>Nothing stored here — there is nothing to move.</p>');
+      return;
+    }
+    var stats = [
+      ['items', 'items'], ['recipes', 'recipes'],
+      ['lists', 'lists'], ['catalog', 'saved items'],
+    ].map(function (p) {
+      return '<span class="stat"><b>' + ((data[p[0]] || []).length) + '</b> ' + p[1] + '</span>';
+    }).join('');
+
+    show(
+      '<div class="stats">' + stats + '</div>'
+      + '<p>Download this, then restore it in Mise. Nothing here is deleted — '
+      + 'the file is a copy.</p>'
+      + '<p class="row"><button id="dl" class="primary">Download backup</button></p>'
+    );
+
+    document.getElementById('dl').addEventListener('click', function () {
+      // Exactly the shape src/backup.ts writes, so the app's own Restore reads it.
+      var backup = {
+        mise: 1,
+        exportedAt: Date.now(),
+        items: data.items || [], recipes: data.recipes || [],
+        staples: data.staples || [], catalog: data.catalog || [],
+        lists: data.lists || [],
+      };
+      var blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'mise-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    });
+  }
+})();
+</script>
+</body>
+</html>
