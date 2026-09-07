@@ -2592,6 +2592,10 @@
 .avatar.violet { background: color-mix(in srgb, var(--accent) 14%, var(--seg)); }
 .avatar.sky    { background: color-mix(in srgb, var(--accent) 22%, var(--surface)); }
 .avatar.lime   { background: color-mix(in srgb, var(--fav) 20%, var(--surface)); }
+/* A generated pattern brings its own ground and fills the whole circle, so it
+   covers rather than sits centred the way an emoji does. */
+img.avatar { object-fit: cover; padding: 0; }
+
 
 /* Waiting for you, at the top, because a list that arrives silently is a list
    you find in three weeks. */

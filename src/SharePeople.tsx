@@ -4,6 +4,23 @@ import * as people from './people'
 import type { SharePayload } from './share'
 
 /**
+ * One person, one picture.
+ *
+ * An emoji is text and a generated pattern is an image, so this cannot be a
+ * className and a string. The pattern is served by the platform as a pure
+ * function of its URL — no session, cached forever — which is why an <img>
+ * here costs nothing after the first render.
+ */
+function Avatar({ id, icon, accent }: { id: string; icon?: string | null; accent?: string | null }) {
+  if (icon) return <span className={`avatar ${accent ?? ''}`}>{icon}</span>
+  return (
+    <img className="avatar" alt=""
+         src={`https://devondoes.dev/avatar/${encodeURIComponent(id)}/${accent ?? 'slate'}.svg`} />
+  )
+}
+
+
+/**
  * Sending a list to somebody, or keeping one in step with them.
  *
  * TWO DIFFERENT THINGS, said as two different things rather than one control
@@ -61,14 +78,14 @@ export function SharePeople({
         {friends?.length === 0 && (
           <p className="hint">
             Nobody to share with yet. Connect with people on{' '}
-            <a href="https://devondoes.dev/people">devondoes.dev</a> and they will
+            <a href="https://devondoes.dev/friends">devondoes.dev</a> and they will
             appear here.
           </p>
         )}
 
         {friends?.map((p) => (
           <div className="person" key={p.id}>
-            <span className={`avatar ${p.accent ?? ''}`}>{p.icon || '·'}</span>
+            <Avatar id={p.id} icon={p.icon} accent={p.accent} />
             <span className="person-name">{p.name || p.email}</span>
             <button className="mini ghost" disabled={busy === p.id}
                     onClick={() => void send(p)}>Send a copy</button>
@@ -126,7 +143,7 @@ export function Handoffs({ onTake, onToast }: {
     <div className="handoffs">
       {waiting.map((w) => (
         <div className="handoff" key={w.id}>
-          <span className={`avatar ${w.accent ?? ''}`}>{w.icon || '·'}</span>
+          <Avatar id={w.from_id} icon={w.icon} accent={w.accent} />
           <span className="grow">
             <strong>{w.name || w.email}</strong> sent you “{w.label}”
           </span>

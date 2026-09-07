@@ -16,7 +16,10 @@ export interface Person {
 }
 
 export interface Waiting {
+  /** The handoff. NOT the sender — see from_id. */
   id: string
+  /** Who sent it: what the avatar is drawn from. */
+  from_id: string
   label: string
   name: string | null
   email: string
