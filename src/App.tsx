@@ -24,6 +24,7 @@ import { Icon } from './Icon'
 import {
   addOutToGroceries,
   defaultGroceryListId,
+  dedupeDefaultLists,
   ensureDefaultLists,
   resolveActiveId,
   restockFromPurchase,
@@ -95,7 +96,9 @@ export default function App() {
   // A Pantry on every install, not only new ones: "things I always have" lives
   // there now, so Settings has nowhere to put them without it.
   useEffect(() => {
-    void ensureDefaultLists()
+    // Also removes duplicates the old random-uid seeders left behind. Only ever
+    // empty ones the app itself made — see dedupeDefaultLists.
+    void ensureDefaultLists().then(() => dedupeDefaultLists())
   }, [])
 
   // Sync, if it is switched on. A merge needs no handling here — the tables are
@@ -108,6 +111,9 @@ export default function App() {
   useEffect(
     () =>
       startAutoSync((r) => {
+        // The first sync is what tells a fresh device whether the account
+        // already has lists, so seeding is decided here rather than at mount.
+        if (r.ok) void ensureDefaultLists().then(() => dedupeDefaultLists())
         if (!r.ok || !r.editionChanged) return
         showToast(
           r.edition === 'personal'

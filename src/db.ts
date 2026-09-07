@@ -366,6 +366,8 @@ export class MiseDB extends Dexie {
             kind: 'pantry',
             icon: 'pantry',
             createdAt: Date.now(),
+            uid: 'default:pantry',
+            updatedAt: Date.now(),
           })
           pantry = { id }
         }
