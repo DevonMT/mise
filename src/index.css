@@ -2285,7 +2285,32 @@ button {
 }
 .view-title,
 .list-pick-name {
-  text-wrap: balance;
+  /*
+   * NO `text-wrap: balance` here, however tempting it looks on a heading.
+   *
+   * `white-space` is a shorthand that includes `text-wrap-mode`, so
+   * `text-wrap: balance` set later in the file silently overrode the
+   * `white-space: nowrap` this label depends on. The name stopped truncating
+   * with an ellipsis and started WRAPPING to a second line, which is what was
+   * colliding with the kind beneath it — and the clipped descender was the
+   * same bug seen from a different angle.
+   *
+   * Balance is for multi-line headings. This is a single line that truncates.
+   */
+  white-space: nowrap;
+  /*
+   * Room for descenders.
+   *
+   * The name inherits line-height 1.05 from .list-pick-text, which keeps the
+   * name and the kind tight together — but at 1.35rem bold that line box is
+   * shorter than the glyphs, and the `overflow: hidden` needed for the
+   * ellipsis then crops whatever hangs below the baseline. "My list" lost the
+   * tail of its y; any list called Ryan or Party would lose one too.
+   *
+   * Set on the name alone, so the pair stays tight and only the line that
+   * actually clips gets the room.
+   */
+  line-height: 1.3;
 }
 
 /* ---- Focus -----------------------------------------------------------------
