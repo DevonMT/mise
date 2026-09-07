@@ -3,10 +3,18 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { startTheme } from './theme'
+import { migrateStaples } from './db'
 
 // Before the first render: stamping the root afterwards means a frame of the
 // wrong theme, which on a dark-mode phone is a white flash in a dark room.
 startTheme()
+
+// Finish the v5 move of staples into the pantry. Outside the Dexie upgrade
+// because it writes tombstones, and a sync that never learned of the deletion
+// would hand every staple back on the next pull.
+void migrateStaples().catch(() => {
+  /* it will be retried on the next open */
+})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

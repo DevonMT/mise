@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, canonicalize, readAllWithTimeout, type Section } from './db'
+import { ensurePantryList } from './lists'
 import { PARSE_URL } from './parse'
 import { estimateStorePrices, priceableKeys } from './catalog'
 import { downloadBackup, importAll } from './backup'
@@ -28,9 +29,12 @@ function describeLayout(): string {
 
 export function SettingsView() {
   const aiOn = useAiEnabled()
+  // A view of the pantry, not a store of its own. These ARE pantry items —
+  // the ones flagged "always have" — so this section and the Pantry list can
+  // never disagree about what you always keep in.
   const staples =
     useLiveQuery(async () => {
-      const all = await db.staples.toArray()
+      const all = await db.items.filter((i) => i.alwaysHave === true).toArray()
       return all.sort((a, b) => a.displayName.localeCompare(b.displayName))
     }, []) ?? []
   // What a re-price would actually send: distinct items on your grocery lists,
@@ -213,13 +217,45 @@ export function SettingsView() {
     }
   }
 
+  /**
+   * Adding here adds to the pantry with the flag set, so the two places stay
+   * one place. If the thing is already in the pantry it is flagged rather than
+   * duplicated — typing "salt" when salt is already tracked should not leave
+   * you with two salts.
+   */
   const add = async () => {
     const trimmed = name.trim()
     if (!trimmed) return
     const canonicalKey = canonicalize(trimmed)
-    const exists = await db.staples.where('canonicalKey').equals(canonicalKey).first()
-    if (!exists) await db.staples.add({ canonicalKey, displayName: trimmed })
+    const listId = await ensurePantryList()
+
+    const existing = await db.items
+      .filter((i) => i.canonicalKey === canonicalKey && i.listId === listId)
+      .first()
+    if (existing?.id != null) {
+      await db.items.update(existing.id, { alwaysHave: true })
+    } else {
+      await db.items.add({
+        listId,
+        displayName: trimmed,
+        canonicalKey,
+        section: 'pantry',
+        checked: false,
+        backlog: false,
+        alwaysHave: true,
+        createdAt: Date.now(),
+      })
+    }
     setName('')
+  }
+
+  /**
+   * Removing the flag, not the item. Someone who says "stop skipping olive oil"
+   * has not said "forget I keep olive oil" — deleting the pantry row would
+   * throw away stock tracking they never asked to lose.
+   */
+  const unflag = async (id: number) => {
+    await db.items.update(id, { alwaysHave: false })
   }
 
   const estimate = async (mode: 'missing' | 'all') => {
@@ -486,8 +522,8 @@ export function SettingsView() {
               <button
                 key={s.id}
                 className="staple-chip"
-                onClick={() => db.staples.delete(s.id!)}
-                title="Remove"
+                onClick={() => unflag(s.id!)}
+                title="Stop skipping this"
               >
                 {s.displayName} ✕
               </button>

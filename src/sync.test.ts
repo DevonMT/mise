@@ -448,3 +448,136 @@ test('anything that is not exactly "full" means lite', () => {
     assert.equal(ed.grantedEdition(), expected, `${JSON.stringify(v)} -> ${expected}`)
   }
 })
+
+// ---------------------------------------------------------------------------
+// The v5 migration: staples become pantry items carrying a flag. This one runs
+// once against a database of somebody's real staples and cannot be undone, so
+// the questions are "does anything get lost" and "can it run twice".
+// ---------------------------------------------------------------------------
+
+/** A v4 database with staples and no pantry list — the shape being migrated. */
+async function makeV4WithStaples(name: string) {
+  const old = new Dexie(name)
+  old.version(1).stores({
+    items: '++id, canonicalKey, section, checked, backlog',
+    recipes: '++id, title', staples: '++id, &canonicalKey',
+  })
+  old.version(2).stores({ catalog: '++id, &canonicalKey, favorite, count' })
+  old.version(3).stores({
+    lists: '++id, kind',
+    items: '++id, listId, canonicalKey, section, checked, backlog',
+  })
+  old.version(4).stores({
+    lists: '++id, &uid, kind',
+    items: '++id, &uid, listId, canonicalKey, section, checked, backlog',
+    recipes: '++id, &uid, title', staples: '++id, &uid, &canonicalKey',
+    catalog: '++id, &uid, &canonicalKey, favorite, count',
+    tombstones: '++id, &[kind+uid]',
+  })
+  await old.open()
+  const listId = await old.table('lists').add({
+    name: 'Groceries', kind: 'grocery', createdAt: 1, uid: 'list-1', updatedAt: 1,
+  })
+  await old.table('items').add({
+    listId, displayName: 'Milk', canonicalKey: 'milk', section: 'dairy',
+    checked: false, backlog: false, createdAt: 1, uid: 'item-1', updatedAt: 1,
+  })
+  await old.table('staples').bulkAdd([
+    { canonicalKey: 'salt', displayName: 'Salt', uid: 'st-1', updatedAt: 1 },
+    { canonicalKey: 'olive oil', displayName: 'Olive oil', uid: 'st-2', updatedAt: 1 },
+  ])
+  old.close()
+}
+
+function openV5(name: string) {
+  const db = openV4(name) as Dexie
+  db.version(5)
+    .stores({ items: '++id, &uid, listId, canonicalKey, section, checked, backlog' })
+    .upgrade(async (tx) => {
+      const staples = await tx.table('staples').toArray()
+      if (!staples.length) return
+      const lists = await tx.table('lists').toArray()
+      let pantry = lists.find((l: { kind?: string }) => l.kind === 'pantry')
+      if (!pantry) {
+        const id = await tx.table('lists').add({
+          name: 'Pantry', kind: 'pantry', icon: 'pantry', createdAt: Date.now(),
+        })
+        pantry = { id }
+      }
+      const now = Date.now()
+      for (const st of staples) {
+        await tx.table('items').add({
+          listId: pantry.id, displayName: st.displayName, canonicalKey: st.canonicalKey,
+          section: 'pantry', checked: false, backlog: false, alwaysHave: true,
+          createdAt: now, updatedAt: now, uid: `mig-${st.canonicalKey}`,
+        })
+      }
+    })
+  return db
+}
+
+test('v5 turns every staple into a flagged pantry item', async () => {
+  const name = `mise-v5-${Date.now()}`
+  await makeV4WithStaples(name)
+  const db = openV5(name)
+  await db.open()
+
+  const pantry = (await db.table('lists').toArray()).find((l) => l.kind === 'pantry')
+  assert.ok(pantry, 'a pantry list was created for them to live in')
+
+  const flagged = (await db.table('items').toArray()).filter((i) => i.alwaysHave)
+  assert.equal(flagged.length, 2, 'both staples survived')
+  assert.deepEqual(
+    flagged.map((i) => i.canonicalKey).sort(), ['olive oil', 'salt'],
+    'by canonical key, which is what the never-add lookup uses',
+  )
+  assert.ok(flagged.every((i) => i.listId === pantry.id), 'filed under the pantry')
+  assert.ok(flagged.every((i) => i.checked === false), 'in stock, not marked out')
+  db.close()
+})
+
+test('the grocery list is untouched by the migration', async () => {
+  const name = `mise-v5-keep-${Date.now()}`
+  await makeV4WithStaples(name)
+  const db = openV5(name)
+  await db.open()
+  const milk = (await db.table('items').toArray()).find((i) => i.canonicalKey === 'milk')
+  assert.ok(milk, 'the existing item is still there')
+  assert.equal(milk.uid, 'item-1', 'with its identity intact, so sync sees no change')
+  assert.notEqual(milk.alwaysHave, true, 'and was not swept up in the flagging')
+  db.close()
+})
+
+test('migrating twice does not duplicate anything', async () => {
+  const name = `mise-v5-twice-${Date.now()}`
+  await makeV4WithStaples(name)
+  const first = openV5(name)
+  await first.open()
+  const before = (await first.table('items').toArray()).length
+  first.close()
+
+  const second = openV5(name)
+  await second.open()
+  const after = (await second.table('items').toArray()).length
+  assert.equal(after, before, 'the upgrade runs once, not once per open')
+  second.close()
+})
+
+test('an existing pantry list is reused, not duplicated', async () => {
+  const name = `mise-v5-reuse-${Date.now()}`
+  await makeV4WithStaples(name)
+  // Give them a pantry before the upgrade runs.
+  const pre = openV4(name) as Dexie
+  await pre.open()
+  await pre.table('lists').add({
+    name: 'Larder', kind: 'pantry', createdAt: 2, uid: 'list-2', updatedAt: 2,
+  })
+  pre.close()
+
+  const db = openV5(name)
+  await db.open()
+  const pantries = (await db.table('lists').toArray()).filter((l) => l.kind === 'pantry')
+  assert.equal(pantries.length, 1, 'no second pantry was invented')
+  assert.equal(pantries[0].name, 'Larder', 'theirs was used')
+  db.close()
+})

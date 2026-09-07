@@ -21,6 +21,7 @@ import { Icon } from './Icon'
 import {
   addOutToGroceries,
   defaultGroceryListId,
+  ensureDefaultLists,
   resolveActiveId,
   restockFromPurchase,
   restoreList,
@@ -84,6 +85,12 @@ export default function App() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [toast, setToast] = useState<{ msg: string; undo?: () => void } | null>(null)
   const [showHint, setShowHint] = useState(() => !localStorage.getItem('mise.swipeHint'))
+
+  // A Pantry on every install, not only new ones: "things I always have" lives
+  // there now, so Settings has nowhere to put them without it.
+  useEffect(() => {
+    void ensureDefaultLists()
+  }, [])
 
   // Sync, if it is switched on. A merge needs no handling here — the tables are
   // behind useLiveQuery and re-render themselves, and a failure is something

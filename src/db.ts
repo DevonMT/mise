@@ -24,7 +24,7 @@ export type Section =
  * What a list is *for*. The kind decides which of Mise's smarts wake up
  * (see kinds.ts) — the underlying item shape is shared by all of them.
  */
-export type ListKind = 'grocery' | 'tasks' | 'pantry'
+export type ListKind = 'grocery' | 'tasks' | 'pantry' | 'packing' | 'wishlist'
 
 export interface List {
   id?: number
@@ -100,6 +100,21 @@ export interface Item {
   /** The specific product picked via Refine (brand/size), e.g. "Store brand
    *  salsa, 16 oz jar". The row keeps the basic displayName; this shows on tap. */
   detail?: string
+  /**
+   * Pantry only: something you always have, so a recipe asking for it must not
+   * put it on a shopping list. Salt, oil, pepper.
+   *
+   * This replaces the separate `staples` table, which held the same idea in a
+   * second place under a different name and was the source of a genuine
+   * "which one of these is the pantry?" confusion. One list now, with a flag,
+   * so adding salt to the pantry and telling Mise never to buy salt are the
+   * same act in the same place.
+   *
+   * NOTE it is independent of `checked`. A staple that has run OUT is still a
+   * staple — you just want it on the list this once, which is exactly what
+   * marking it out does.
+   */
+  alwaysHave?: boolean
 }
 
 /** One line of a recipe. `optional` ingredients are never added to the list
@@ -142,7 +157,10 @@ export interface Recipe {
   createdAt: number
 }
 
-/** A staple you always have — filtered out of grocery lists. */
+/**
+ * DEPRECATED, kept so the v5 migration can read it and so a sync from a device
+ * still on v4 does not fail. Nothing writes it any more: see `Item.alwaysHave`.
+ */
 export interface Staple {
   id?: number
   /**
@@ -261,6 +279,64 @@ export class MiseDB extends Dexie {
         catalog: '++id, &uid, &canonicalKey, favorite, count',
         tombstones: '++id, &[kind+uid]',
       })
+
+    // v5: staples move into the pantry as a flag. See Item.alwaysHave.
+    this.version(5)
+      .stores({
+        items: '++id, &uid, listId, canonicalKey, section, checked, backlog',
+      })
+      .upgrade(async (tx) => {
+        const staples = await tx.table('staples').toArray()
+        if (!staples.length) return
+
+        // They need somewhere to live. Reuse a pantry list if there is one
+        // rather than making a second.
+        const lists = await tx.table('lists').toArray()
+        let pantry = lists.find((l: { kind?: string }) => l.kind === 'pantry')
+        if (!pantry) {
+          const id = await tx.table('lists').add({
+            name: 'Pantry',
+            kind: 'pantry',
+            icon: 'pantry',
+            createdAt: Date.now(),
+          })
+          pantry = { id }
+        }
+
+        const existing = await tx.table('items').toArray()
+        const have = new Set(
+          existing
+            .filter((i: { listId?: number }) => i.listId === pantry.id)
+            .map((i: { canonicalKey: string }) => i.canonicalKey),
+        )
+        const now = Date.now()
+        for (const st of staples) {
+          if (have.has(st.canonicalKey)) {
+            // Already in the pantry — just mark it.
+            const row = existing.find(
+              (i: { listId?: number; canonicalKey: string }) =>
+                i.listId === pantry.id && i.canonicalKey === st.canonicalKey,
+            )
+            if (row) await tx.table('items').update(row.id, { alwaysHave: true, updatedAt: now })
+            continue
+          }
+          await tx.table('items').add({
+            listId: pantry.id,
+            displayName: st.displayName,
+            canonicalKey: st.canonicalKey,
+            section: 'pantry',
+            checked: false, // in stock; a staple you have is not "out"
+            backlog: false,
+            alwaysHave: true,
+            createdAt: now,
+            updatedAt: now,
+            uid: newUid(),
+          })
+        }
+        // The rows themselves are cleared by migrateStaples() after the upgrade
+        // commits, because deleting them has to leave tombstones and a Dexie
+        // upgrade transaction is the wrong place to be writing those.
+      })
       .upgrade(async (tx) => {
         // Backfill. `updatedAt` falls back to createdAt where there is one, so
         // rows keep a truthful order rather than all claiming to be edited at
@@ -320,6 +396,31 @@ export async function readAllWithTimeout(ms = 8000): Promise<{
     setTimeout(() => reject(new Error('STORAGE_BLOCKED')), ms),
   )
   return Promise.race([read, timeout])
+}
+
+/**
+ * Clear the migrated `staples` rows, leaving tombstones.
+ *
+ * Deliberately NOT part of the v5 upgrade. Deleting them has to propagate, and
+ * this app's own sync rule is that absence never deletes — only a tombstone
+ * does. Without one, the next pull would hand every staple straight back from
+ * the server and the migration would appear to undo itself overnight.
+ *
+ * Runs after open, is idempotent, and is safe on a device that never synced.
+ */
+export async function migrateStaples(): Promise<number> {
+  const rows = await db.staples.toArray()
+  if (!rows.length) return 0
+  const now = Date.now()
+  await db.transaction('rw', db.staples, db.tombstones, async () => {
+    for (const st of rows) {
+      // Only rows carrying a uid were ever synced; one without has no
+      // counterpart on the server and needs no tombstone.
+      if (st.uid) await db.tombstones.put({ kind: 'staple', uid: st.uid, deletedAt: now })
+    }
+    await db.staples.clear()
+  })
+  return rows.length
 }
 
 /** Normalize a free-text name into a merge key: lowercase, singular-ish, trimmed. */

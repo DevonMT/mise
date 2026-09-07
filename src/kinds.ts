@@ -88,9 +88,66 @@ export const KINDS: Record<ListKind, KindMeta> = {
     emptyText: 'Your pantry is empty.',
     emptyHint: 'Add what you keep on hand. Mark things out to restock them.',
   },
+
+  /**
+   * A checklist you reset instead of delete — travel, gym bag, the nappy bag.
+   * The point is that it survives being finished: everything unticks and it is
+   * ready for next time. No aisles, no prices, no parsing; that machinery is
+   * about buying things, and this is about not forgetting them.
+   */
+  packing: {
+    kind: 'packing',
+    label: 'Packing',
+    icon: 'basket',
+    sections: false,
+    quantities: true,
+    prices: false,
+    staples: false,
+    recipes: false,
+    due: false,
+    backlog: false,
+    backlogLabel: '',
+    checkVerb: 'Pack',
+    primaryLabel: 'list',
+    emptyIcon: 'basket',
+    emptyText: 'Nothing packed yet.',
+    emptyHint: 'Add what you always take. Untick it all when you get home.',
+  },
+
+  /**
+   * Things to buy eventually. Keeps prices and refine, because deciding what to
+   * buy is exactly what those are for — but no aisles and no backlog, because
+   * it is not a trip. It is the list you move things OFF, onto a real one.
+   */
+  wishlist: {
+    kind: 'wishlist',
+    label: 'Wishlist',
+    icon: 'star',
+    sections: false,
+    quantities: true,
+    prices: true,
+    staples: false,
+    recipes: false,
+    due: false,
+    backlog: false,
+    backlogLabel: '',
+    checkVerb: 'Mark as bought',
+    primaryLabel: 'list',
+    emptyIcon: 'star',
+    emptyText: 'Nothing on the wishlist.',
+    emptyHint: 'Things to buy one day. Prices are remembered, nothing is urgent.',
+  },
 }
 
-export const KIND_LIST: KindMeta[] = [KINDS.grocery, KINDS.tasks, KINDS.pantry]
+/** The order the kind picker offers them in: the two people reach for most,
+ *  then the rest. */
+export const KIND_LIST: KindMeta[] = [
+  KINDS.grocery,
+  KINDS.tasks,
+  KINDS.pantry,
+  KINDS.packing,
+  KINDS.wishlist,
+]
 
 /** The icon a list shows — its own override, or its kind's default. */
 export function listIcon(list: Pick<List, 'kind' | 'icon'>): string {

@@ -130,9 +130,11 @@ export function ListSwitcher({
 }
 
 const KIND_DESC: Record<ListKind, string> = {
-  grocery: 'Aisles, merging, staples, recipes, prices',
+  grocery: 'Aisles, merging, recipes, prices',
   tasks: 'Due dates and notes. No quantities.',
-  pantry: 'What you keep on hand — restocks your groceries',
+  pantry: 'What you keep on hand — and what to never buy again',
+  packing: 'A checklist you reset instead of deleting',
+  wishlist: 'Things to buy one day. Prices, no urgency.',
 }
 
 /** Rename / merge / delete. Kept out of the switcher so the common path stays one tap. */

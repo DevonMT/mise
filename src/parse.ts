@@ -112,10 +112,21 @@ export async function parseCapture(input: {
   return postJson<ParseResult>('/api/parse', input, 'Parse')
 }
 
-/** Current staples ignore-list as a set of canonical keys. */
+/**
+ * What must never be added, as canonical keys.
+ *
+ * Read from the pantry now rather than a separate `staples` table: an item
+ * flagged `alwaysHave` on any pantry list. One place holds "I always have
+ * this", instead of two features with different names meaning nearly the same
+ * thing.
+ *
+ * Independent of stock. A staple that has run out is still a staple — you have
+ * just marked it out because you want it on the list this once, and honouring
+ * `checked` here would silently re-suppress it.
+ */
 export async function getStapleKeys(): Promise<Set<string>> {
-  const staples = await db.staples.toArray()
-  return new Set(staples.map((s) => s.canonicalKey))
+  const items = await db.items.filter((i) => i.alwaysHave === true).toArray()
+  return new Set(items.map((i) => i.canonicalKey))
 }
 
 export interface PriceEstimate {

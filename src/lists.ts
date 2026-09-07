@@ -20,6 +20,18 @@ export async function ensureSeed(): Promise<number> {
   })
 }
 
+/**
+ * Make sure a Pantry exists, on every install rather than only new ones.
+ *
+ * It is no longer an optional extra: "things I always have" lives there now,
+ * so Settings has nowhere to put them without it. Seeded EMPTY — guessing
+ * somebody's staples is worse than an empty list that says what it is for.
+ */
+export async function ensureDefaultLists(): Promise<void> {
+  await ensureSeed()
+  await ensurePantryList()
+}
+
 export function readActiveId(): number | null {
   const raw = localStorage.getItem(ACTIVE_KEY)
   const n = raw ? Number(raw) : NaN
@@ -149,4 +161,26 @@ export async function restockFromPurchase(bought: Item[]): Promise<Item[]> {
 
 export async function undoRestock(flipped: Item[]): Promise<void> {
   for (const f of flipped) await db.items.update(f.id!, { checked: true })
+}
+
+/**
+ * The Pantry list, made if it isn't there yet.
+ *
+ * Every install gets one now — the pantry is where "things I always have"
+ * lives, and Settings needs somewhere to put them. Reuses an existing pantry
+ * list rather than making a second, and is a transaction so two callers racing
+ * (StrictMode's double mount, or a sync arriving at the same moment) cannot
+ * each create one.
+ */
+export async function ensurePantryList(): Promise<number> {
+  return db.transaction('rw', db.lists, async () => {
+    const existing = await db.lists.filter((l) => l.kind === 'pantry').first()
+    if (existing?.id != null) return existing.id
+    return db.lists.add({
+      name: 'Pantry',
+      kind: 'pantry',
+      icon: 'pantry',
+      createdAt: Date.now(),
+    })
+  })
 }
