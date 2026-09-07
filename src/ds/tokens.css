@@ -47,6 +47,10 @@
   --surface: #ffffff;
   --ink: #12171a;
   --muted: #535f66;
+  /* A third text level, for metadata that is genuinely optional — a timestamp,
+     an id. NEVER body text: this one is allowed to sit below the 4.5:1 that
+     normal text needs, which is exactly why it must not carry meaning. */
+  --faint: #6f7c83;
   --line: #d6dedc;
 
   /* ---- Accent -----------------------------------------------------------
@@ -66,6 +70,8 @@
      Danger is not a second brand colour. Keep it for destructive and wrong. */
   --danger: #a3302a;
   --danger-soft: #f8e5e3;
+  /* Success. Semantic, and not a second accent — keep it for "this worked". */
+  --ok: #1c6b4b;
   --fav: #7a5a06;
   --fav-soft: #f6edd6;
 
@@ -107,6 +113,7 @@
     --surface: #171e21;
     --ink: #e9eeef;
     --muted: #9dabb1;
+    --faint: #7d8b91;
     --line: #263135;
 
     /* Dark text on the accent here, not white. The dark theme's accent is a
@@ -118,6 +125,7 @@
 
     --danger: #ff9a90;
     --danger-soft: #3a1f1c;
+    --ok: #6fd39f;
     --fav: #e3bd5c;
     --fav-soft: #332a12;
 
@@ -145,6 +153,7 @@
   --surface: #171e21;
   --ink: #e9eeef;
   --muted: #9dabb1;
+  --faint: #7d8b91;
   --line: #263135;
 
   --accent: #5ad3c0;
@@ -154,6 +163,7 @@
 
   --danger: #ff9a90;
   --danger-soft: #3a1f1c;
+  --ok: #6fd39f;
   --fav: #e3bd5c;
   --fav-soft: #332a12;
 
