@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Item, type List, type ListKind } from './db'
 import { KINDS, KIND_LIST, listIcon } from './kinds'
+import * as people from './people'
 import { createList, deleteList, mergeInto, renameList } from './lists'
 import { Icon } from './Icon'
 import { IconGrid } from './EditListSheet'
@@ -9,6 +10,13 @@ import { Sheet } from './Sheet'
 
 /** Switch lists, or make a new one. The kind is chosen once, up front —
  *  it decides which of Mise's smarts the list gets. */
+interface Share {
+  list_uid: string
+  mine: boolean
+  name: string | null
+  email: string
+}
+
 export function ListSwitcher({
   activeId,
   onPick,
@@ -89,6 +97,15 @@ export function ListSwitcher({
     )
   }
 
+  const [shares, setShares] = useState<Share[]>([])
+  useEffect(() => {
+    // Offline it stays empty and the switcher simply says nothing extra,
+    // which is the right degradation: the lists still work.
+    void people.shares().then((r) => setShares(r as unknown as Share[]))
+  }, [])
+  const shareOf = (uid?: string | null) =>
+    uid ? shares.find((x) => x.list_uid === uid) : undefined
+
   return (
     <Sheet className="lists" label="Your lists" onClose={onClose}>
       <div className="qa-header">
@@ -110,7 +127,19 @@ export function ListSwitcher({
             </span>
             <span className="list-body">
               <span className="list-name">{l.name}</span>
-              <span className="list-sub">{KINDS[l.kind].label}</span>
+              <span className="list-sub">
+                {KINDS[l.kind].label}
+                {/* Whose list this is, when it is not only yours. A subscribed
+                    list syncs into the switcher looking exactly like your own,
+                    and finding somebody else's groceries in your app without
+                    being told is the failure this prevents. */}
+                {shareOf(l.uid) && (
+                  <span className="list-shared">
+                    {' · '}{shareOf(l.uid)!.mine ? 'shared with' : 'shared by'}{' '}
+                    {shareOf(l.uid)!.name || shareOf(l.uid)!.email}
+                  </span>
+                )}
+              </span>
             </span>
             {(counts.get(l.id!) ?? 0) > 0 && <span className="badge">{counts.get(l.id!)}</span>}
           </button>

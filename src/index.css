@@ -2561,3 +2561,50 @@
   font-weight: 500;
   color: var(--muted);
 }
+
+/* ── Sharing with people on the estate ────────────────────────────────────
+   Two different things, said as two different things: a copy they keep, or one
+   list you both edit. One control with a mode is how somebody shares a
+   shopping list expecting it to update and finds out on the way home. */
+.people-sheet { display: grid; gap: 10px; }
+.person {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.person-name { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 14px; }
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  flex: 0 0 auto;
+  background: var(--seg);
+  border: 1px solid var(--line);
+}
+.avatar.teal   { background: var(--accent-soft); }
+.avatar.amber  { background: var(--fav-soft); }
+.avatar.rose   { background: var(--danger-soft); }
+.avatar.violet { background: color-mix(in srgb, var(--accent) 14%, var(--seg)); }
+.avatar.sky    { background: color-mix(in srgb, var(--accent) 22%, var(--surface)); }
+.avatar.lime   { background: color-mix(in srgb, var(--fav) 20%, var(--surface)); }
+
+/* Waiting for you, at the top, because a list that arrives silently is a list
+   you find in three weeks. */
+.handoffs { display: grid; gap: 6px; padding: 8px 12px 0; flex: 0 0 auto; }
+.handoff {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--fav-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 13px;
+}
+.handoff .grow { flex: 1 1 auto; min-width: 0; }
+.list-shared { color: var(--accent-deep); }

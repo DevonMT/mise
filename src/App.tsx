@@ -46,6 +46,7 @@ import { ListSwitcher, ManageLists } from './ListSwitcher'
 import { EditListSheet } from './EditListSheet'
 import { ImportSheet, ImportLinkSheet } from './ImportSheet'
 import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayload } from './share'
+import { SharePeople, Handoffs } from './SharePeople'
 import { useAiEnabled } from './edition'
 import { startAutoSync } from './sync'
 import { usePointer } from './ds/usePointer'
@@ -66,6 +67,8 @@ export default function App() {
   const [activeId, setActiveId] = useState<number | null>(null)
   const [storageBlocked, setStorageBlocked] = useState(false)
   const [pending, setPending] = useState<SharePayload | null>(null)
+  // The share sheet, when it is open: the list it is for and its snapshot.
+  const [sharing, setSharing] = useState<{ uid: string | null; name: string; payload: SharePayload | null } | null>(null)
 
   // Left undefined while loading, so we can tell "not loaded yet" from "none".
   const listsRaw = useLiveQuery(() => db.lists.toArray(), [])
@@ -311,6 +314,16 @@ export default function App() {
     showToast(n ? `Added ${n} to “${name}”` : 'Nothing marked out.')
   }
 
+  /** To somebody on the estate: by name, and either as a copy or in step. */
+  const doShareWithPerson = async () => {
+    if (!activeList?.id) return
+    setMenuOpen(false)
+    const payload = await shareListPayload(activeList.id, activeList.name, activeList.kind)
+    setSharing({ uid: activeList.uid ?? null, name: activeList.name, payload })
+  }
+
+  /** To anybody at all. Kept because a link reaches people with no account
+   *  here, which is most people. */
   const doShareList = async () => {
     if (!activeList?.id) return
     setMenuOpen(false)
@@ -459,6 +472,7 @@ export default function App() {
     // column is the rail, so a bar inside it would be placed in the rail.
     <>
       <EstateBar />
+      <Handoffs onTake={(p) => setPending(p)} onToast={showToast} />
       <div className="app">
       <header className="topbar">
         {tab === 'list' ? (
@@ -772,6 +786,10 @@ export default function App() {
             <Icon name="edit" size={20} />
             Rename &amp; icon
           </button>
+          <button className="menu-item" onClick={doShareWithPerson}>
+            <Icon name="heart" size={18} />
+            Share with someone
+          </button>
           <button className="menu-item" onClick={doShareList}>
             <Icon name="share" size={20} />
             Share this list
@@ -963,6 +981,15 @@ export default function App() {
           onClose={() => setSheet(null)}
         />
       )}
+        {sharing && (
+          <SharePeople
+            listUid={sharing.uid}
+            listName={sharing.name}
+            payload={sharing.payload}
+            onClose={() => setSharing(null)}
+            onToast={showToast}
+          />
+        )}
       </div>
     </>
   )
