@@ -6,17 +6,13 @@ import type { SharePayload } from './share'
 /**
  * One person, one picture.
  *
- * An emoji is text and a generated pattern is an image, so this cannot be a
- * className and a string. The pattern is served by the platform as a pure
- * function of its URL — no session, cached forever — which is why an <img>
- * here costs nothing after the first render.
+ * Just an <img>. The platform decides between a photograph, a symbol badge and
+ * a monogram badge, so nothing here knows that rule — which means somebody
+ * changing their picture changes it in Mise without Mise shipping.
  */
-function Avatar({ id, icon, accent }: { id: string; icon?: string | null; accent?: string | null }) {
-  if (icon) return <span className={`avatar ${accent ?? ''}`}>{icon}</span>
-  return (
-    <img className="avatar" alt=""
-         src={`https://devondoes.dev/avatar/${encodeURIComponent(id)}/${accent ?? 'slate'}.svg`} />
-  )
+function Avatar({ id, sm }: { id: string; sm?: boolean }) {
+  return <img className={`avatar${sm ? ' sm' : ''}`} alt=""
+              src={`https://devondoes.dev/avatar/u/${encodeURIComponent(id)}`} />
 }
 
 
@@ -85,7 +81,7 @@ export function SharePeople({
 
         {friends?.map((p) => (
           <div className="person" key={p.id}>
-            <Avatar id={p.id} icon={p.icon} accent={p.accent} />
+            <Avatar id={p.id} />
             <span className="person-name">{p.name || p.email}</span>
             <button className="mini ghost" disabled={busy === p.id}
                     onClick={() => void send(p)}>Send a copy</button>
@@ -143,7 +139,7 @@ export function Handoffs({ onTake, onToast }: {
     <div className="handoffs">
       {waiting.map((w) => (
         <div className="handoff" key={w.id}>
-          <Avatar id={w.from_id} icon={w.icon} accent={w.accent} />
+          <Avatar id={w.from_id} />
           <span className="grow">
             <strong>{w.name || w.email}</strong> sent you “{w.label}”
           </span>
