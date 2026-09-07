@@ -9,17 +9,18 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-// Ask the browser to keep our IndexedDB — the only copy of the user's lists,
-// recipes, and prices — from being evicted under storage pressure. Without
-// this, a non-persistent origin's data can be cleared with no warning.
-if (navigator.storage?.persist) {
-  navigator.storage
-    .persisted()
-    .then((already) => {
-      if (!already) return navigator.storage.persist()
-    })
-    .catch(() => {})
-}
+// Persistent storage is NOT requested here any more.
+//
+// It used to be, on every load, because IndexedDB was the only copy of the
+// lists and an eviction lost them outright. Sync changed that: with an account,
+// the device holds a cache of something the server also has, and eviction costs
+// a re-download rather than the data.
+//
+// Firefox answers persist() with a permission prompt, so asking on load meant
+// prompting people whose data was already safe, before they had any data, with
+// no explanation of what was being asked — which is how a permission gets
+// denied permanently. It now lives in Settings, offered only when it actually
+// matters: when nothing is syncing this device.
 
 // Keep the installed app from getting stuck on an old cached build.
 //

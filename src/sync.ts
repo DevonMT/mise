@@ -357,7 +357,15 @@ export async function syncAvailable(): Promise<Availability> {
   if (EDITION !== 'personal') return 'unavailable'
   try {
     const res = await fetch(`${ENDPOINT}/health`, { credentials: 'include' })
-    if (res.ok) return 'ok'
+    if (res.ok) {
+      // The health check knows the tier, so learn it here as well as from a
+      // sync. Otherwise the tier is only discoverable by syncing, and anything
+      // that depends on it stays wrong for a device that has not turned sync on
+      // — which is every device on its first visit.
+      const body = (await res.json().catch(() => null)) as { variant?: string | null } | null
+      setGrantedVariant(body?.variant)
+      return 'ok'
+    }
     // The request reached the platform and was answered, so the origin is
     // allowed and CORS is fine — this is only about who is signed in.
     if (res.status === 401 || res.status === 403) return 'signin'

@@ -13,7 +13,7 @@ import {
   setAisleOrder,
 } from './aisles'
 import { Icon } from './Icon'
-import { useAiEnabled } from './edition'
+import { EDITION, useAiEnabled } from './edition'
 import {
   lastSyncedAt, setSyncEnabled, sync, syncAvailable, syncEnabled,
   type Availability, type SyncResult,
@@ -169,6 +169,21 @@ export function SettingsView() {
     if (on) await runSync()
   }
 
+  const [protectMsg, setProtectMsg] = useState('')
+  const onProtect = async () => {
+    try {
+      const ok = await navigator.storage?.persist?.()
+      setPersisted(ok ?? null)
+      setProtectMsg(
+        ok
+          ? 'Done — this browser will keep the data unless you clear it yourself.'
+          : 'The browser said no. A backup file is the reliable answer; so is turning on sync.',
+      )
+    } catch {
+      setProtectMsg('This browser doesn’t offer that.')
+    }
+  }
+
   const onExport = async () => {
     try {
       await downloadBackup()
@@ -254,9 +269,33 @@ export function SettingsView() {
           {syncOn
             ? 'Synced to your account, and kept on this device too. A backup is still the only copy you hold yourself.'
             : 'Everything lives on this device only. Keep a backup so a browser reset can never lose it.'}{' '}
-          {persisted === false && ' Storage isn’t marked persistent yet — reopening the app requests it.'}
-          {persisted === true && ' ✓ Storage is protected from automatic clearing.'}
+          {persisted === true && ' ✓ This browser has been told not to clear it automatically.'}
         </p>
+        {/*
+          Only offered when it would actually change an outcome.
+
+          The app used to ask for persistent storage on every load, back when
+          IndexedDB was the only copy and an eviction lost the lists outright.
+          With sync on, the device holds a cache of something the account also
+          has, so an eviction costs a re-download. Firefox answers this with a
+          permission prompt, so asking anyway meant prompting people whose data
+          was already safe, before they had any, with no explanation — which is
+          how a permission ends up denied for good.
+        */}
+        {persisted === false && !syncOn && (
+          <>
+            <p className="group-hint">
+              This browser may clear the app’s data on its own if the device runs
+              short of space. Nothing here is synced, so that would lose it.
+            </p>
+            <div className="two-btn">
+              <button className="ghost" onClick={onProtect}>
+                <Icon name="save" size={18} /> Ask to keep this data
+              </button>
+            </div>
+            {protectMsg && <p className="group-hint">{protectMsg}</p>}
+          </>
+        )}
         <div className="two-btn">
           <button className="ghost" onClick={onExport}>
             <Icon name="save" size={18} /> Back up to a file
@@ -275,7 +314,18 @@ export function SettingsView() {
         {dataMsg && <p className="group-hint">{dataMsg}</p>}
       </section>
 
-      {aiOn && (
+      {/*
+        Gated on the BUILD, not on the AI tier. Lite syncs too — it is the same
+        lists, and holding someone's only copy hostage to a capability tier
+        would be indefensible.
+
+        It was briefly gated on `aiOn`, which used to be a build constant and is
+        now the runtime tier. That tier starts at lite and is learned FROM the
+        server, so the control for turning sync on was hidden until sync had
+        already run: a switch you could not reach without having already flipped
+        it.
+      */}
+      {EDITION === 'personal' && (
         <section className="settings-group">
           <h3 className="group-title">Sync across devices</h3>
           {canSync === undefined ? (
