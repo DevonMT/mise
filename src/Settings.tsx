@@ -14,6 +14,7 @@ import {
 } from './aisles'
 import { Icon } from './Icon'
 import { EDITION, useAiEnabled } from './edition'
+import { readTheme, setTheme, type ThemeChoice } from './theme'
 import {
   lastSyncedAt, setSyncEnabled, sync, syncAvailable, syncEnabled,
   type Availability, type SyncResult,
@@ -167,6 +168,12 @@ export function SettingsView() {
     // is whether their list actually made it, and waiting for the next app
     // open to find out is the worst possible time to learn it did not.
     if (on) await runSync()
+  }
+
+  const [theme, setThemeChoice] = useState<ThemeChoice>(readTheme)
+  const onTheme = (t: ThemeChoice) => {
+    setTheme(t)
+    setThemeChoice(t)
   }
 
   const [protectMsg, setProtectMsg] = useState('')
@@ -487,6 +494,27 @@ export function SettingsView() {
           out of it on the device where it is most used. Settings rather than the
           bottom bar: leaving is rare, and the bottom bar is for the three things
           that are not. */}
+      <section className="settings-group">
+        <h3 className="group-title">Appearance</h3>
+        <p className="group-hint">
+          Light is the default because the list is read in a shop, where a bright
+          screen wins. Dark suits a desk, and a phone in a dim kitchen.
+        </p>
+        <div className="seg-group" role="group" aria-label="Theme">
+          {(['system', 'light', 'dark'] as ThemeChoice[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={theme === t ? 'seg-btn on' : 'seg-btn'}
+              aria-pressed={theme === t}
+              onClick={() => onTheme(t)}
+            >
+              {t === 'system' ? 'Match device' : t === 'light' ? 'Light' : 'Dark'}
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="settings-group">
         <h3 className="group-title">Elsewhere</h3>
         <a className="home-link" href="https://devondoes.dev/">

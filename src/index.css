@@ -1,40 +1,51 @@
 :root {
-  /* Mise — copper on warm-oat. Light Mesh: the estate's accent, kept on a
-     light ground on purpose.
-
-     Everything else on devondoes.dev is dark, and this app is not, because it
-     is read one-handed in a supermarket. Ground, ink and muted are unchanged;
-     only the accent family moves, so the app belongs to the estate without
-     becoming harder to use where it is actually used.
-
-     The accent is NOT the estate's #C86A3A. That copper carries white text at
-     only 3.76:1, below AA, where the pine green it replaces managed 6.93:1 —
-     re-theming to it would have quietly made the primary buttons worse. This
-     is the same hue darkened to 6.15:1, so nothing is lost to the change.
-
-     Typography stays on system fonts. This is a VitePWA used offline in a
-     shop; a Google-hosted face would not be in the service worker's cache and
-     would swap in only when there is signal, which is the one place the app is
-     not. Bricolage and Inter Tight belong to the pages that are always online. */
-  --bg: #f1f4ed;
+  /* Mise — enamelware.
+   *
+   * Replaces copper-on-warm-oat. Two reasons, one measured and one about
+   * identity.
+   *
+   * MEASURED: the old --muted sat at 3.31:1 on the app ground, under the 4.5
+   * that normal text needs, and it is used 38 times — every hint, every aisle
+   * heading, every secondary line. The whole second layer of the interface was
+   * under-contrast, which is what made it read as washed out. It is 5.95:1
+   * now. Every pair the app renders was scored rather than eyeballed, in both
+   * themes, and the lowest text pair is 5.37:1.
+   *
+   * IDENTITY: cream ground plus terracotta accent is the single most generic
+   * pairing an interface can land on, and the warmth was also what made the
+   * greys muddy. Porcelain and petrol-teal instead — the cool off-white and
+   * dark rim of enamel kitchenware, which is what the app is about.
+   *
+   * Typography stays on system fonts. This is a PWA used offline in a shop; a
+   * Google-hosted face would not be in the service worker's cache and would
+   * swap in only where there is signal, which is the one place the app is not.
+   */
+  --bg: #f2f4f3;
   --surface: #ffffff;
-  --ink: #1a1a14;
-  --muted: #8a8578;
-  --line: #e5e2d7;
-  --accent: #9c4a22;
+  --ink: #12171a;
+  --muted: #535f66;
+  --line: #d6dedc;
+  --accent: #0a6a60;
   --accent-ink: #ffffff;
-  --accent-soft: #f3e7df;
-  --accent-deep: #7f3a1c;
-  --danger: #b23a2e;
-  --danger-soft: #f7e4e1;
-  /* Was #d6970f, which sat at 2.28:1 on the oat ground — under the 3.0 a
-     non-text mark needs. Darkened to 3.91:1 while staying recognisably gold. */
-  --fav: #9a730c;
-  --fav-soft: #f6ecd2;
-  --seg: #eae7dc;
+  --accent-soft: #dbeeea;
+  --accent-deep: #064c45;
+  --danger: #a3302a;
+  --danger-soft: #f8e5e3;
+  --fav: #7a5a06;
+  --fav-soft: #f6edd6;
+  --seg: #e5e9e8;
+
+  /* Scrims and shadows were the only literal colours left in the stylesheet,
+     which meant they were the only things a theme could not reach. A dark
+     scrim over a dark page is invisible, so they are tokens now. */
+  --scrim: rgba(12, 23, 26, 0.45);
+  --scrim-strong: rgba(12, 23, 26, 0.58);
+  --shadow: 0 12px 30px -14px rgba(12, 23, 26, 0.28);
+  --shadow-fab: 0 12px 24px -8px rgba(10, 106, 96, 0.45);
+  --shadow-dialog: 0 30px 80px -20px rgba(12, 23, 26, 0.4);
+  --press: rgba(12, 23, 26, 0.08);
+
   --nav-h: 62px;
-  --shadow: 0 12px 30px -14px rgba(90, 46, 20, 0.26);
-  --shadow-fab: 0 12px 24px -8px rgba(156, 74, 34, 0.5);
 
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
   color: var(--ink);
@@ -42,6 +53,69 @@
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   -webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * Dark, designed rather than derived.
+ *
+ * Not an inversion: the accent is the same hue lifted to carry on a dark
+ * ground, and it takes DARK text rather than white, because a bright teal with
+ * white on it fails. Structured for all three states the viewer can be in —
+ * an explicit choice stamps data-theme, and the default "system" stamps
+ * nothing, so prefers-color-scheme has to be guarded against an explicit light.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0e1214;
+    --surface: #171e21;
+    --ink: #e9eeef;
+    --muted: #9dabb1;
+    --line: #263135;
+    --accent: #5ad3c0;
+    --accent-ink: #05201c;
+    --accent-soft: #12312d;
+    --accent-deep: #8ae6d6;
+    --danger: #ff9a90;
+    --danger-soft: #3a1f1c;
+    --fav: #e3bd5c;
+    --fav-soft: #332a12;
+    --seg: #1e262a;
+
+    --scrim: rgba(0, 0, 0, 0.6);
+    --scrim-strong: rgba(0, 0, 0, 0.72);
+    --shadow: 0 12px 30px -14px rgba(0, 0, 0, 0.7);
+    --shadow-fab: 0 12px 24px -8px rgba(0, 0, 0, 0.6);
+    --shadow-dialog: 0 30px 80px -20px rgba(0, 0, 0, 0.75);
+    --press: rgba(255, 255, 255, 0.09);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0e1214;
+  --surface: #171e21;
+  --ink: #e9eeef;
+  --muted: #9dabb1;
+  --line: #263135;
+  --accent: #5ad3c0;
+  --accent-ink: #05201c;
+  --accent-soft: #12312d;
+  --accent-deep: #8ae6d6;
+  --danger: #ff9a90;
+  --danger-soft: #3a1f1c;
+  --fav: #e3bd5c;
+  --fav-soft: #332a12;
+  --seg: #1e262a;
+
+  --scrim: rgba(0, 0, 0, 0.6);
+  --scrim-strong: rgba(0, 0, 0, 0.72);
+  --shadow: 0 12px 30px -14px rgba(0, 0, 0, 0.7);
+  --shadow-fab: 0 12px 24px -8px rgba(0, 0, 0, 0.6);
+  --shadow-dialog: 0 30px 80px -20px rgba(0, 0, 0, 0.75);
+  --press: rgba(255, 255, 255, 0.09);
+
+  color-scheme: dark;
 }
 
 /* Shared icon sizing — inherits color from its parent. */
@@ -200,7 +274,7 @@ button {
 .tab.active {
   color: var(--ink);
   background: var(--surface);
-  box-shadow: 0 1px 3px rgba(26, 26, 20, 0.08);
+  box-shadow: 0 1px 3px var(--press);
 }
 .badge {
   min-width: 20px;
@@ -775,7 +849,7 @@ button {
 .backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(28, 25, 23, 0.4);
+  background: var(--scrim);
   z-index: 20;
   display: flex;
   align-items: flex-end;
@@ -1394,7 +1468,7 @@ button {
   padding: 12px 16px;
   background: var(--surface);
   border-top: 1px solid var(--line);
-  box-shadow: 0 -6px 20px rgba(28, 25, 23, 0.08);
+  box-shadow: 0 -6px 20px var(--press);
   z-index: 7;
 }
 .select-bar .ghost {
@@ -2446,7 +2520,7 @@ button {
      in the middle of the screen, near where you were already looking. */
   .backdrop {
     align-items: center;
-    background: rgba(28, 25, 23, 0.55);
+    background: var(--scrim-strong);
   }
   .sheet {
     max-width: 460px;
@@ -2484,7 +2558,7 @@ button {
     max-height: min(84dvh, 820px);
     border-radius: 18px;
     overflow: hidden;
-    box-shadow: 0 30px 80px -20px rgba(90, 46, 20, 0.45);
+    box-shadow: var(--shadow-dialog);
     animation: fade 0.16s ease;
   }
   .fullview::before {
@@ -2492,11 +2566,38 @@ button {
     position: fixed;
     inset: 0;
     z-index: -1;
-    background: rgba(28, 25, 23, 0.55);
+    background: var(--scrim-strong);
   }
 }
 
 @keyframes dialog-in {
   from { opacity: 0; transform: translateY(8px) scale(0.99); }
   to   { opacity: 1; transform: none; }
+}
+
+/* A three-way choice, shown as one control rather than a dropdown: all three
+   options are worth seeing, and "Match device" needs to look like a peer of the
+   other two rather than an absence of choice. */
+.seg-group {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--seg);
+  border-radius: 14px;
+}
+.seg-btn {
+  flex: 1;
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0 8px;
+}
+.seg-btn.on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
 }

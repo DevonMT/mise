@@ -2,6 +2,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { startTheme } from './theme'
+
+// Before the first render: stamping the root afterwards means a frame of the
+// wrong theme, which on a dark-mode phone is a white flash in a dark room.
+startTheme()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
