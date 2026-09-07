@@ -316,14 +316,22 @@ export function AddMenu({
   onClose,
 }: {
   kind: ListKind
-  onPick: (mode: 'one' | 'quick' | CaptureMode) => void
+  onPick: (mode: 'one' | 'quick' | 'recipe' | CaptureMode) => void
   onClose: () => void
 }) {
   const aiOn = useAiEnabled()
   const meta = KINDS[kind]
   return (
     <Sheet className="menu" label="Add to list" onClose={onClose}>
-      {meta.kind !== 'tasks' && (
+      {/* First, because on a meal plan it is the thing you came to do — and
+          it is what makes "send the ingredients to a shopping list" able to
+          find anything at all. */}
+      {meta.fromRecipes && (
+        <button className="menu-item" onClick={() => onPick('recipe')}>
+          <Icon name="book" size={20} /> Choose a recipe
+        </button>
+      )}
+      {meta.kind !== 'tasks' && !meta.fromRecipes && (
         <button className="menu-item" onClick={() => onPick('quick')}>
           <Icon name="star" size={20} /> Quick add (favorites)
         </button>

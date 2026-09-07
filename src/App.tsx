@@ -48,6 +48,7 @@ import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayloa
 import { useAiEnabled } from './edition'
 import { startAutoSync } from './sync'
 import { usePointer } from './usePointer'
+import { RecipePickSheet } from './RecipePick'
 import { addPlanToList } from './recipes'
 
 type ListView = 'list' | 'backlog'
@@ -78,6 +79,7 @@ export default function App() {
   const [capture, setCapture] = useState<null | CaptureMode>(null)
   const [captureForRecipe, setCaptureForRecipe] = useState(false)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [recipePickOpen, setRecipePickOpen] = useState(false)
   const [refineOpen, setRefineOpen] = useState(false)
   const [recipeFormOpen, setRecipeFormOpen] = useState(false)
   const [recipeMenuOpen, setRecipeMenuOpen] = useState(false)
@@ -858,6 +860,29 @@ export default function App() {
         />
       )}
 
+      {recipePickOpen && (
+        <RecipePickSheet
+          onClose={() => setRecipePickOpen(false)}
+          onPick={async (r) => {
+            setRecipePickOpen(false)
+            // Unscheduled to begin with: you pick what you are eating and place
+            // it afterwards, and forcing a day at the moment of choosing turns
+            // one decision into two.
+            await addItem({
+              listId: activeId!,
+              displayName: r.title,
+              section: 'other',
+              recipeUid: r.uid,
+            })
+            showToast(
+              r.uid
+                ? `${r.title} added — set a day on it`
+                : `${r.title} added, but it has no sync id yet so its ingredients can’t be sent`,
+            )
+          }}
+        />
+      )}
+
       {addMenuOpen && (
         <AddMenu
           kind={activeList.kind}
@@ -865,6 +890,7 @@ export default function App() {
           onPick={(m) => {
             setAddMenuOpen(false)
             if (m === 'one') setSheet('new')
+            else if (m === 'recipe') setRecipePickOpen(true)
             else if (m === 'quick') setQuickAddOpen(true)
             else {
               setCaptureForRecipe(false)
