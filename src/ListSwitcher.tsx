@@ -135,6 +135,8 @@ const KIND_DESC: Record<ListKind, string> = {
   pantry: 'What you keep on hand — and what to never buy again',
   packing: 'A checklist you reset instead of deleting',
   wishlist: 'Things to buy one day. Prices, no urgency.',
+  mealplan: 'Meals on days — sends ingredients to a shopping list',
+  routine: 'Things you do on a schedule, weekly or every few days',
 }
 
 /** Rename / merge / delete. Kept out of the switcher so the common path stays one tap. */

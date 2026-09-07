@@ -24,7 +24,30 @@ export type Section =
  * What a list is *for*. The kind decides which of Mise's smarts wake up
  * (see kinds.ts) — the underlying item shape is shared by all of them.
  */
-export type ListKind = 'grocery' | 'tasks' | 'pantry' | 'packing' | 'wishlist'
+export type ListKind =
+  | 'grocery'
+  | 'tasks'
+  | 'pantry'
+  | 'packing'
+  | 'wishlist'
+  | 'mealplan'
+  | 'routine'
+
+/**
+ * When something recurs.
+ *
+ * Two shapes, because they are genuinely different questions and forcing one
+ * into the other lies. "Tuesdays and Fridays" is anchored to the week and does
+ * not drift. "Every other day" is anchored to a START and walks through the
+ * week — it is Monday one week and Tuesday the next, so it has no weekday to
+ * be filed under.
+ *
+ * Meals are almost always weekly. Training is almost always cadence. One
+ * mechanism serves both, and neither has to pretend to be the other.
+ */
+export type Schedule =
+  | { every: 'week'; days: number[] }        // 0=Sun … 6=Sat
+  | { every: 'days'; interval: number; from: number }  // from = local midnight
 
 export interface List {
   id?: number
@@ -115,6 +138,21 @@ export interface Item {
    * marking it out does.
    */
   alwaysHave?: boolean
+  /**
+   * Scheduled kinds only (meal plan, routine): when this recurs. Absent means
+   * unscheduled, which is a real and useful state — a meal you have picked but
+   * not placed, an exercise you are not currently doing.
+   */
+  schedule?: Schedule
+  /**
+   * Meal plan only: the saved recipe this stands for, by its sync uid rather
+   * than its local id, because the local id means nothing on another device and
+   * a meal plan is exactly the kind of thing that syncs.
+   *
+   * Nullable on purpose: "Leftovers" and "Out" are legitimate entries in a
+   * week's plan and are not recipes.
+   */
+  recipeUid?: string
 }
 
 /** One line of a recipe. `optional` ingredients are never added to the list

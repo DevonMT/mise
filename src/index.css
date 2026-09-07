@@ -2646,3 +2646,38 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .row-info { transition: none; }
 }
+
+/* ---- Scheduling controls (meal plan, routine) ---------------------------- */
+.day-picker {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+.day-opt {
+  flex: 1;
+  min-height: 44px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+.day-opt.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.every-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 4px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.every-input {
+  width: 84px;
+  flex: 0 0 auto;
+  text-align: center;
+}

@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type Item, type List, type Section } from './db'
+import { db, type Item, type List, type Section, type Schedule } from './db'
 import { SECTIONS, SECTION_META } from './sections'
 import {
   addItem,
   buyMultiplier,
+  describeSchedule,
   formatBuy,
   formatDue,
   formatQty,
   fromDateInput,
   groupByDue,
+  groupBySchedule,
   groupBySection,
   hasBuySpec,
+  startOfDay,
   toDateInput,
   type Group,
 } from './list'
@@ -45,6 +48,7 @@ import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayloa
 import { useAiEnabled } from './edition'
 import { startAutoSync } from './sync'
 import { usePointer } from './usePointer'
+import { addPlanToList } from './recipes'
 
 type ListView = 'list' | 'backlog'
 type SheetState = null | 'new' | Item
@@ -196,6 +200,7 @@ export default function App() {
     const rows = view === 'list' ? active : backlog
     if (view === 'backlog')
       return rows.length ? [{ key: 'backlog', label: '', emoji: '', items: rows }] : []
+    if (kind.schedule) return groupBySchedule(rows, Date.now())
     if (kind.due) return groupByDue(rows, Date.now())
     if (kind.sections) return groupBySection(rows, SECTION_META, rank)
     return rows.length ? [{ key: 'all', label: '', emoji: '', items: rows }] : []
@@ -212,6 +217,33 @@ export default function App() {
   const pricedCount = active.filter((i) => priceMap.has(i.canonicalKey)).length
 
   const toggle = (item: Item) => db.items.update(item.id!, { checked: !item.checked })
+
+  /**
+   * The meal plan's reason to exist: turn this week's meals into a shop.
+   *
+   * Goes to the first grocery list rather than asking which — with one list the
+   * question is noise, and with several the toast names where it went and the
+   * switcher is one tap away. Asking up front would put a dialog in front of
+   * the single most common action.
+   */
+  const doPlanToList = async () => {
+    setMenuOpen(false)
+    const target = lists.find((l) => l.kind === 'grocery')
+    if (!target?.id) {
+      showToast('No grocery list to add to yet.')
+      return
+    }
+    const planned = active.filter((i) => i.recipeUid)
+    if (!planned.length) {
+      showToast('Nothing planned that came from a recipe.')
+      return
+    }
+    const { added, skipped } = await addPlanToList(planned, target.id)
+    showToast(
+      `Added ${added} ${added === 1 ? 'recipe' : 'recipes'} to ${target.name}` +
+        (skipped ? ` · ${skipped} had no recipe` : ''),
+    )
+  }
 
   const showToast = (msg: string, undo?: () => void) => {
     if (undoTimer.current) clearTimeout(undoTimer.current)
@@ -569,6 +601,9 @@ export default function App() {
                               </span>
                             </span>
                             <span className="row-meta">
+                              {kind.schedule && item.schedule?.every === 'days' && (
+                                <span className="qty">{describeSchedule(item.schedule)}</span>
+                              )}
                               {due && <span className={`due due-${due.tone}`}>{due.text}</span>}
                               {p != null && (
                                 <span className="price">
@@ -728,6 +763,12 @@ export default function App() {
             <Icon name="share" size={20} />
             Share this list
           </button>
+          {kind.fromRecipes && (
+            <button className="menu-item" onClick={doPlanToList}>
+              <Icon name="cart" size={20} />
+              Add ingredients to a shopping list
+            </button>
+          )}
           {aiOn && kind.recipes && (
             <button
               className="menu-item"
@@ -925,6 +966,18 @@ function ItemSheet({
   const [fav, setFav] = useState(Boolean(catalogFavorite))
   const [dueStr, setDueStr] = useState(initial?.dueAt != null ? toDateInput(initial.dueAt) : '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
+  // Two shapes, one control. `days` is a weekly pattern; `interval` is a
+  // cadence with an anchor. Mutually exclusive, because something happening
+  // "Tuesdays AND every third day" is not a schedule anyone means.
+  const [schedMode, setSchedMode] = useState<'none' | 'week' | 'days'>(
+    initial?.schedule ? (initial.schedule.every === 'week' ? 'week' : 'days') : 'none',
+  )
+  const [schedDays, setSchedDays] = useState<number[]>(
+    initial?.schedule?.every === 'week' ? initial.schedule.days : [],
+  )
+  const [schedInterval, setSchedInterval] = useState(
+    initial?.schedule?.every === 'days' ? String(initial.schedule.interval) : '2',
+  )
 
   const editing = initial != null
 
@@ -950,6 +1003,20 @@ function ItemSheet({
     }
     const quantity = kind.quantities ? num(qty) : undefined
     const dueAt = kind.due ? fromDateInput(dueStr) : undefined
+
+    // A cadence is anchored to today when it is first chosen, so "every other
+    // day" starts now rather than from an epoch nobody picked. Re-anchored only
+    // when the SHAPE changes — editing the interval otherwise silently shifts
+    // which days it lands on.
+    let schedule: Schedule | undefined
+    if (kind.schedule && schedMode === 'week' && schedDays.length) {
+      schedule = { every: 'week', days: [...schedDays].sort((a, b) => a - b) }
+    } else if (kind.schedule && schedMode === 'days') {
+      const n = Math.max(1, Math.round(Number(schedInterval) || 1))
+      const from =
+        initial?.schedule?.every === 'days' ? initial.schedule.from : startOfDay(Date.now())
+      schedule = { every: 'days', interval: n, from }
+    }
     // Buy layer (grocery/pantry only). Empty inputs clear it.
     const buy = kind.quantities
       ? {
@@ -967,7 +1034,8 @@ function ItemSheet({
         unit: kind.quantities ? unit.trim() || undefined : undefined,
         section,
         dueAt,
-        notes: kind.due ? notes.trim() || undefined : undefined,
+        notes: kind.due || kind.schedule ? notes.trim() || undefined : undefined,
+        schedule: kind.schedule ? schedule : undefined,
         ...buy,
       })
       if (kind.prices) {
@@ -989,7 +1057,8 @@ function ItemSheet({
         section,
         backlog: defaultBacklog,
         dueAt,
-        notes: kind.due ? notes.trim() || undefined : undefined,
+        notes: kind.due || kind.schedule ? notes.trim() || undefined : undefined,
+        schedule: kind.schedule ? schedule : undefined,
         ...buy,
       })
     }
@@ -1081,6 +1150,85 @@ function ItemSheet({
               />
             </div>
           </details>
+        </>
+      )}
+
+      {kind.schedule && (
+        <>
+          <p className="form-label">How often?</p>
+          <div className="seg-group" role="group" aria-label="How often">
+            {(
+              [
+                ['none', 'Not scheduled'],
+                ['week', 'Certain days'],
+                ['days', 'Every so often'],
+              ] as const
+            ).map(([m, label]) => (
+              <button
+                key={m}
+                type="button"
+                className={schedMode === m ? 'seg-btn on' : 'seg-btn'}
+                aria-pressed={schedMode === m}
+                onClick={() => setSchedMode(m)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {schedMode === 'week' && (
+            <div className="day-picker" role="group" aria-label="Days of the week">
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => {
+                const on = schedDays.includes(i)
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    className={on ? 'day-opt on' : 'day-opt'}
+                    aria-pressed={on}
+                    // The visible letter is ambiguous (two Ts, two Ss), so the
+                    // accessible name has to be the whole word.
+                    aria-label={
+                      ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][i]
+                    }
+                    onClick={() =>
+                      setSchedDays((prev) =>
+                        prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i],
+                      )
+                    }
+                  >
+                    {d}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {schedMode === 'days' && (
+            <div className="every-row">
+              <span>Every</span>
+              <input
+                className="field every-input"
+                type="number"
+                min="1"
+                inputMode="numeric"
+                value={schedInterval}
+                onChange={(e) => setSchedInterval(e.target.value)}
+                aria-label="Number of days between"
+              />
+              <span>{Number(schedInterval) === 1 ? 'day' : 'days'}</span>
+            </div>
+          )}
+
+          <textarea
+            className="field textarea notes-field"
+            placeholder={
+              kind.fromRecipes ? 'Notes — sides, who is cooking…' : 'What it involves…'
+            }
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+          />
         </>
       )}
 

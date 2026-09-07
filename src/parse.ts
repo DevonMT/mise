@@ -17,10 +17,10 @@ import { db, type Section } from './db'
  * VITE_PARSE_URL still wins where it is set, for a build served from somewhere
  * other than the server it talks to.
  */
-const envUrl = (import.meta.env.VITE_PARSE_URL as string | undefined)?.trim()
+const envUrl = (import.meta.env?.VITE_PARSE_URL as string | undefined)?.trim()
 export const PARSE_URL = envUrl
   ? envUrl.replace(/\/$/, '')
-  : import.meta.env.DEV
+  : import.meta.env?.DEV
     ? 'http://localhost:8787'
     : ''
 

@@ -1,4 +1,4 @@
-import { db, canonicalize, type Recipe } from './db'
+import { db, canonicalize, type Recipe, type Item } from './db'
 import { addItem, packCount } from './list'
 import { getStapleKeys, type ParseResult } from './parse'
 
@@ -115,4 +115,37 @@ export async function addRecipeToList(
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
+}
+
+/**
+ * Send a week's planned meals to a shopping list.
+ *
+ * The point of a meal plan: deciding what to eat and deciding what to buy are
+ * the same decision, and doing the second by hand from the first is the bit
+ * that was happening in someone's head.
+ *
+ * Only entries that stand for a saved recipe contribute — "Leftovers" and
+ * "Out" are legitimate plan entries with nothing to buy. Everything goes
+ * through addRecipeToList, so the existing merge, staple-skipping and scaling
+ * apply, and two meals sharing an onion produce one line.
+ */
+export async function addPlanToList(
+  planItems: Item[],
+  listId: number,
+): Promise<{ added: number; skipped: number }> {
+  const recipes = await db.recipes.toArray()
+  const byUid = new Map(recipes.filter((r) => r.uid).map((r) => [r.uid!, r]))
+
+  let added = 0
+  let skipped = 0
+  for (const entry of planItems) {
+    const recipe = entry.recipeUid ? byUid.get(entry.recipeUid) : undefined
+    if (!recipe) {
+      skipped++
+      continue
+    }
+    await addRecipeToList(recipe, 1, listId)
+    added++
+  }
+  return { added, skipped }
 }

@@ -1,4 +1,4 @@
-import { db, canonicalize, type Item, type Section } from './db'
+import {db, canonicalize, type Item, type Section, type Schedule } from './db'
 import { recordCatalog } from './catalog'
 
 /** Units that just mean "a count of whole things" — treated as interchangeable
@@ -91,6 +91,10 @@ export interface NewItem {
   packaging?: string
   /** The full refined product string, shown on tap (🏷️). */
   detail?: string
+  /** Scheduled kinds: when this recurs. */
+  schedule?: Schedule
+  /** Meal plan: the saved recipe this entry stands for. */
+  recipeUid?: string
 }
 
 /**
@@ -147,6 +151,8 @@ export async function addItem(input: NewItem): Promise<number> {
     sizeUnit: input.sizeUnit,
     packaging: input.packaging,
     detail: input.detail,
+    schedule: input.schedule,
+    recipeUid: input.recipeUid,
   })
 }
 
@@ -265,4 +271,73 @@ export function fromDateInput(s: string): number | undefined {
   const [y, m, d] = s.split('-').map(Number)
   if (!y || !m || !d) return undefined
   return new Date(y, m - 1, d).getTime()
+}
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+/** How often, in words, for a row that recurs on a cadence. */
+export function describeSchedule(s?: Schedule): string {
+  if (!s) return 'Not scheduled'
+  if (s.every === 'week') {
+    if (!s.days.length) return 'Not scheduled'
+    if (s.days.length === 7) return 'Every day'
+    return s.days
+      .slice()
+      .sort((a, b) => a - b)
+      .map((d) => DAY_NAMES[d].slice(0, 3))
+      .join(', ')
+  }
+  if (s.interval === 1) return 'Every day'
+  if (s.interval === 2) return 'Every other day'
+  return `Every ${s.interval} days`
+}
+
+/** Does this schedule land on the given date? */
+export function fallsOn(s: Schedule, date: number): boolean {
+  if (s.every === 'week') return s.days.includes(new Date(date).getDay())
+  const from = startOfDay(s.from)
+  const diff = Math.round((startOfDay(date) - from) / 86_400_000)
+  return diff >= 0 && diff % s.interval === 0
+}
+
+/**
+ * The week ahead, one group per day.
+ *
+ * Starts at TODAY rather than at Monday. A plan is read to answer "what am I
+ * doing", and an answer that opens three days in the past makes you scroll to
+ * find the part you needed.
+ *
+ * Weekly entries land on their weekdays. Cadence entries ("every other day")
+ * are resolved against each date, which is the whole reason they carry an
+ * anchor — they have no weekday of their own to be filed under. Anything with
+ * no schedule collects at the end under "Not scheduled", because a meal you
+ * have chosen but not placed is a real state and hiding it loses it.
+ */
+export function groupBySchedule(items: Item[], now: number): Group[] {
+  const today = startOfDay(now)
+  const groups: Group[] = []
+
+  for (let offset = 0; offset < 7; offset++) {
+    const date = today + offset * 86_400_000
+    const weekday = new Date(date).getDay()
+    const on = items.filter((i) => i.schedule && fallsOn(i.schedule, date))
+    if (!on.length) continue
+    groups.push({
+      key: `d${date}`,
+      label: offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : DAY_NAMES[weekday],
+      emoji: '',
+      items: on.sort((a, b) => a.createdAt - b.createdAt),
+    })
+  }
+
+  const unscheduled = items.filter((i) => !i.schedule)
+  if (unscheduled.length) {
+    groups.push({
+      key: 'unscheduled',
+      label: 'Not scheduled',
+      emoji: '',
+      items: unscheduled.sort((a, b) => a.createdAt - b.createdAt),
+    })
+  }
+  return groups
 }

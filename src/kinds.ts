@@ -24,6 +24,15 @@ export interface KindMeta {
   due: boolean
   /** Has a "parked for later" second view. */
   backlog: boolean
+  /**
+   * Items carry a recurrence and are grouped by WHEN they happen rather than by
+   * aisle. That is what distinguishes a plan from a list: the same entries come
+   * back every week instead of being consumed.
+   */
+  schedule: boolean
+  /** A scheduled entry can stand for a saved recipe, so its ingredients can be
+   *  sent to a shopping list in one action. */
+  fromRecipes: boolean
   backlogLabel: string
   /** What checking a row means, in this kind's language. */
   checkVerb: string
@@ -51,6 +60,8 @@ export const KINDS: Record<ListKind, KindMeta> = {
     emptyIcon: 'basket',
     emptyText: 'Nothing on this list yet.',
     emptyHint: 'Tap ＋ to snap, paste, or type what you need.',
+    schedule: false,
+    fromRecipes: false,
   },
   tasks: {
     kind: 'tasks',
@@ -69,6 +80,8 @@ export const KINDS: Record<ListKind, KindMeta> = {
     emptyIcon: 'tasks',
     emptyText: 'Nothing to do.',
     emptyHint: 'Tap ＋ to add a task. A due date is optional.',
+    schedule: false,
+    fromRecipes: false,
   },
   pantry: {
     kind: 'pantry',
@@ -87,6 +100,8 @@ export const KINDS: Record<ListKind, KindMeta> = {
     emptyIcon: 'pantry',
     emptyText: 'Your pantry is empty.',
     emptyHint: 'Add what you keep on hand. Mark things out to restock them.',
+    schedule: false,
+    fromRecipes: false,
   },
 
   /**
@@ -112,6 +127,8 @@ export const KINDS: Record<ListKind, KindMeta> = {
     emptyIcon: 'basket',
     emptyText: 'Nothing packed yet.',
     emptyHint: 'Add what you always take. Untick it all when you get home.',
+    schedule: false,
+    fromRecipes: false,
   },
 
   /**
@@ -136,6 +153,64 @@ export const KINDS: Record<ListKind, KindMeta> = {
     emptyIcon: 'star',
     emptyText: 'Nothing on the wishlist.',
     emptyHint: 'Things to buy one day. Prices are remembered, nothing is urgent.',
+    schedule: false,
+    fromRecipes: false,
+  },
+
+  /**
+   * The week's meals. Entries are placed on days and stay put — a plan is not
+   * consumed by being looked at — and an entry standing for a saved recipe can
+   * send its ingredients to a shopping list.
+   *
+   * The one kind that closes Mise's loop: it already parses recipes and already
+   * builds shopping lists, and this is the bit in between that was being done
+   * in somebody's head.
+   */
+  mealplan: {
+    kind: 'mealplan',
+    label: 'Meal plan',
+    icon: 'calendar',
+    sections: false,
+    quantities: false,
+    prices: false,
+    staples: false,
+    recipes: false,
+    due: false,
+    backlog: false,
+    backlogLabel: '',
+    schedule: true,
+    fromRecipes: true,
+    checkVerb: 'Mark as cooked',
+    primaryLabel: 'plan',
+    emptyIcon: 'calendar',
+    emptyText: 'Nothing planned yet.',
+    emptyHint: 'Put meals on days, then send the ingredients to a shopping list.',
+  },
+
+  /**
+   * Anything done on a cadence: training, chores, watering things. Entries
+   * recur rather than being ticked off for good, and support "every other day"
+   * as well as fixed weekdays — see Schedule for why those are two shapes.
+   */
+  routine: {
+    kind: 'routine',
+    label: 'Routine',
+    icon: 'tasks',
+    sections: false,
+    quantities: false,
+    prices: false,
+    staples: false,
+    recipes: false,
+    due: false,
+    backlog: false,
+    backlogLabel: '',
+    schedule: true,
+    fromRecipes: false,
+    checkVerb: 'Mark as done',
+    primaryLabel: 'routine',
+    emptyIcon: 'tasks',
+    emptyText: 'No routine yet.',
+    emptyHint: 'What you do, and how often. Push day on Mondays; a walk every other day.',
   },
 }
 
@@ -145,6 +220,8 @@ export const KIND_LIST: KindMeta[] = [
   KINDS.grocery,
   KINDS.tasks,
   KINDS.pantry,
+  KINDS.mealplan,
+  KINDS.routine,
   KINDS.packing,
   KINDS.wishlist,
 ]
