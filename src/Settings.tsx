@@ -500,7 +500,7 @@ export function SettingsView() {
         {aiOn && (
           <>
             <br />
-            Parse endpoint: {PARSE_URL}
+            Parse endpoint: {PARSE_URL || 'same origin'}
           </>
         )}
       </p>

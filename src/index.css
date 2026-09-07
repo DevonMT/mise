@@ -2338,3 +2338,165 @@ button {
     max-width: 46ch;
   }
 }
+
+/* ===========================================================================
+   Two different questions, asked separately.
+   ===========================================================================
+
+   How much ROOM there is, and what the user is HOLDING, are not the same
+   thing, and answering both with one width breakpoint gets one of them wrong:
+
+     - An iPad in landscape is 1180px. It deserves the wide layout, and it
+       absolutely still needs 44px targets, swipe gestures, and a bottom sheet
+       its thumb can reach.
+     - A laptop window dragged narrow is 800px. It wants the compact layout,
+       and it still has a mouse — hover works, 44px rows waste space, and a
+       sheet sliding up from the bottom edge is pointless.
+
+   So LAYOUT follows width, and INTERACTION follows pointer. The first pass at
+   this put the swipe hint and hover states inside the width query, which would
+   have told a touch tablet it could not swipe rows it can swipe, and left
+   hover states stuck under its finger.
+   =========================================================================== */
+
+/* ---- ROOM: how the page is arranged -------------------------------------- */
+@media (min-width: 900px) {
+  .app {
+    max-width: 1320px;
+    display: grid;
+    grid-template-columns: var(--rail) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      'rail topbar'
+      'rail main';
+  }
+  .topbar { grid-area: topbar; padding: 18px 28px; }
+  .scroll { grid-area: main; padding: 16px 28px 0; }
+
+  .bottomnav {
+    grid-area: rail;
+    position: static;
+    max-width: none;
+    margin: 0;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 4px;
+    height: auto;
+    padding: 18px 12px;
+    border-top: none;
+    border-right: 1px solid var(--line);
+    background: transparent;
+  }
+  .navbtn {
+    flex: 0 0 auto;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    /* Stays finger-sized here. The pointer block below trims it, and only
+       where there is a pointer. */
+    min-height: 48px;
+    padding: 0 12px;
+    border-radius: 12px;
+    text-align: left;
+  }
+  .navbtn-icon { padding: 0; background: none; }
+  .navbtn-label {
+    font-size: 0.95rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .navbtn.on { background: var(--accent-soft); }
+  .navbtn.on .navbtn-icon { background: none; }
+
+  .group { margin-bottom: 22px; }
+  .tabs, .hint-banner { max-width: 460px; }
+
+  .fab { right: 34px; bottom: 30px; }
+  .clear-pill { left: auto; right: calc(34px + var(--fab-lane)); bottom: 34px; margin: 0; }
+  .toast { left: auto; right: 34px; bottom: 30px; width: min(420px, calc(100% - 68px)); }
+  .bottom-space { height: 24px; }
+}
+
+@media (min-width: 1500px) {
+  .app { max-width: 1560px; }
+}
+
+/* ---- POINTER: how the page is operated ----------------------------------
+   `hover: hover and pointer: fine` is a mouse or trackpad. Nothing here is
+   about screen size, and none of it reaches a touch device of any dimension. */
+@media (hover: hover) and (pointer: fine) {
+  /* An instruction you cannot follow is worse than none. There is nothing to
+     swipe with a mouse — you click the box, and delete is in the row. */
+  .hint-banner { display: none; }
+
+  /* Show what a row does instead of explaining it. Never on touch, where a
+     hover state sticks after a tap and looks like a broken selection. */
+  .row { transition: background 0.12s ease; }
+  .rows > li:hover .row { background: var(--accent-soft); }
+
+  /* A pointer is precise where a thumb is not, so the 44px floor that governs
+     the touch layout is not buying anything. */
+  .row { min-height: 44px; }
+  .navbtn { min-height: 40px; }
+  .menu-item { min-height: 40px; }
+
+  /* A bottom sheet is a thumb-reach pattern. With a pointer, a modal belongs
+     in the middle of the screen, near where you were already looking. */
+  .backdrop {
+    align-items: center;
+    background: rgba(28, 25, 23, 0.55);
+  }
+  .sheet {
+    max-width: 460px;
+    max-height: min(80dvh, 720px);
+    border-radius: 18px;
+    padding-top: 6px;
+    animation: dialog-in 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .sheet.full { max-height: min(80dvh, 720px); }
+  .sheet.menu { max-width: 340px; }
+  /* The handle is the affordance for a drag that does not exist here. */
+  .grab-zone { display: none; }
+
+  /*
+   * Refine stops being a takeover.
+   *
+   * `.fullview` covers the viewport because on a phone that IS the window. On
+   * a desktop it blanked the screen to show four purchase options and had no
+   * scrim, so it read as the app having navigated away.
+   *
+   * Centred with `inset: 0` + `margin: auto` rather than a translate, because
+   * the entry animation animates `transform` and the two fight: the transform
+   * that positions the box gets replaced by the one that animates it, and the
+   * dialog lands wherever the keyframe left it. Learned by measuring it sitting
+   * 320px off centre. Only opacity animates now.
+   */
+  .fullview {
+    inset: 0;
+    margin: auto;
+    width: min(760px, calc(100vw - 64px));
+    /* The base rule caps this at 640px; without overriding it the width above
+       silently does nothing. */
+    max-width: min(760px, calc(100vw - 64px));
+    height: fit-content;
+    max-height: min(84dvh, 820px);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 30px 80px -20px rgba(90, 46, 20, 0.45);
+    animation: fade 0.16s ease;
+  }
+  .fullview::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: rgba(28, 25, 23, 0.55);
+  }
+}
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to   { opacity: 1; transform: none; }
+}

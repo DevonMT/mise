@@ -1,10 +1,28 @@
 import { db, type Section } from './db'
 
-/** Where the parse endpoint lives. Override at build with VITE_PARSE_URL
- *  (the mini via Cloudflare Tunnel: https://mise.devondoes.dev);
- *  defaults to localhost for dev. */
+/**
+ * Where the parse endpoint lives.
+ *
+ * SAME ORIGIN by default in a built app, because that is how it is deployed:
+ * the mise server on the mini serves this bundle AND /api/* from one origin, so
+ * the session cookie rides along, there is no CORS, and there is no key to
+ * paste. A relative URL is the correct answer and needs no configuration.
+ *
+ * It used to default to http://localhost:8787, which is right for `vite dev`
+ * and wrong for everything else — and since a hand-built deploy sets no env
+ * var, every build put on the mini asked the USER'S OWN machine to parse and
+ * failed with "Can't reach the parser". The dev default now applies only where
+ * it is true.
+ *
+ * VITE_PARSE_URL still wins where it is set, for a build served from somewhere
+ * other than the server it talks to.
+ */
 const envUrl = (import.meta.env.VITE_PARSE_URL as string | undefined)?.trim()
-export const PARSE_URL = envUrl ? envUrl.replace(/\/$/, '') : 'http://localhost:8787'
+export const PARSE_URL = envUrl
+  ? envUrl.replace(/\/$/, '')
+  : import.meta.env.DEV
+    ? 'http://localhost:8787'
+    : ''
 
 export interface ParsedItem {
   displayName: string
