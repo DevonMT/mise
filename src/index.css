@@ -45,6 +45,17 @@
   --shadow-dialog: 0 30px 80px -20px rgba(12, 23, 26, 0.4);
   --press: rgba(12, 23, 26, 0.08);
 
+  /* A deliberately contrasting surface for transient chips — the toast and the
+     "clear checked" pill. NOT `--ink` as a background: that only reads as dark
+     while ink happens to be dark, and in the dark theme it produced a white
+     chip with white text on it. Named for the job so each theme answers it. */
+  --notice-bg: #12171a;
+  --notice-ink: #f4f7f6;
+  --notice-action: #6fd8c2;
+  /* Unchecked checkbox rims and the favourite star, which were hard-coded to
+     the old warm palette and would have stayed warm on a cool ground. */
+  --control-rim: #b9c4c2;
+  --badge-bg: #c8d2d0;
   --nav-h: 62px;
 
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
@@ -88,6 +99,12 @@
     --shadow-dialog: 0 30px 80px -20px rgba(0, 0, 0, 0.75);
     --press: rgba(255, 255, 255, 0.09);
 
+    /* Raised, not inverted: a near-white toast in a dark room is a flashbulb. */
+    --notice-bg: #263135;
+    --notice-ink: #eef3f4;
+    --notice-action: #5ad3c0;
+    --control-rim: #3d4a4f;
+    --badge-bg: #2b3639;
     color-scheme: dark;
   }
 }
@@ -115,6 +132,12 @@
   --shadow-dialog: 0 30px 80px -20px rgba(0, 0, 0, 0.75);
   --press: rgba(255, 255, 255, 0.09);
 
+  /* Raised, not inverted: a near-white toast in a dark room is a flashbulb. */
+  --notice-bg: #263135;
+  --notice-ink: #eef3f4;
+  --notice-action: #5ad3c0;
+  --control-rim: #3d4a4f;
+  --badge-bg: #2b3639;
   color-scheme: dark;
 }
 
@@ -281,8 +304,8 @@ button {
   height: 20px;
   padding: 0 6px;
   border-radius: 10px;
-  background: #cfcbbd;
-  color: #fff;
+  background: var(--badge-bg);
+  color: var(--accent-ink);
   font-size: 0.74rem;
   font-weight: 800;
   display: inline-flex;
@@ -374,7 +397,7 @@ button {
 }
 .swipe-bg.commit-check .swipe-act.check,
 .swipe-bg.commit-del .swipe-act.del {
-  color: #fff;
+  color: var(--accent-ink);
 }
 .row-name-wrap {
   display: flex;
@@ -456,8 +479,8 @@ button {
   gap: 12px;
   padding: 12px 8px 12px 16px;
   border-radius: 14px;
-  background: var(--ink);
-  color: #fff;
+  background: var(--notice-bg);
+  color: var(--notice-ink);
   box-shadow: var(--shadow);
   z-index: 8;
   animation: slideup 0.2s ease;
@@ -470,7 +493,7 @@ button {
   flex: 0 0 auto;
   padding: 8px 16px;
   border-radius: 10px;
-  color: #8fe3c4;
+  color: var(--notice-action);
   font-weight: 800;
   font-size: 0.95rem;
 }
@@ -627,7 +650,7 @@ button {
   color: var(--accent);
 }
 .aisle-move:disabled {
-  color: #cbc4b3;
+  color: var(--control-rim);
   opacity: 0.55;
 }
 .form-label {
@@ -652,7 +675,7 @@ button {
   content: '';
   width: 27px;
   height: 27px;
-  border: 2.5px solid #cbc4b3;
+  border: 2.5px solid var(--control-rim);
   border-radius: 9px;
   position: absolute;
   transition: background 0.15s ease, border-color 0.15s ease;
@@ -665,7 +688,7 @@ button {
   background: var(--bg);
 }
 .row.done .check {
-  color: #fff;
+  color: var(--accent-ink);
 }
 .row.done .check::before {
   background: var(--accent);
@@ -807,8 +830,8 @@ button {
   gap: 8px;
   padding: 11px 18px;
   border-radius: 999px;
-  background: var(--ink);
-  color: #fff;
+  background: var(--notice-bg);
+  color: var(--notice-ink);
   font-size: 0.92rem;
   font-weight: 700;
   box-shadow: var(--shadow);
@@ -965,7 +988,7 @@ button {
   padding: 6px 2px;
   font-size: 0.85rem;
   font-weight: 700;
-  color: var(--muted, #6b7280);
+  color: var(--muted);
   letter-spacing: 0.01em;
 }
 .buy-edit > summary::-webkit-details-marker {
@@ -1388,7 +1411,7 @@ button {
 
 /* ---- Optional ingredients (recipe detail) ---- */
 .rev-tag.optional {
-  color: #8a6410;
+  color: var(--fav);
   background: var(--fav-soft);
 }
 .opt-block {
@@ -1415,7 +1438,7 @@ button {
   width: 24px;
   height: 24px;
   border-radius: 7px;
-  border: 2px solid #cfc6b8;
+  border: 2px solid var(--control-rim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1479,7 +1502,7 @@ button {
   padding: 15px;
   border-radius: 14px;
   background: var(--danger);
-  color: #fff;
+  color: var(--accent-ink);
   font-weight: 800;
   font-size: 1.05rem;
 }
@@ -1534,7 +1557,7 @@ button {
   color: var(--muted);
 }
 .fav-btn.on {
-  color: #9a7112;
+  color: var(--fav);
   border-color: var(--fav);
   background: var(--fav-soft);
 }
@@ -1870,7 +1893,7 @@ button {
 }
 .kind-opt.on .kind-icon {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
 }
 .switcher-foot {
   display: flex;
@@ -1947,7 +1970,7 @@ button {
 }
 .restock-n {
   font-weight: 800;
-  color: #8a6410;
+  color: var(--fav);
 }
 .restock-cta {
   display: flex;
@@ -1955,11 +1978,11 @@ button {
   gap: 2px;
   font-weight: 700;
   font-size: 0.9rem;
-  color: #8a6410;
+  color: var(--fav);
 }
 /* A pantry item that's out reads as a gap to fill, not a job done. */
 .row.out .check {
-  color: #fff;
+  color: var(--accent-ink);
   z-index: 1;
 }
 .row.out .check::before {
@@ -2608,4 +2631,61 @@ button {
 @media (min-width: 900px) {
   .lbl-narrow { display: none; }
   .lbl-wide { display: inline; }
+}
+
+/* ---- The rail's list column ---------------------------------------------
+   Rendered always, shown only in the rail. A phone reaches its other lists
+   through the switcher sheet, because a tab bar has room for three things; a
+   rail has a column of empty space and no reason to hide them behind a sheet.
+   That is what a sidebar is for. */
+.rail-lists { display: none; }
+
+@media (min-width: 900px) {
+  .bottomnav {
+    /* The tabs sit at the top, the lists below them, and the whole rail
+       scrolls if someone keeps a lot of lists. */
+    display: flex;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .nav-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  /* The rail's own "List" tab is what the list column replaces. Keeping both
+     would name the same destination twice, a row apart. */
+  .nav-tabs .navbtn:first-child { display: none; }
+
+  .bottomnav { flex-direction: column; }
+  .rail-lists {
+    display: block;
+    order: -1;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .rail-heading {
+    margin: 0 12px 6px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--muted);
+  }
+  .rail-lists [role='tablist'] {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .rail-lists .navbtn-label {
+    /* A list can be called anything; the rail is a fixed width. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rail-manage {
+    margin-top: 6px;
+    color: var(--muted);
+  }
 }

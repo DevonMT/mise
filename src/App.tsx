@@ -673,6 +673,13 @@ export default function App() {
         onChange={setTab}
         listIconName={listIcon(activeList)}
         listName={activeList.name}
+        lists={lists}
+        activeListId={activeId}
+        onPickList={(id) => {
+          switchTo(id)
+          setTab('list')
+        }}
+        onManageLists={() => setSwitcherOpen(true)}
       />
 
       {menuOpen && (
