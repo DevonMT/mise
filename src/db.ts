@@ -248,7 +248,15 @@ export interface CatalogEntry {
 }
 
 /** The record kinds that sync. Matches the server's allow-list. */
-export type SyncKind = 'list' | 'item' | 'recipe' | 'staple' | 'catalog'
+export type SyncKind =
+  | 'list'
+  | 'item'
+  | 'recipe'
+  /** Retired: staples moved into the pantry as a flag. Kept so a device
+   *  still on the old schema can finish syncing. */
+  | 'staple'
+  | 'catalog'
+  | 'setting'
 
 /**
  * A delete, remembered. Without this a delete cannot travel: the next pull from
@@ -262,6 +270,26 @@ export interface Tombstone {
   deletedAt: number
 }
 
+/**
+ * A synced preference.
+ *
+ * In the database rather than localStorage so it rides the existing sync engine
+ * with no special case: same uid/updatedAt stamping, same last-write-wins, same
+ * merge. The `uid` is the KEY, not a random id — two devices must recognise
+ * each other's "mise.store" as the same record rather than accumulating one per
+ * device, and a key is the only thing both of them already agree on.
+ *
+ * localStorage is still the read path for anything needed synchronously before
+ * React renders (the theme), and is kept in step from here.
+ */
+export interface Setting {
+  id?: number
+  uid?: string
+  updatedAt?: number
+  key: string
+  value: string
+}
+
 export class MiseDB extends Dexie {
   items!: Table<Item, number>
   recipes!: Table<Recipe, number>
@@ -269,6 +297,7 @@ export class MiseDB extends Dexie {
   catalog!: Table<CatalogEntry, number>
   lists!: Table<List, number>
   tombstones!: Table<Tombstone, number>
+  settings!: Table<Setting, number>
 
   constructor() {
     super('mise')
@@ -391,6 +420,11 @@ export class MiseDB extends Dexie {
             })
         }
       })
+
+    // v6: preferences become synced rows. See Setting.
+    this.version(6).stores({
+      settings: '++id, &key, &uid',
+    })
   }
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Section } from './db'
+import { setSetting, SETTINGS_EVENT } from './prefs'
 import { SECTIONS } from './sections'
 
 /**
@@ -62,7 +63,10 @@ export function hasCustomOrder(store: string): boolean {
 export function setAisleOrder(store: string, order: Section[]): void {
   const all = readAll()
   all[storeKey(store)] = order
-  localStorage.setItem(KEY, JSON.stringify(all))
+  // Through prefs so the aisle walk follows the account: it describes a
+  // SHOP, not a device, and re-ordering it on the phone should not leave
+  // the laptop walking a different store.
+  void setSetting('mise.aisles', JSON.stringify(all))
   window.dispatchEvent(new CustomEvent(AISLE_EVENT))
 }
 
@@ -70,7 +74,10 @@ export function setAisleOrder(store: string, order: Section[]): void {
 export function resetAisleOrder(store: string): void {
   const all = readAll()
   delete all[storeKey(store)]
-  localStorage.setItem(KEY, JSON.stringify(all))
+  // Through prefs so the aisle walk follows the account: it describes a
+  // SHOP, not a device, and re-ordering it on the phone should not leave
+  // the laptop walking a different store.
+  void setSetting('mise.aisles', JSON.stringify(all))
   window.dispatchEvent(new CustomEvent(AISLE_EVENT))
 }
 
@@ -87,9 +94,13 @@ export function useAisleOrder(): Section[] {
   useEffect(() => {
     const refresh = () => setOrder(read())
     window.addEventListener(AISLE_EVENT, refresh)
+    // A merge from another device rewrites the cache; re-read rather than
+    // showing an order the database no longer holds.
+    window.addEventListener(SETTINGS_EVENT, refresh)
     window.addEventListener('storage', refresh)
     return () => {
       window.removeEventListener(AISLE_EVENT, refresh)
+      window.removeEventListener(SETTINGS_EVENT, refresh)
       window.removeEventListener('storage', refresh)
     }
   }, [])

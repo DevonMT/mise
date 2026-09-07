@@ -1,3 +1,4 @@
+import { setSetting } from './prefs'
 /**
  * Light, dark, or whatever the device says.
  *
@@ -54,11 +55,22 @@ export function applyTheme(choice: ThemeChoice): void {
 }
 
 export function setTheme(choice: ThemeChoice): void {
-  try {
-    if (choice === 'system') localStorage.removeItem(KEY)
-    else localStorage.setItem(KEY, choice)
-  } catch {
-    /* the choice still applies for this session */
+  // Through prefs, so the choice reaches the other devices. localStorage is
+  // still written synchronously underneath, because applyTheme and the startup
+  // read both happen before anything async could have finished.
+  void setSetting('mise.theme', choice).catch(() => {
+    try {
+      localStorage.setItem(KEY, choice)
+    } catch {
+      /* the choice still applies for this session */
+    }
+  })
+  if (choice === 'system') {
+    try {
+      localStorage.removeItem(KEY)
+    } catch {
+      /* nothing cached */
+    }
   }
   applyTheme(choice)
 }

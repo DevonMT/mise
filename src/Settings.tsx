@@ -15,6 +15,7 @@ import {
 } from './aisles'
 import { Icon } from './Icon'
 import { EDITION, useAiEnabled } from './edition'
+import { setSetting } from './prefs'
 import { readTheme, setTheme, type ThemeChoice } from './theme'
 import {
   lastSyncedAt, setSyncEnabled, sync, syncAvailable, syncEnabled,
@@ -86,7 +87,7 @@ export function SettingsView() {
   }
   /** Persist the active store so pricing, refine, and grouping all agree on it. */
   const commitStore = () => {
-    localStorage.setItem('mise.store', store.trim())
+    void setSetting('mise.store', store.trim())
     window.dispatchEvent(new CustomEvent(AISLE_EVENT))
   }
 
@@ -259,7 +260,7 @@ export function SettingsView() {
   }
 
   const estimate = async (mode: 'missing' | 'all') => {
-    localStorage.setItem('mise.store', store.trim())
+    void setSetting('mise.store', store.trim())
     setBusy(true)
     setPriceMsg('Estimating…')
     try {

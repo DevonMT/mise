@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import { startTheme } from './theme'
 import { migrateStaples } from './db'
+import { hydrateSettings, migrateSettings } from './prefs'
 
 // Before the first render: stamping the root afterwards means a frame of the
 // wrong theme, which on a dark-mode phone is a white flash in a dark room.
@@ -15,6 +16,21 @@ startTheme()
 void migrateStaples().catch(() => {
   /* it will be retried on the next open */
 })
+
+/**
+ * Preferences: lift whatever this device already had into rows, then bring the
+ * cache back in line with them.
+ *
+ * The order matters. Migrating first means a device configured for months
+ * pushes its store and aisle order rather than being overwritten by an empty
+ * set from one that has never been set up — the exact loss this feature exists
+ * to prevent.
+ */
+void migrateSettings()
+  .then(() => hydrateSettings())
+  .catch(() => {
+    /* retried on the next open */
+  })
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

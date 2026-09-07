@@ -155,7 +155,24 @@ html,
 body,
 #root {
   margin: 0;
+  /*
+   * `100%` on a phone resolves against the LARGE viewport — the height the page
+   * would have if the browser's address bar were hidden. With the bar showing,
+   * which is most of the time, the app is therefore taller than what you can
+   * actually see, and the thing at the very bottom (the tab bar) sits below the
+   * fold. That is the "seems too tall" and it is worst in a browser tab, where
+   * the bar is always there; an installed PWA has no bar and is closer to right.
+   *
+   * `100dvh` is the visible height and tracks the bar appearing and
+   * disappearing.
+   *
+   * The `100%` below is written as a fallback but does NOT ship: the minifier
+   * drops it, because every browser in this project's targets supports dvh.
+   * Kept in the source anyway so lowering those targets restores it rather
+   * than silently shipping a broken height.
+   */
   height: 100%;
+  height: 100dvh;
 }
 
 /*
@@ -432,6 +449,23 @@ button {
   border-top: 1px solid var(--line);
   z-index: 6;
 }
+/*
+ * The tabs were direct children of .bottomnav until the sidebar work wrapped
+ * them in this, to be reordered against the list column. On a phone that turned
+ * three flex children into ONE, so `flex: 1` no longer distributed them across
+ * the bar: they stacked, the nav became three rows tall, and Settings — the
+ * last of them — sat below the bottom of the screen where it could not be
+ * reached at all.
+ *
+ * The wrapper carries the row now, so the phone bar behaves exactly as it did
+ * before it existed.
+ */
+.nav-tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
 .navbtn {
   flex: 1;
   display: flex;

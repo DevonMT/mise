@@ -38,6 +38,7 @@
 import Dexie from 'dexie'
 import { db, newUid, type SyncKind, type Item, type List } from './db'
 import { EDITION, grantedEdition, setGrantedVariant, tierActuallyChanged } from './edition'
+import { hydrateSettings } from './prefs'
 
 /**
  * Sync is a devondoes.dev feature: it needs the platform session cookie, which
@@ -82,6 +83,10 @@ const TABLES: Array<{ kind: Kind; table: Dexie.Table<AnyRow, number> }> = [
   { kind: 'recipe', table: db.recipes as unknown as Dexie.Table<AnyRow, number> },
   { kind: 'staple', table: db.staples as unknown as Dexie.Table<AnyRow, number> },
   { kind: 'catalog', table: db.catalog as unknown as Dexie.Table<AnyRow, number> },
+  // Preferences ride the same engine as everything else: same stamping, same
+  // last-write-wins, same merge. Their uid is the setting KEY, so two devices
+  // recognise each other's "mise.store" instead of each keeping its own.
+  { kind: 'setting', table: db.settings as unknown as Dexie.Table<AnyRow, number> },
 ]
 
 /**
@@ -444,6 +449,9 @@ export async function sync(): Promise<SyncResult> {
   const editionChanged = tierActuallyChanged()
 
   const counts = await applyRemote(state)
+  // Settings that arrived from another device are rows; the synchronous read
+  // path in front of them has to be told.
+  await hydrateSettings().catch(() => [])
   localStorage.setItem(LAST_KEY, String(Date.now()))
   return {
     ok: true, ...counts, sent: payload.records.length, editionChanged,
