@@ -387,9 +387,9 @@ export function SettingsView() {
               </label>
               <p className="group-hint">
                 Your lists, recipes, staples and saved items are shared with every device
-                signed in to the same account. Edits merge — the most recent change to a
-                given item wins, and deleting on one device deletes it everywhere.
-                Everything keeps working offline and syncs when you come back.
+                signed in to the same account. The most recent change to an item wins, and
+                deleting on one device deletes it everywhere. Everything keeps working
+                offline and syncs when you come back.
               </p>
               {syncOn && (
                 <>
@@ -495,8 +495,8 @@ export function SettingsView() {
         <h3 className="group-title">Never add these</h3>
         <p className="group-hint">
           Things you always have, so a recipe asking for them shouldn’t put them on
-          your shopping list. Salt, oil, pepper. They’re skipped when a list or
-          recipe is parsed — nothing is filtered out of a list you typed yourself.
+          your shopping list. Salt, oil, pepper. Nothing is filtered out of a list
+          you typed yourself.
         </p>
         <p className="group-hint">
           Not the same as a <b>Pantry</b> list, which tracks what you’ve run out of
