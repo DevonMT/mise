@@ -34,6 +34,12 @@
 .app {
   max-width: 640px;
   margin: 0 auto;
+  /* width, because #root is a COLUMN flex container and an auto margin on the
+     cross axis cancels the stretch that would otherwise size this. Without it
+     .app is shrink-to-fit at every width: on a phone that happens to look
+     right, and at 1280px the desktop grid collapsed to 485px — a 232px rail
+     beside a 253px list, floating in the middle of the screen. */
+  width: 100%;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
