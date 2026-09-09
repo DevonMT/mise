@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "tsx --test src/*.test.ts",
     "lint:css": "python scripts/check-shorthands.py src/index.css src/ds/tokens.css src/ds/base.css src/ds/app-shell.css",
-    "lint:ds": "node ../devondoes/ds/sync.mjs --check"
+    "lint:ds": "node ../devondoes/ds/sync.mjs --check",
+    "deploy": "bash scripts/deploy.sh"
   },
   "dependencies": {
     "dexie": "^4.4.4",
