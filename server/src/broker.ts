@@ -13,7 +13,7 @@
  * stays this way until it clearly is not.
  */
 
-const BROKER_URL = (process.env.BROKER_URL ?? 'http://172.18.0.1:8610').replace(/\/+$/, '')
+const BROKER_URL = (process.env.BROKER_URL ?? 'http://172.30.0.1:8610').replace(/\/+$/, '')
 const APP_ID = process.env.BROKER_APP_ID ?? 'mise'
 const TIMEOUT_MS = Number(process.env.BROKER_TIMEOUT_MS ?? 120_000)
 

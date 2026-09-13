@@ -1,0 +1,23 @@
+# /etc/systemd/system/mise.service — installed by scripts/deploy-server.sh
+#
+# Binds to 172.30.0.1, the host's address on the host_services Docker network
+# (devondoes/SPEC-network.md), so the platform gateway is the only way in; UFW
+# lets only the gateway's address reach port 8787. If the host starts this
+# before Docker has created that bridge, the bind fails and Restart retries.
+
+[Unit]
+Description=Mise parse server
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=devon
+WorkingDirectory=/home/devon/mise/server
+ExecStart=/home/devon/mise/server/node_modules/.bin/tsx /home/devon/mise/server/src/index.ts
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=HOST=172.30.0.1
+
+[Install]
+WantedBy=multi-user.target

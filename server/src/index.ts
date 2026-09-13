@@ -25,8 +25,12 @@ try {
 }
 
 const PORT = Number(process.env.PORT ?? 8787)
+// Production binds to the host's address on the host_services Docker network
+// (172.30.0.1, set in mise.service), so only the gateway can reach it. Unset in
+// development, where every interface is fine.
+const HOST = process.env.HOST || undefined
 // No Anthropic client and no key here: every model call goes to the ai-broker.
-const BROKER_URL = (process.env.BROKER_URL ?? 'http://172.18.0.1:8610').replace(/\/+$/, '')
+const BROKER_URL = (process.env.BROKER_URL ?? 'http://172.30.0.1:8610').replace(/\/+$/, '')
 
 // This server used to be tailnet-only, so "no auth" was safe: Tailscale WAS
 // the auth. It is now reachable from the internet via Cloudflare Tunnel at
@@ -460,8 +464,8 @@ app.use('/*', serveStatic({ root: STATIC_ROOT }))
 // SPA fallback so deep links and the PWA start_url resolve.
 app.get('*', serveStatic({ path: `${STATIC_ROOT}/index.html` }))
 
-serve({ fetch: app.fetch, port: PORT }, (info) => {
-  console.log(`Mise parse server on http://localhost:${info.port}`)
+serve({ fetch: app.fetch, port: PORT, hostname: HOST }, (info) => {
+  console.log(`Mise parse server on http://${HOST ?? 'localhost'}:${info.port}`)
     console.log(`AI: via ai-broker at ${BROKER_URL} (no key held here)`)
   const doors = [GATEWAY_TOKEN ? 'platform gateway' : null, JWKS && ACCESS_AUD ? 'Access' : null].filter(Boolean)
   console.log(
