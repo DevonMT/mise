@@ -63,7 +63,7 @@ PAIRS = [
     ("--ink", "--bg", 4.5), ("--ink", "--surface", 4.5),
     ("--muted", "--bg", 4.5), ("--muted", "--surface", 4.5),
     ("--accent", "--bg", 4.5), ("--accent-deep", "--bg", 4.5),
-    ("--ok", "--bg", 4.5), ("--danger", "--bg", 4.5),
+    ("--ok", "--bg", 4.5), ("--danger", "--bg", 4.5), ("--warn", "--bg", 4.5),
     ("--accent-ink", "--accent", 4.5),
     ("--notice-ink", "--notice-bg", 4.5),
     ("--faint", "--bg", 3.0),
