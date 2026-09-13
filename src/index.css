@@ -10,16 +10,53 @@
  * its own panes. A page that scrolls must NOT import it.
  */
 @import './ds/tokens.css';
+@import './ds/theme.css';
 @import './ds/base.css';
 @import './ds/app-shell.css';
 @import './ds/chrome.css';
 
 /*
- * Mise's typography stays on system fonts, deliberately. This is a PWA used
+ * Mise's body text stays on system fonts, deliberately. This is a PWA used
  * offline in a shop; a Google-hosted face would not be in the service worker's
  * cache and would swap in only where there is signal, which is the one place
  * the app is not.
+ *
+ * The one exception is the display face, Fredoka, for the few big titles. It
+ * is BUNDLED (@fontsource, imported in main.tsx), so it ships as a woff2 the
+ * service worker precaches with everything else and is there offline. The
+ * rule that applies it is the LAST in this file, so the heading blocks' own
+ * weight and tracking cannot override it (only the 600 weight is bundled;
+ * anything heavier would be a synthesised bold).
  */
+
+/*
+ * THE TOWEL. The tea-towel border, once, across the top of the app: woven green
+ * stripes with the amber of Mise's own icon running through them, and a soft
+ * light from the top-right corner. As picked on the theme board (M2b).
+ *
+ * Painted on .app, which never scrolls (.scroll is the pane that does), so the
+ * band stays put and the top bar can be transparent over it. Still: nothing
+ * for the motion setting to stop.
+ */
+.app {
+  --towel-amber: oklch(76% 0.15 80 / 0.85);
+  background:
+    repeating-linear-gradient(90deg, oklch(100% 0 0 / 0.1) 0 1px, transparent 1px 3px) top / 100% 34px no-repeat,
+    linear-gradient(to bottom,
+      transparent 6px,
+      color-mix(in oklab, var(--accent) 70%, transparent) 6px 9px,
+      transparent 9px 12px,
+      var(--towel-amber) 12px 14px,
+      transparent 14px 16px,
+      color-mix(in oklab, var(--accent) 38%, transparent) 16px 24px,
+      transparent 24px 26px,
+      var(--towel-amber) 26px 28px,
+      transparent 28px 31px,
+      color-mix(in oklab, var(--accent) 70%, transparent) 31px 34px,
+      transparent 34px) top / 100% 34px no-repeat,
+    radial-gradient(80% 60% at 100% 0%, color-mix(in oklab, var(--accent) 14%, transparent), transparent 70%),
+    var(--bg);
+}
 /*
  * The estate bar is a sibling of .app, not a child: at 900px .app becomes a
  * grid whose first column is the rail. So #root becomes the column that holds
@@ -56,8 +93,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  padding-top: max(14px, env(safe-area-inset-top, 0px));
-  background: var(--bg);
+  /* +22px clears the towel band painted on .app behind this bar. */
+  padding-top: calc(max(14px, env(safe-area-inset-top, 0px)) + 22px);
+  background: transparent;
   border-bottom: 1px solid var(--line);
 }
 .brand {
@@ -386,8 +424,8 @@
 }
 .hint-x {
   flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   color: var(--accent);
   font-size: 0.9rem;
   opacity: 0.8;
@@ -2262,7 +2300,7 @@
     /* Restated, because the shorthand above resets the safe-area padding set
        on .topbar near the top of this file. A landscape phone wide enough to
        reach this breakpoint still has a status bar to clear. */
-    padding-top: max(18px, env(safe-area-inset-top, 0px));
+    padding-top: calc(max(18px, env(safe-area-inset-top, 0px)) + 22px);
   }
   .scroll { grid-area: main; padding: 16px 28px 0; }
 
@@ -2282,6 +2320,8 @@
        screen where the home indicator is. */
     padding-left: max(12px, env(safe-area-inset-left, 0px));
     padding-bottom: max(18px, env(safe-area-inset-bottom, 0px));
+    /* The towel band on .app runs across the rail too; clear it as the top bar does. */
+    padding-top: 40px;
     border-top: none;
     border-right: 1px solid var(--line);
     background: transparent;
@@ -2605,3 +2645,34 @@
 }
 .handoff .grow { flex: 1 1 auto; min-width: 0; }
 .list-shared { color: var(--accent-deep); }
+
+/* The way back to the hub, in Settings. It had no styles at all: a 21px bare
+   link with an empty dot span. A full-height row, like the settings around it. */
+.home-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: var(--accent-deep);
+  font-weight: 600;
+  text-decoration: none;
+}
+.home-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: 0 0 auto;
+}
+
+/* ---- Display face (see the note on Fredoka near the top) ---------------- */
+.brand,
+.list-pick-name,
+.view-title,
+.sheet-title,
+.detail-title,
+.blocked h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0;
+}

@@ -2,15 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- The estate emblem in the tab. /icon.svg stays the installed app icon
-         (manifest) until Mise's own theme lands. -->
+    <!-- The estate emblem in the tab; /icon.svg is the installed app icon. -->
     <link rel="icon" type="image/svg+xml" href="/emblem.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <meta name="theme-color" content="#f2f4f3" />
+    <!-- Mint enamel, from ds/themes/mise.css. ONE tag, no media query:
+         theme.ts rewrites this tag from --bg at start and on every theme
+         change, and it only ever finds the first. A second, dark-media tag
+         would win on a dark phone that chose Mise's light theme. -->
+    <meta name="theme-color" content="#eefbf4" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Mise" />
