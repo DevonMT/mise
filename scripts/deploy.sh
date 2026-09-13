@@ -50,7 +50,7 @@ echo "==> verify from the origin"
 ssh "$HOST" "
   fail=0
   for path in '' '$ENTRY' '$SHEET' 'sw.js' 'manifest.webmanifest'; do
-    code=\$(curl -s -o /dev/null -w '%{http_code}' \"http://172.30.0.1:8787/\$path\")
+    code=\$(curl -s -m 5 -o /dev/null -w '%{http_code}' \"http://172.30.21.1:8787/\$path\")
     printf '    %-40s %s\n' \"/\$path\" \"\$code\"
     [ \"\$code\" = 200 ] || fail=1
   done

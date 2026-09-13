@@ -25,8 +25,8 @@ try {
 }
 
 const PORT = Number(process.env.PORT ?? 8787)
-// Production binds to the host's address on the host_services Docker network
-// (172.30.0.1, set in mise.service), so only the gateway can reach it. Unset in
+// Production binds to the host's address on the host_gateway Docker network
+// (172.30.21.1, set in mise.service), so only the gateway can reach it. Unset in
 // development, where every interface is fine.
 const HOST = process.env.HOST || undefined
 // No Anthropic client and no key here: every model call goes to the ai-broker.

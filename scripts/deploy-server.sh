@@ -40,12 +40,12 @@ ssh "$HOST" "sudo install -m 0644 '$ROOT/server/mise.service' /etc/systemd/syste
 echo "==> verify"
 ssh "$HOST" '
   for i in 1 2 3 4 5 6 7 8 9 10; do
-    code=$(curl -s -o /dev/null -w "%{http_code}" http://172.30.0.1:8787/api/health) && [ "$code" = 200 ] && break
+    code=$(curl -s -m 5 -o /dev/null -w "%{http_code}" http://172.30.21.1:8787/api/health) && [ "$code" = 200 ] && break
     sleep 1
   done
-  printf "    %-40s %s\n" "/api/health on 172.30.0.1:8787" "$code"
+  printf "    %-40s %s\n" "/api/health on 172.30.21.1:8787" "$code"
   bound=$(sudo ss -ltnH "sport = :8787" | awk "{print \$4}" | tr "\n" " ")
   printf "    %-40s %s\n" "listening on" "$bound"
-  [ "$code" = 200 ] && [ "$bound" = "172.30.0.1:8787 " ]
+  [ "$code" = 200 ] && [ "$bound" = "172.30.21.1:8787 " ]
 '
 echo "    previous source kept as server/src.prev"
