@@ -1,0 +1,7 @@
+# Deployed to Linux (the mini). A Windows checkout with core.autocrlf=true
+# would rewrite these to CRLF, which systemd units and bash scripts do not
+# survive. Same rule as the devondoes repo.
+*.sh        text eol=lf
+*.service   text eol=lf
+*.timer     text eol=lf
+*.env.example text eol=lf
