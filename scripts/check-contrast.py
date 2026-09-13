@@ -11,12 +11,18 @@ Checks every text-on-ground pair the contract implies, in BOTH themes:
 
     --ink, --muted   on --bg and --surface     need 4.5 (normal text)
     --accent, --ok, --danger on --bg           need 4.5 (they carry meaning)
+    --fav            on --bg                   need 4.5 (Matinee's warnings use it)
+    --ink            on --accent-soft          need 4.5 (a selected chip)
     --accent-ink     on --accent               need 4.5 (text on a button)
     --faint          on --bg                   need 3.0, and only 3.0 —
                                                it is documented as optional
                                                metadata, never body text.
 
-Usage: python lint/check-contrast.py tokens.css
+Usage: python lint/check-contrast.py tokens.css [themes/<app>.css]
+
+With a theme, the theme's values win over the contract's, which is how the
+browser resolves them: a theme restates the colour roles and inherits the rest
+(the semantic colours), so both files together are what an app really shows.
 """
 import re
 import sys
@@ -64,6 +70,7 @@ PAIRS = [
     ("--muted", "--bg", 4.5), ("--muted", "--surface", 4.5),
     ("--accent", "--bg", 4.5), ("--accent-deep", "--bg", 4.5),
     ("--ok", "--bg", 4.5), ("--danger", "--bg", 4.5), ("--warn", "--bg", 4.5),
+    ("--fav", "--bg", 4.5), ("--ink", "--accent-soft", 4.5),
     ("--accent-ink", "--accent", 4.5),
     ("--notice-ink", "--notice-bg", 4.5),
     ("--faint", "--bg", 3.0),
@@ -71,9 +78,14 @@ PAIRS = [
 
 
 def main() -> int:
-    path = sys.argv[1] if len(sys.argv) > 1 else "tokens.css"
-    with open(path, encoding="utf-8") as fh:
-        light, dark = parse(fh.read())
+    paths = sys.argv[1:] or ["tokens.css"]
+    light, dark = {}, {}
+    for path in paths:
+        with open(path, encoding="utf-8") as fh:
+            l, d = parse(fh.read())
+        # A later file's light values also reach dark wherever its dark block is
+        # silent; parse() already folds light into d for this file.
+        light, dark = {**light, **l}, {**dark, **d}
 
     failed = 0
     for name, tokens in (("light", light), ("dark", dark)):
