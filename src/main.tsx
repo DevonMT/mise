@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 // Fredoka, Mise's display face, bundled so it is precached and works offline.
-// Latin only, one weight: the titles are the only text that uses it.
+// Latin only, one weight: titles, recipe cards and section labels use it.
 import '@fontsource/fredoka/latin-600.css'
 import './index.css'
 import App from './App.tsx'

@@ -21,7 +21,8 @@
  * cache and would swap in only where there is signal, which is the one place
  * the app is not.
  *
- * The one exception is the display face, Fredoka, for the few big titles. It
+ * The one exception is the display face, Fredoka, for titles, recipe cards
+ * and the small section labels. It
  * is BUNDLED (@fontsource, imported in main.tsx), so it ships as a woff2 the
  * service worker precaches with everything else and is there offline. The
  * rule that applies it is the LAST in this file, so the heading blocks' own
@@ -30,33 +31,41 @@
  */
 
 /*
- * THE TOWEL. The tea-towel border, once, across the top of the app: woven green
- * stripes with the amber of Mise's own icon running through them, and a soft
- * light from the top-right corner. As picked on the theme board (M2b).
+ * THE CLOTH AND THE RIM. A dark green rim along the very top, like the lip of an
+ * enamel bowl, and large, faint gingham fading out from the top-right corner:
+ * a kitchen cloth without a band across the page. Picked on the real app over
+ * the board's towel band (2026-09-13), which cost 28px of list on a phone.
  *
- * Painted on .app, which never scrolls (.scroll is the pane that does), so the
- * band stays put and the top bar can be transparent over it. Still: nothing
- * for the motion setting to stop.
+ * Painted on .app, which never scrolls (.scroll is the pane that does), so both
+ * stay put behind a transparent top bar. The gingham is a pseudo-element
+ * because it needs a mask to fade, and a mask cannot apply to one background
+ * layer. Dark mode needs it stronger: at the light strength it vanishes on the
+ * warm dark ground. Still: nothing for the motion setting to stop.
  */
 .app {
-  --towel-amber: oklch(76% 0.15 80 / 0.85);
+  --gingham-mix: 9%;
+  position: relative;
+  isolation: isolate;
   background:
-    repeating-linear-gradient(90deg, oklch(100% 0 0 / 0.1) 0 1px, transparent 1px 3px) top / 100% 34px no-repeat,
-    linear-gradient(to bottom,
-      transparent 6px,
-      color-mix(in oklab, var(--accent) 70%, transparent) 6px 9px,
-      transparent 9px 12px,
-      var(--towel-amber) 12px 14px,
-      transparent 14px 16px,
-      color-mix(in oklab, var(--accent) 38%, transparent) 16px 24px,
-      transparent 24px 26px,
-      var(--towel-amber) 26px 28px,
-      transparent 28px 31px,
-      color-mix(in oklab, var(--accent) 70%, transparent) 31px 34px,
-      transparent 34px) top / 100% 34px no-repeat,
-    radial-gradient(80% 60% at 100% 0%, color-mix(in oklab, var(--accent) 14%, transparent), transparent 70%),
+    linear-gradient(var(--accent-deep), var(--accent-deep)) top / 100% 5px no-repeat,
     var(--bg);
 }
+.app::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, color-mix(in oklab, var(--accent) var(--gingham-mix), transparent) 0 14px, transparent 14px 28px),
+    repeating-linear-gradient(90deg, color-mix(in oklab, var(--accent) var(--gingham-mix), transparent) 0 14px, transparent 14px 28px);
+  -webkit-mask: radial-gradient(circle min(80vmin, 520px) at 100% 0, #000, transparent);
+  mask: radial-gradient(circle min(80vmin, 520px) at 100% 0, #000, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .app { --gingham-mix: 16%; }
+}
+:root[data-theme='dark'] .app { --gingham-mix: 16%; }
 /*
  * The estate bar is a sibling of .app, not a child: at 900px .app becomes a
  * grid whose first column is the rail. So #root becomes the column that holds
@@ -93,8 +102,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  /* +22px clears the towel band painted on .app behind this bar. */
-  padding-top: calc(max(14px, env(safe-area-inset-top, 0px)) + 22px);
+  /* +4px clears the enamel rim painted on .app behind this bar. */
+  padding-top: calc(max(14px, env(safe-area-inset-top, 0px)) + 4px);
   background: transparent;
   border-bottom: 1px solid var(--line);
 }
@@ -2300,7 +2309,7 @@
     /* Restated, because the shorthand above resets the safe-area padding set
        on .topbar near the top of this file. A landscape phone wide enough to
        reach this breakpoint still has a status bar to clear. */
-    padding-top: calc(max(18px, env(safe-area-inset-top, 0px)) + 22px);
+    padding-top: calc(max(18px, env(safe-area-inset-top, 0px)) + 4px);
   }
   .scroll { grid-area: main; padding: 16px 28px 0; }
 
@@ -2320,8 +2329,8 @@
        screen where the home indicator is. */
     padding-left: max(12px, env(safe-area-inset-left, 0px));
     padding-bottom: max(18px, env(safe-area-inset-bottom, 0px));
-    /* The towel band on .app runs across the rail too; clear it as the top bar does. */
-    padding-top: 40px;
+    /* The enamel rim on .app runs across the rail too; clear it as the top bar does. */
+    padding-top: 22px;
     border-top: none;
     border-right: 1px solid var(--line);
     background: transparent;
@@ -2671,8 +2680,21 @@
 .view-title,
 .sheet-title,
 .detail-title,
-.blocked h2 {
+.blocked h2,
+.recipe-title,
+.group-head,
+.rail-heading,
+.steps-head,
+.qa-head {
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: 0;
+}
+/* The small uppercase labels keep a little tracking: capitals set tight at
+   11-13px run together, rounded ones more so. */
+.group-head,
+.rail-heading,
+.steps-head,
+.qa-head {
+  letter-spacing: 0.05em;
 }
