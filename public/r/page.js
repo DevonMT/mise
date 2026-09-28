@@ -1,5 +1,10 @@
 // The public recipe reader. See the note in index.html; the rule that matters
 // is that nothing from the fragment is ever parsed as markup.
+
+// A second recipe link opened while this one is showing changes only the hash,
+// which is not a new page — so it kept showing the first recipe. Start over.
+addEventListener('hashchange', () => location.reload())
+
 ;(async () => {
   const $ = (id) => document.getElementById(id)
   const body = location.hash.slice(1)
