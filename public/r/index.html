@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<title>A recipe from Mise</title>
+<link rel="stylesheet" href="/r/page.css">
+<script src="/r/page.js" defer></script>
+<!--
+  The one page on mise.devondoes.dev that needs no login.
+
+  A recipe texted to somebody without a Mise account used to land on the
+  sign-in wall. This reads the recipe out of the URL fragment — which the
+  browser never sends to any server — and shows it. Nothing here talks to the
+  network, and the gateway serves exactly these three files without identity.
+
+  Every value from the fragment goes in through textContent, never as markup:
+  this page shares an origin with the app, so an injected script here would be
+  able to act as whoever opened the link.
+-->
+</head>
+<body>
+<main>
+  <p class="brand">Mise</p>
+  <article id="recipe" hidden>
+    <h1 id="title"></h1>
+    <p id="serves" class="muted"></p>
+    <h2>Ingredients</h2>
+    <ul id="ingredients"></ul>
+    <section id="optional-block" hidden>
+      <h2>Optional</h2>
+      <ul id="optional"></ul>
+    </section>
+    <section id="steps-block" hidden>
+      <h2>Steps</h2>
+      <ol id="steps"></ol>
+    </section>
+    <section id="tips-block" hidden>
+      <h2>Tips</h2>
+      <ul id="tips"></ul>
+    </section>
+    <div class="actions">
+      <button id="copy" type="button" class="primary">Copy recipe</button>
+      <a id="import" class="btn">Have Mise? Add it to yours</a>
+    </div>
+    <p id="status" class="muted" role="status"></p>
+  </article>
+  <p id="broken" hidden>This link doesn't contain a recipe. It may have been cut off when it was sent. Ask for it again.</p>
+</main>
+</body>
+</html>

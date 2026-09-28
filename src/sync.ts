@@ -119,6 +119,14 @@ function touched(): void {
 for (const { kind, table } of TABLES) {
   table.hook('creating', (_pk, obj) => {
     if (applyingRemote) return
+    // A seeded singleton (default:list, default:pantry) is created at time 0 on
+    // purpose. Every device mints the same uid, so a new device's empty
+    // "My list" must lose to the account's copy — stamped now, it would win the
+    // merge and undo a rename made on the phone.
+    if (obj.updatedAt === 0 && typeof obj.uid === 'string' && obj.uid.startsWith('default:')) {
+      touched()
+      return
+    }
     if (!obj.uid) obj.uid = newUid()
     obj.updatedAt = Date.now()
     touched()
@@ -339,9 +347,40 @@ export function syncEnabled(): boolean {
   return EDITION === 'personal' && localStorage.getItem(ENABLED_KEY) === '1'
 }
 
+/**
+ * '1' on, '0' switched off ON PURPOSE, absent = never chosen.
+ *
+ * Off used to be stored as absence, which made "never asked" and "said no" the
+ * same thing — so sync had to default to off, and every new browser opened on
+ * an empty Mise while the account held everything. Now a never-chosen device
+ * that is signed in turns itself on (resolveSyncDefault), and only an explicit
+ * off is remembered as off.
+ */
 export function setSyncEnabled(on: boolean): void {
-  if (on) localStorage.setItem(ENABLED_KEY, '1')
-  else localStorage.removeItem(ENABLED_KEY)
+  localStorage.setItem(ENABLED_KEY, on ? '1' : '0')
+}
+
+let deciding: Promise<void> | null = null
+
+/**
+ * Settle a never-chosen device: signed in on the platform → sync on.
+ *
+ * Signed out, offline, or served from somewhere that cannot sync → left
+ * undecided, so the next launch asks again rather than recording a "no"
+ * nobody said. Memoised: the seeder and the auto-sync both wait on this, and
+ * they must agree.
+ */
+export function resolveSyncDefault(): Promise<void> {
+  if (EDITION !== 'personal' || localStorage.getItem(ENABLED_KEY) != null) return Promise.resolve()
+  deciding ??= syncAvailable()
+    .then((a) => {
+      if (a === 'ok' && localStorage.getItem(ENABLED_KEY) == null) setSyncEnabled(true)
+    })
+    .catch(() => {})
+    .finally(() => {
+      deciding = null
+    })
+  return deciding
 }
 
 export function lastSyncedAt(): number | null {
@@ -364,7 +403,12 @@ export type Availability = 'ok' | 'signin' | 'unavailable'
 export async function syncAvailable(): Promise<Availability> {
   if (EDITION !== 'personal') return 'unavailable'
   try {
-    const res = await fetch(`${ENDPOINT}/health`, { credentials: 'include' })
+    // Bounded: the seeder waits on this, and a hung request must not mean a
+    // first launch with no list at all.
+    const res = await fetch(`${ENDPOINT}/health`, {
+      credentials: 'include',
+      signal: AbortSignal.timeout(5_000),
+    })
     if (res.ok) {
       // The health check knows the tier, so learn it here as well as from a
       // sync. Otherwise the tier is only discoverable by syncing, and anything
@@ -568,8 +612,13 @@ export function startAutoSync(onResult?: (r: SyncResult) => void): () => void {
   document.addEventListener('visibilitychange', onVisible)
   window.addEventListener('online', run)
   startPoll()
-  connect()
-  void run()
+  // A never-chosen device learns whether it is signed in first, and only then
+  // opens the stream — connect() bails while sync is off.
+  void resolveSyncDefault().then(() => {
+    if (stopped) return
+    connect()
+    void run()
+  })
 
   return () => {
     stopped = true

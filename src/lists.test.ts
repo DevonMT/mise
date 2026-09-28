@@ -115,9 +115,54 @@ test('a fresh device that will sync does not seed before its first sync', async 
 
 test('a device with sync off seeds immediately', async () => {
   await db.lists.clear()
-  store.delete('mise.sync.enabled')
+  store.set('mise.sync.enabled', '0')
   await lists.ensureDefaultLists()
   const all = await db.lists.toArray()
   assert.ok(all.some((l) => l.kind === 'grocery'))
   assert.ok(all.some((l) => l.kind === 'pantry'))
+  store.delete('mise.sync.enabled')
+})
+
+const withHealth = async (status: number, fn: () => Promise<void>) => {
+  const real = globalThis.fetch
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ variant: null }), { status })) as typeof fetch
+  try {
+    await fn()
+  } finally {
+    globalThis.fetch = real
+  }
+}
+
+test('a never-chosen device that is signed in turns sync on and waits to seed', async () => {
+  // The website copy opened empty while the phone held everything: sync was
+  // off by default, and nothing ever said to turn it on.
+  await db.lists.clear()
+  store.delete('mise.sync.enabled')
+  store.delete('mise.sync.last')
+  await withHealth(200, () => lists.ensureDefaultLists())
+  assert.equal(store.get('mise.sync.enabled'), '1')
+  assert.equal((await db.lists.toArray()).length, 0, 'waited for the first sync')
+  store.delete('mise.sync.enabled')
+})
+
+test('a never-chosen device that is signed out stays undecided and seeds', async () => {
+  await db.lists.clear()
+  store.delete('mise.sync.enabled')
+  await withHealth(401, () => lists.ensureDefaultLists())
+  assert.equal(store.get('mise.sync.enabled'), undefined, 'no "off" recorded that nobody chose')
+  assert.ok((await db.lists.toArray()).length > 0)
+})
+
+test('an explicit off is never overridden', async () => {
+  store.set('mise.sync.enabled', '0')
+  await withHealth(200, () => lists.ensureDefaultLists())
+  assert.equal(store.get('mise.sync.enabled'), '0')
+  store.delete('mise.sync.enabled')
+})
+
+test('a seeded default loses to any real copy of itself', async () => {
+  await db.lists.clear()
+  const id = await lists.ensureSeed()
+  assert.equal((await db.lists.get(id))?.updatedAt, 0)
 })

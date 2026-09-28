@@ -1,5 +1,5 @@
 import { db, type Item, type List, type ListKind } from './db'
-import { lastSyncedAt, syncEnabled } from './sync'
+import { lastSyncedAt, resolveSyncDefault, syncEnabled } from './sync'
 import { addItem } from './list'
 
 const ACTIVE_KEY = 'mise.activeList'
@@ -39,6 +39,8 @@ export async function ensureSeed(): Promise<number> {
       icon: 'list',
       createdAt: Date.now(),
       uid: DEFAULT_LIST_UID,
+      // The oldest possible version of itself — see the creating hook in sync.ts.
+      updatedAt: 0,
     })
   })
 }
@@ -51,6 +53,9 @@ export async function ensureSeed(): Promise<number> {
  * somebody's staples is worse than an empty list that says what it is for.
  */
 export async function ensureDefaultLists(): Promise<void> {
+  // A signed-in device that never chose turns sync on here, so the rule below
+  // sees it as a device that is about to sync.
+  await resolveSyncDefault()
   // A device that is going to sync but never has must NOT seed yet.
   //
   // Seeding now makes a "My list" that then sits beside the "Groceries" the
@@ -213,6 +218,7 @@ export async function ensurePantryList(): Promise<number> {
       icon: 'pantry',
       createdAt: Date.now(),
       uid: DEFAULT_PANTRY_UID,
+      updatedAt: 0,
     })
   })
 }

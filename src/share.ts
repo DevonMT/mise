@@ -74,14 +74,30 @@ async function gunzip(bytes: Uint8Array): Promise<string> {
  * (roughly a third the size — messaging apps mangle very long links), raw
  * base64 otherwise. The marker byte tells the reader which it got.
  */
-export async function encodeShare(payload: SharePayload): Promise<string> {
+async function encodeBody(payload: SharePayload): Promise<string> {
   const json = JSON.stringify(payload)
   const gz = await gzip(json)
-  const body = gz
+  return gz
     ? 'g.' + bytesToB64url(gz)
     : 'r.' + bytesToB64url(new TextEncoder().encode(json))
+}
+
+export async function encodeShare(payload: SharePayload): Promise<string> {
   const base = location.origin + import.meta.env.BASE_URL
-  return base + PREFIX + body
+  return base + PREFIX + (await encodeBody(payload))
+}
+
+/**
+ * A link ANYONE can open, for texting a recipe to somebody without Mise.
+ *
+ * The app's own import link lands on the sign-in wall for everyone but the
+ * account holder. /r is the one page the gateway serves without a login: a
+ * static reader that decodes the same fragment in the browser — so the recipe
+ * still never reaches a server — and offers the import link to anyone who
+ * does have Mise.
+ */
+export async function recipePageUrl(payload: SharePayload): Promise<string> {
+  return location.origin + import.meta.env.BASE_URL + 'r#' + (await encodeBody(payload))
 }
 
 /** Pull a payload out of a URL hash, or null if there isn't a valid one. */

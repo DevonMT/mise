@@ -4,7 +4,9 @@ import { db, type Recipe } from './db'
 import { addRecipeToList } from './recipes'
 import { formatQty } from './list'
 import { defaultGroceryListId } from './lists'
-import { encodeShare, shareLink, shareRecipePayload } from './share'
+import { recipePageUrl, shareRecipePayload } from './share'
+import { recipeText, smsHref } from './recipeText'
+import { Sheet } from './Sheet'
 import { Icon } from './Icon'
 import { useAiEnabled } from './edition'
 
@@ -123,11 +125,40 @@ function RecipeDetail({
     onDone(target)
   }
 
-  const share = async () => {
-    const url = await encodeShare(shareRecipePayload(recipe))
-    const how = await shareLink(url, recipe.title)
-    if (how === 'copied') onToast('Recipe link copied to clipboard')
-    else if (how === 'failed') onToast('Could not share that recipe.')
+  const [sharing, setSharing] = useState(false)
+  const link = () => recipePageUrl(shareRecipePayload(recipe))
+
+  // Texting goes straight to Messages with the body filled in and nobody
+  // picked yet — faster than the OS share sheet, which is still here for
+  // everything else.
+  const textRecipe = () => {
+    setSharing(false)
+    location.href = smsHref(recipeText(recipe, factor))
+  }
+  const textLink = async () => {
+    const url = await link()
+    setSharing(false)
+    location.href = smsHref(`${recipe.title}
+${url}`)
+  }
+  const shareElsewhere = async () => {
+    const url = await link()
+    setSharing(false)
+    try {
+      await navigator.share({ title: recipe.title, text: recipe.title, url })
+    } catch {
+      /* Dismissed the sheet. Not an error. */
+    }
+  }
+  const copy = async (what: 'text' | 'link') => {
+    const value = what === 'text' ? recipeText(recipe, factor) : await link()
+    setSharing(false)
+    try {
+      await navigator.clipboard.writeText(value)
+      onToast(what === 'text' ? 'Recipe copied' : 'Link copied')
+    } catch {
+      onToast('Could not copy that.')
+    }
   }
 
   const remove = async () => {
@@ -150,7 +181,7 @@ function RecipeDetail({
           <Icon name="back" size={22} />
         </button>
         <h2 className="detail-title">{recipe.title}</h2>
-        <button className="icon-share" onClick={share} aria-label="Share recipe">
+        <button className="icon-share" onClick={() => setSharing(true)} aria-label="Share recipe">
           <Icon name="share" size={20} />
         </button>
       </div>
@@ -222,6 +253,41 @@ function RecipeDetail({
       <button className="ghost danger" onClick={remove} style={{ marginTop: 10 }}>
         Delete recipe
       </button>
+
+      {sharing && (
+        <Sheet className="menu" label="Share recipe" onClose={() => setSharing(false)}>
+          <button className="menu-item" onClick={textRecipe}>
+            <Icon name="message" size={20} />
+            <span className="menu-item-body">
+              Text the recipe
+              <span className="menu-item-sub">
+                Ingredients and steps{base ? `, for ${n} servings` : factor !== 1 ? `, ×${n}` : ''}
+              </span>
+            </span>
+          </button>
+          <button className="menu-item" onClick={() => void textLink()}>
+            <Icon name="link" size={20} />
+            <span className="menu-item-body">
+              Text a link
+              <span className="menu-item-sub">Opens for anyone, no Mise account needed</span>
+            </span>
+          </button>
+          {typeof navigator.share === 'function' && (
+            <button className="menu-item" onClick={() => void shareElsewhere()}>
+              <Icon name="share" size={20} />
+              Share the link another way
+            </button>
+          )}
+          <button className="menu-item" onClick={() => void copy('text')}>
+            <Icon name="copy" size={20} />
+            Copy the recipe
+          </button>
+          <button className="menu-item" onClick={() => void copy('link')}>
+            <Icon name="clipboard" size={20} />
+            Copy the link
+          </button>
+        </Sheet>
+      )}
     </>
   )
 }
