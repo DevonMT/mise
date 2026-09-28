@@ -7,6 +7,7 @@ import { defaultGroceryListId } from './lists'
 import { recipePageUrl, shareRecipePayload } from './share'
 import { recipeText, smsHref } from './recipeText'
 import { Sheet } from './Sheet'
+import { useBackLayer } from './back'
 import { Icon } from './Icon'
 import { useAiEnabled } from './edition'
 
@@ -30,6 +31,8 @@ export function RecipesView({
       return all.sort((a, b) => b.createdAt - a.createdAt)
     }, []) ?? []
   const [selected, setSelected] = useState<Recipe | null>(null)
+  // Back from a recipe goes to Recipes, not all the way to the list.
+  useBackLayer(selected !== null, () => setSelected(null))
 
   if (selected) {
     return (
@@ -126,6 +129,7 @@ function RecipeDetail({
   }
 
   const [sharing, setSharing] = useState(false)
+  useBackLayer(sharing, () => setSharing(false))
   const link = () => recipePageUrl(shareRecipePayload(recipe))
 
   // Texting goes straight to Messages with the body filled in and nobody

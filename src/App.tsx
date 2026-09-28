@@ -49,6 +49,7 @@ import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayloa
 import { SharePeople, Handoffs } from './SharePeople'
 import { useAiEnabled } from './edition'
 import { startAutoSync } from './sync'
+import { useBackLayer } from './back'
 import { usePointer } from './ds/usePointer'
 import { EstateBar } from './EstateBar'
 import { RecipePickSheet } from './RecipePick'
@@ -372,58 +373,29 @@ export default function App() {
     setTab('list')
   }
 
-  const closeAll = () => {
-    setMenuOpen(false)
-    setAddMenuOpen(false)
-    setCapture(null)
-    setCaptureForRecipe(false)
-    setQuickAddOpen(false)
-    setRefineOpen(false)
-    setRecipeFormOpen(false)
-    setRecipeMenuOpen(false)
-    setSwitcherOpen(false)
-    setManageOpen(false)
-    setEditListOpen(false)
-    setImportLinkOpen(false)
-    setPending(null)
-    setSheet(null)
+  // Android back peels one layer at a time (see back.ts). Registered in the
+  // order they tend to open, but what counts is the order they DID open.
+  useBackLayer(tab !== 'list', () => setTab('list'))
+  useBackLayer(selectMode, () => {
     setSelectMode(false)
     setSelected(new Set())
-    setTab('list')
-  }
-
-  // Android back: close any overlay / leave a non-list tab, instead of exiting.
-  const backCatchable =
-    menuOpen ||
-    addMenuOpen ||
-    capture !== null ||
-    quickAddOpen ||
-    refineOpen ||
-    recipeFormOpen ||
-    recipeMenuOpen ||
-    switcherOpen ||
-    manageOpen ||
-    editListOpen ||
-    importLinkOpen ||
-    pending !== null ||
-    sheet !== null ||
-    selectMode ||
-    tab !== 'list'
-  useEffect(() => {
-    if (!backCatchable) return
-    let poppedByBack = false
-    window.history.pushState({ mise: true }, '')
-    const onPop = () => {
-      poppedByBack = true
-      closeAll()
-    }
-    window.addEventListener('popstate', onPop)
-    return () => {
-      window.removeEventListener('popstate', onPop)
-      if (!poppedByBack) window.history.back()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backCatchable])
+  })
+  useBackLayer(menuOpen, () => setMenuOpen(false))
+  useBackLayer(addMenuOpen, () => setAddMenuOpen(false))
+  useBackLayer(switcherOpen, () => setSwitcherOpen(false))
+  useBackLayer(manageOpen, () => setManageOpen(false))
+  useBackLayer(editListOpen, () => setEditListOpen(false))
+  useBackLayer(importLinkOpen, () => setImportLinkOpen(false))
+  useBackLayer(recipeMenuOpen, () => setRecipeMenuOpen(false))
+  useBackLayer(recipeFormOpen, () => setRecipeFormOpen(false))
+  useBackLayer(quickAddOpen, () => setQuickAddOpen(false))
+  useBackLayer(refineOpen, () => setRefineOpen(false))
+  useBackLayer(capture !== null, () => {
+    setCapture(null)
+    setCaptureForRecipe(false)
+  })
+  useBackLayer(sheet !== null, () => setSheet(null))
+  useBackLayer(pending !== null, () => setPending(null))
 
   // One-time reconcile of catalog names against the current items.
   useEffect(() => {
