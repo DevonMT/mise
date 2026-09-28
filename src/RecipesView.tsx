@@ -10,6 +10,18 @@ import { Sheet } from './Sheet'
 import { useBackLayer } from './back'
 import { Icon } from './Icon'
 import { useAiEnabled } from './edition'
+import { RecipeEditor } from './RecipeEditor'
+import { CookMode } from './CookMode'
+
+/** Title or any ingredient, case- and accent-insensitive: "jack" finds the
+ *  enchiladas by their cheese. Exported for the tests. */
+export function matchesRecipe(r: Pick<Recipe, 'title' | 'ingredients'>, q: string): boolean {
+  const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const words = norm(q).split(/\s+/).filter(Boolean)
+  if (!words.length) return true
+  const hay = norm([r.title, ...r.ingredients.map((i) => i.displayName)].join(' '))
+  return words.every((w) => hay.includes(w))
+}
 
 export function RecipesView({
   activeListId,
@@ -30,7 +42,12 @@ export function RecipesView({
       const all = await db.recipes.toArray()
       return all.sort((a, b) => b.createdAt - a.createdAt)
     }, []) ?? []
-  const [selected, setSelected] = useState<Recipe | null>(null)
+  // By id, read through the live query, so an edit shows the moment it saves.
+  // Holding the Recipe object itself kept showing the version from before.
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const selected = selectedId != null ? (recipes.find((r) => r.id === selectedId) ?? null) : null
+  const setSelected = (r: Recipe | null) => setSelectedId(r?.id ?? null)
+  const [q, setQ] = useState('')
   // Back from a recipe goes to Recipes, not all the way to the list.
   useBackLayer(selected !== null, () => setSelected(null))
 
@@ -64,8 +81,22 @@ export function RecipesView({
           </button>
         </div>
       ) : (
+        <>
+        {recipes.length > 4 && (
+          <input
+            className="field recipe-search"
+            type="search"
+            placeholder="Search recipes or ingredients"
+            aria-label="Search recipes"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        )}
+        {q && !recipes.some((r) => matchesRecipe(r, q)) && (
+          <p className="view-empty">Nothing matches “{q}”.</p>
+        )}
         <div className="recipe-list">
-          {recipes.map((r) => (
+          {recipes.filter((r) => matchesRecipe(r, q)).map((r) => (
             <button key={r.id} className="recipe-card" onClick={() => setSelected(r)}>
               <span className="recipe-title">{r.title}</span>
               <span className="recipe-sub">
@@ -77,6 +108,7 @@ export function RecipesView({
             </button>
           ))}
         </div>
+        </>
       )}
     </div>
   )
@@ -129,6 +161,8 @@ function RecipeDetail({
   }
 
   const [sharing, setSharing] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [cooking, setCooking] = useState(false)
   useBackLayer(sharing, () => setSharing(false))
   const link = () => recipePageUrl(shareRecipePayload(recipe))
 
@@ -185,6 +219,9 @@ ${url}`)
           <Icon name="back" size={22} />
         </button>
         <h2 className="detail-title">{recipe.title}</h2>
+        <button className="icon-share" onClick={() => setEditing(true)} aria-label="Edit recipe">
+          <Icon name="edit" size={20} />
+        </button>
         <button className="icon-share" onClick={() => setSharing(true)} aria-label="Share recipe">
           <Icon name="share" size={20} />
         </button>
@@ -251,12 +288,22 @@ ${url}`)
         </div>
       )}
 
+      {recipe.instructions?.trim() && (
+        <button className="ghost cook-start" onClick={() => setCooking(true)}>
+          Start cooking
+        </button>
+      )}
       <button className="primary" onClick={add}>
         Add to list{optSel.size > 0 ? ` · +${optSel.size} optional` : ''}
       </button>
       <button className="ghost danger" onClick={remove} style={{ marginTop: 10 }}>
         Delete recipe
       </button>
+
+      {editing && <RecipeEditor recipe={recipe} onClose={() => setEditing(false)} />}
+      {cooking && (
+        <CookMode recipe={recipe} factor={factor} includeOptional={optSel} onClose={() => setCooking(false)} />
+      )}
 
       {sharing && (
         <Sheet className="menu" label="Share recipe" onClose={() => setSharing(false)}>

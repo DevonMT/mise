@@ -2698,3 +2698,154 @@
 .qa-head {
   letter-spacing: 0.05em;
 }
+
+/* ---- Recipe search ---------------------------------------------------- */
+.recipe-search {
+  margin-bottom: 12px;
+  padding: 11px 14px;
+}
+
+/* ---- Recipe editor ----------------------------------------------------- *
+ * One row per ingredient. On a phone the row wraps: amount, unit and name on
+ * the first line, aisle and the two buttons on the second — five controls in
+ * one 343px line would make every one of them too small to hit. */
+.recipe-editor .form-label {
+  margin-top: 18px;
+}
+.ed-row {
+  display: grid;
+  grid-template-columns: 64px 72px 1fr;
+  /* The two buttons share the 'act' cell, one at each end of it. */
+  grid-template-areas:
+    'qty unit name'
+    'aisle aisle act';
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.ed-row .field {
+  padding: 9px 10px;
+  font-size: 0.95rem;
+  border-radius: var(--radius);
+}
+.ed-qty { grid-area: qty; }
+.ed-unit { grid-area: unit; }
+.ed-name { grid-area: name; min-width: 0; }
+.ed-section { grid-area: aisle; }
+.ed-opt {
+  grid-area: act;
+  justify-self: start;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+}
+.ed-opt.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.ed-del {
+  grid-area: act;
+  justify-self: end;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+.ed-add {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ed-steps {
+  min-height: 180px;
+}
+@media (min-width: 700px) {
+  .ed-row {
+    grid-template-columns: 64px 80px 1fr 170px auto 36px;
+    grid-template-areas: 'qty unit name aisle opt del';
+    align-items: center;
+  }
+  .ed-opt { grid-area: opt; }
+  .ed-del { grid-area: del; }
+}
+
+/* ---- Cook mode --------------------------------------------------------- */
+.cook-start {
+  width: 100%;
+  margin-bottom: 10px;
+}
+.cook-count {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.cook-body {
+  padding-top: 20px;
+}
+.cook-lead {
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+.cook-step {
+  font-size: 1.5rem;
+  line-height: 1.45;
+  margin: 8px 0;
+  text-wrap: pretty;
+}
+.cook-gather {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.cook-ing {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  text-align: left;
+  font-size: 1.1rem;
+}
+.cook-ing:last-child {
+  border-bottom: none;
+}
+.cook-ing.on {
+  background: var(--accent-soft);
+}
+.cook-ing.on .cook-name {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.cook-ing.on .opt-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.cook-amt {
+  flex: 0 0 5.5rem;
+  font-weight: 700;
+}
+.cook-name {
+  flex: 1;
+  min-width: 0;
+}
+.cook-foot {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 10px;
+}
+.cook-foot .ghost,
+.cook-foot .primary {
+  margin: 0;
+}
