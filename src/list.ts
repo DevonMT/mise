@@ -127,8 +127,10 @@ export async function addItem(input: NewItem): Promise<number> {
 
   if (existing?.id != null) {
     const merged = (existing.quantity ?? 0) + (input.quantity ?? 0)
+    const quantity = input.quantity != null ? merged || undefined : existing.quantity
     await db.items.update(existing.id, {
-      quantity: input.quantity != null ? merged || undefined : existing.quantity,
+      quantity,
+      ...mergedPacks(existing, input, quantity),
       checked: false,
     })
     return existing.id
@@ -154,6 +156,40 @@ export async function addItem(input: NewItem): Promise<number> {
     schedule: input.schedule,
     recipeUid: input.recipeUid,
   })
+}
+
+/**
+ * What the Buy layer becomes when a second line merges into an existing one.
+ *
+ * The merge used to add up `quantity` and leave `buyCount` alone, so two
+ * recipes each calling for 2 cans made a row that needed 4 cans and said
+ * "2 × 15 oz can" — and priced two. Two cases:
+ *
+ *  - Same pack on both sides: the counts simply add.
+ *  - Otherwise (the new line names no pack, or a different size): keep the
+ *    pack already chosen — it was Refined or set on purpose — and scale its
+ *    count with the need, rounded up. 8 oz of cream cheese bought as one 8 oz
+ *    pack, plus 8 oz more, is two packs.
+ *
+ * Returns only the fields that change; an empty object when there is nothing
+ * to say (no pack on the existing line, or no amounts to scale by).
+ */
+export function mergedPacks(
+  existing: Pick<Item, 'quantity' | 'buyCount' | 'sizeAmount' | 'sizeUnit' | 'packaging'>,
+  input: Pick<NewItem, 'quantity' | 'buyCount' | 'sizeAmount' | 'sizeUnit' | 'packaging'>,
+  mergedQuantity: number | undefined,
+): Pick<Item, 'buyCount'> {
+  if (existing.buyCount == null) return {}
+  const samePack =
+    input.buyCount != null &&
+    input.sizeAmount === existing.sizeAmount &&
+    unitKey(input.sizeUnit) === unitKey(existing.sizeUnit) &&
+    (input.packaging ?? '').trim().toLowerCase() === (existing.packaging ?? '').trim().toLowerCase()
+  if (samePack) return { buyCount: existing.buyCount + input.buyCount! }
+  if (existing.quantity && mergedQuantity && mergedQuantity > existing.quantity) {
+    return { buyCount: packCount((existing.buyCount * mergedQuantity) / existing.quantity) }
+  }
+  return {}
 }
 
 export interface Group {

@@ -53,7 +53,7 @@ import { useBackLayer } from './back'
 import { usePointer } from './ds/usePointer'
 import { EstateBar } from './EstateBar'
 import { RecipePickSheet } from './RecipePick'
-import { addPlanToList } from './recipes'
+import { shopTheWeek } from './recipes'
 
 type ListView = 'list' | 'backlog'
 type SheetState = null | 'new' | Item
@@ -251,10 +251,23 @@ export default function App() {
       showToast('Nothing planned that came from a recipe.')
       return
     }
-    const { added, skipped } = await addPlanToList(planned, target.id)
+    const r = await shopTheWeek(planned, target.id)
+    if (!r.recipes) {
+      showToast(
+        r.notThisWeek
+          ? 'Nothing planned for the next 7 days.'
+          : 'Nothing planned that came from a recipe.',
+      )
+      return
+    }
+    const extra = [
+      r.notThisWeek ? `${r.notThisWeek} not this week` : '',
+      r.missing ? `${r.missing} had no recipe` : '',
+    ].filter(Boolean)
     showToast(
-      `Added ${added} ${added === 1 ? 'recipe' : 'recipes'} to ${target.name}` +
-        (skipped ? ` · ${skipped} had no recipe` : ''),
+      `Added ${r.meals} ${r.meals === 1 ? 'meal' : 'meals'} to ${target.name}` +
+        (extra.length ? ` · ${extra.join(' · ')}` : ''),
+      () => void r.undo().then(() => showToast(`Took them back off ${target.name}`)),
     )
   }
 
@@ -769,7 +782,10 @@ export default function App() {
           {kind.fromRecipes && (
             <button className="menu-item" onClick={doPlanToList}>
               <Icon name="cart" size={20} />
-              Add ingredients to a shopping list
+              <span className="menu-item-body">
+                Shop the week
+                <span className="menu-item-sub">Ingredients for the next 7 days' meals</span>
+              </span>
             </button>
           )}
           {aiOn && kind.recipes && (

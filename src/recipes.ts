@@ -1,5 +1,5 @@
 import { db, canonicalize, type Recipe, type Item } from './db'
-import { addItem, packCount } from './list'
+import { addItem, fallsOn, packCount, startOfDay } from './list'
 import { getStapleKeys, type ParseResult } from './parse'
 
 const KNOWN_UNITS = new Set([
@@ -118,34 +118,99 @@ function round2(n: number): number {
 }
 
 /**
- * Send a week's planned meals to a shopping list.
+ * How many times a plan entry happens in the 7 days starting today.
  *
- * The point of a meal plan: deciding what to eat and deciding what to buy are
- * the same decision, and doing the second by hand from the first is the bit
- * that was happening in someone's head.
- *
- * Only entries that stand for a saved recipe contribute — "Leftovers" and
- * "Out" are legitimate plan entries with nothing to buy. Everything goes
- * through addRecipeToList, so the existing merge, staple-skipping and scaling
- * apply, and two meals sharing an onion produce one line.
+ * `null` for an entry with no schedule — a meal picked but not placed, which
+ * is not the same as a meal happening zero times.
  */
-export async function addPlanToList(
+export function timesThisWeek(schedule: Item['schedule'], now: number): number | null {
+  if (!schedule || (schedule.every === 'week' && !schedule.days.length)) return null
+  const today = new Date(startOfDay(now))
+  let n = 0
+  for (let i = 0; i < 7; i++) {
+    // Noon, so a DST change cannot push a day into its neighbour.
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i, 12).getTime()
+    if (fallsOn(schedule, d)) n++
+  }
+  return n
+}
+
+export type PlanShop = {
+  /** Distinct recipes that went on the list. */
+  recipes: number
+  /** Meals those stand for — chili on Monday and Thursday is two. */
+  meals: number
+  /** Scheduled, but not in the next 7 days. */
+  notThisWeek: number
+  /** Plan entries whose recipe is gone. */
+  missing: number
+  /** Puts the grocery list back exactly as it was. */
+  undo: () => Promise<void>
+}
+
+/**
+ * Shop the week: send the meals planned for the next 7 days to a shopping list.
+ *
+ * Deciding what to eat and deciding what to buy are the same decision; doing
+ * the second by hand from the first is the part that was happening in
+ * someone's head.
+ *
+ * WHAT COUNTS. Each entry once per time it falls in the next 7 days, so a meal
+ * planned twice is bought twice. An unscheduled entry — picked, not yet placed
+ * — counts once: it was chosen to be eaten. A meal scheduled only outside the
+ * week is skipped. The same recipe planned as two entries is summed before
+ * scaling, so packs round up once ("1.5 cans" is two, not one plus one).
+ *
+ * It used to send every entry exactly once — including ones not happening this
+ * week — and a second tap doubled the list with no way back. Hence `undo`.
+ *
+ * "Leftovers" and "Out" are plan entries with nothing to buy; they carry no
+ * recipe and are not counted. Everything goes through addRecipeToList, so the
+ * merge, staple-skipping and scaling all apply.
+ */
+export async function shopTheWeek(
   planItems: Item[],
   listId: number,
-): Promise<{ added: number; skipped: number }> {
+  now = Date.now(),
+): Promise<PlanShop> {
   const recipes = await db.recipes.toArray()
   const byUid = new Map(recipes.filter((r) => r.uid).map((r) => [r.uid!, r]))
 
-  let added = 0
-  let skipped = 0
+  const factorByUid = new Map<string, number>()
+  let meals = 0
+  let notThisWeek = 0
+  let missing = 0
   for (const entry of planItems) {
-    const recipe = entry.recipeUid ? byUid.get(entry.recipeUid) : undefined
-    if (!recipe) {
-      skipped++
+    if (!entry.recipeUid) continue
+    if (!byUid.has(entry.recipeUid)) {
+      missing++
       continue
     }
-    await addRecipeToList(recipe, 1, listId)
-    added++
+    const times = timesThisWeek(entry.schedule, now) ?? 1
+    if (times === 0) {
+      notThisWeek++
+      continue
+    }
+    meals += times
+    factorByUid.set(entry.recipeUid, (factorByUid.get(entry.recipeUid) ?? 0) + times)
   }
-  return { added, skipped }
+
+  // The list as it was, for undo: every row that was there, whole.
+  const before = await db.items.filter((i) => i.listId === listId).toArray()
+  for (const [uid, factor] of factorByUid) await addRecipeToList(byUid.get(uid)!, factor, listId)
+
+  const undo = async () => {
+    const was = new Map(before.map((r) => [r.id!, r]))
+    const now = await db.items.filter((i) => i.listId === listId).toArray()
+    await db.transaction('rw', db.items, async () => {
+      for (const row of now) {
+        const old = was.get(row.id!)
+        if (!old) await db.items.delete(row.id!)
+        else if (JSON.stringify({ ...row, updatedAt: 0 }) !== JSON.stringify({ ...old, updatedAt: 0 }))
+          await db.items.put(old)
+      }
+    })
+  }
+
+  return { recipes: factorByUid.size, meals, notThisWeek, missing, undo }
 }
