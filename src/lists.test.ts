@@ -166,3 +166,16 @@ test('a seeded default loses to any real copy of itself', async () => {
   const id = await lists.ensureSeed()
   assert.equal((await db.lists.get(id))?.updatedAt, 0)
 })
+
+test('the repair never deletes the shared singleton, even when it is newer', async () => {
+  // 2026-09-28: a browser's own older random-uid "My list" was kept and
+  // default:list was tombstoned — which deletes the phone's main list.
+  await db.lists.clear()
+  await db.items.clear()
+  await addList('My list', 'grocery', 'random-older')
+  await addList('My list', 'grocery', 'default:list')
+  const { removed } = await lists.dedupeDefaultLists()
+  assert.deepEqual(removed, ['My list'])
+  const left = await db.lists.toArray()
+  assert.deepEqual(left.map((l) => l.uid), ['default:list'])
+})

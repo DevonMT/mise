@@ -258,10 +258,18 @@ export async function dedupeDefaultLists(): Promise<{ removed: string[]; leftAlo
 
   for (const [, group] of byKind) {
     if (group.length < 2) continue
-    // Oldest wins: it is the one whose id other things are most likely to hold.
-    const [, ...rest] = group.sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
+    // The shared singleton wins, then the oldest. A `default:` uid is the SAME
+    // record on every device, so deleting it here tombstones it everywhere —
+    // and the phone, told its main list was deleted, drops the list and
+    // strands every item on it. That happened on 2026-09-28: a browser whose
+    // own random-uid "My list" was older kept that one and tombstoned
+    // default:list. Deleting a random-uid duplicate touches only itself.
+    const isDefault = (l: (typeof group)[number]) => !!l.uid?.startsWith('default:')
+    const [, ...rest] = group.sort(
+      (a, b) => Number(isDefault(b)) - Number(isDefault(a)) || (a.id ?? 0) - (b.id ?? 0),
+    )
     for (const dup of rest) {
-      if (dup.id == null) continue
+      if (dup.id == null || isDefault(dup)) continue
       if (!APP_MADE_NAMES.has(dup.name.trim().toLowerCase())) continue
       const count = await db.items.filter((i) => i.listId === dup.id).count()
       if (count > 0) {

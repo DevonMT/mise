@@ -218,6 +218,16 @@ function fromWire(rec: WireRecord, listIdByUid: Map<string, number>): AnyRow | n
 // Reading and merging
 // ---------------------------------------------------------------------------
 
+/**
+ * A seeded singleton (`default:list`, `default:pantry`) never travels as a
+ * delete. Its uid is the same on every device, so one device's tombstone
+ * deletes that list on all of them — and a device that loses the list keeps
+ * its items, pointing at nothing, invisible. The price is that deleting your
+ * default list on one device does not delete it on the others; rename it
+ * instead. The platform refuses these tombstones too.
+ */
+const isSingleton = (uid: string) => uid.startsWith('default:')
+
 async function localState(): Promise<State> {
   const lists = (await db.lists.toArray()) as unknown as Array<List & AnyRow>
   const listUidById = new Map<number, string>()
@@ -233,7 +243,7 @@ async function localState(): Promise<State> {
 
   const cutoff = Date.now() - TOMBSTONE_DAYS * 86_400_000
   const tombstones = (await db.tombstones.toArray())
-    .filter((t) => t.deletedAt >= cutoff)
+    .filter((t) => t.deletedAt >= cutoff && !isSingleton(t.uid))
     .map((t) => ({ kind: t.kind, uid: t.uid, deletedAt: t.deletedAt }))
 
   return { records, tombstones }
@@ -264,6 +274,7 @@ export async function applyRemote(
     // reappear and then vanish.
     const tombByKind = new Map<Kind, Map<string, number>>()
     for (const t of state.tombstones) {
+      if (isSingleton(t.uid)) continue
       if (!tombByKind.has(t.kind)) tombByKind.set(t.kind, new Map())
       tombByKind.get(t.kind)!.set(t.uid, t.deletedAt)
     }
