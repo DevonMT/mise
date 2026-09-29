@@ -132,9 +132,8 @@ app.use('/api/*', async (c, next) => {
 
   // The gateway is checked first: it is the door this service is meant to be
   // behind now, and Access remains only until its application is removed.
-  const email =
-    gatewayEmail(c.req.header('x-gateway-token'), c.req.header('x-platform-user'))
-    ?? await accessEmail(c.req.header('cf-access-jwt-assertion'))
+  const viaGateway = gatewayEmail(c.req.header('x-gateway-token'), c.req.header('x-platform-user'))
+  const email = viaGateway ?? await accessEmail(c.req.header('cf-access-jwt-assertion'))
   if (!email) {
     // Fail closed. With no door at all this is a deployment mistake, and saying
     // so is more useful than a 401 that reads like a rejected password.
@@ -151,6 +150,21 @@ app.use('/api/*', async (c, next) => {
   // say who spent what. Not an authorization input — the door above already
   // decided that.
   c.set('caller', email)
+
+  // THE TIER, ENFORCED HERE. Lite ("no AI features") used to be a promise the
+  // app kept by hiding three buttons; anyone with a Lite grant could still post
+  // to /api/parse with curl. Every route past this point makes a model call, so
+  // it needs the Full variant, as the gateway states it (it overwrites whatever
+  // the client sent). A blank tier is Lite, and the Access fallback carries no
+  // tier at all, so it gets nothing. Devon's rule: nobody but him reaches a
+  // model unless AI is deliberately turned on for them — which here is
+  // granting Full.
+  if (c.req.path !== '/api/status') {
+    const variant = viaGateway ? (c.req.header('x-platform-variant') ?? '').trim() : ''
+    if (variant !== 'full') {
+      return c.json({ error: 'AI features are not part of your Mise.' }, 403)
+    }
+  }
 
   const today = new Date().toISOString().slice(0, 10)
   if (today !== capDay) {
