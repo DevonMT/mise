@@ -1,5 +1,6 @@
 import {db, canonicalize, type Item, type Section, type Schedule } from './db'
 import { recordCatalog } from './catalog'
+import { KINDS } from './kinds'
 
 /** Units that just mean "a count of whole things" — treated as interchangeable
  *  (and with no unit) so "2 onions" and "1 whole onion" merge. */
@@ -126,13 +127,7 @@ export async function addItem(input: NewItem): Promise<number> {
     .first()
 
   if (existing?.id != null) {
-    const merged = (existing.quantity ?? 0) + (input.quantity ?? 0)
-    const quantity = input.quantity != null ? merged || undefined : existing.quantity
-    await db.items.update(existing.id, {
-      quantity,
-      ...mergedPacks(existing, input, quantity),
-      checked: false,
-    })
+    await mergeInto(existing, input)
     return existing.id
   }
 
@@ -156,6 +151,69 @@ export async function addItem(input: NewItem): Promise<number> {
     schedule: input.schedule,
     recipeUid: input.recipeUid,
   })
+}
+
+/** The merge half of addItem: a second line folded into one already there. */
+async function mergeInto(existing: Item, input: Pick<NewItem, 'quantity' | 'buyCount' | 'sizeAmount' | 'sizeUnit' | 'packaging'>) {
+  const merged = (existing.quantity ?? 0) + (input.quantity ?? 0)
+  const quantity = input.quantity != null ? merged || undefined : existing.quantity
+  await db.items.update(existing.id!, {
+    quantity,
+    ...mergedPacks(existing, input, quantity),
+    checked: false,
+  })
+}
+
+/**
+ * File the rows the hub added (`pending`), exactly as addItem would have.
+ *
+ * The hub can only write a name and a count; the catalogue (aisle, the name
+ * you usually use, the pack you refined), the merge with a line already on the
+ * list, and the list's kind all live here. So the hub leaves the row pending
+ * and the first device that syncs finishes the job with the same engine as
+ * every other add, rather than the server keeping a second copy of it to
+ * drift. Plain code — no model call, whatever tier the account holds.
+ *
+ * Idempotent across devices: a row is filed IN PLACE (its uid kept) or merged
+ * and deleted, so two devices doing it at once write the same result and the
+ * sync's last-write-wins settles it.
+ */
+export async function filePending(): Promise<number> {
+  const pending = await db.items.filter((i) => i.pending === true).toArray()
+  let filed = 0
+  for (const p of pending) {
+    if (p.id == null) continue
+    const list = await db.lists.get(p.listId)
+    if (!list) continue
+    const canonicalKey = canonicalize(p.displayName)
+    const cat = await db.catalog.where('canonicalKey').equals(canonicalKey).first()
+    const pack = cat ? { buyCount: cat.buyCount, sizeAmount: cat.sizeAmount, sizeUnit: cat.sizeUnit, packaging: cat.packaging } : {}
+    const unit = p.unit ?? cat?.unit
+    const existing = await db.items
+      .where('canonicalKey').equals(canonicalKey)
+      .filter((i) => i.id !== p.id && !i.pending && i.listId === p.listId &&
+        i.backlog === p.backlog && unitKey(i.unit) === unitKey(unit))
+      .first()
+    if (existing?.id != null) {
+      await mergeInto(existing, { quantity: p.quantity, ...pack })
+      await db.items.delete(p.id)
+    } else {
+      const { pending: _pending, ...rest } = p
+      await db.items.put({
+        ...rest,
+        canonicalKey,
+        displayName: cat?.displayName ?? p.displayName,
+        unit,
+        // Aisles only mean something on a list that has them.
+        section: KINDS[list.kind]?.sections && cat ? cat.section : p.section,
+        ...(KINDS[list.kind]?.quantities ? pack : {}),
+        detail: p.detail ?? cat?.detail,
+      })
+    }
+    await recordCatalog({ canonicalKey, displayName: cat?.displayName ?? p.displayName, unit, section: cat?.section ?? p.section })
+    filed++
+  }
+  return filed
 }
 
 /**

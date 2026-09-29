@@ -39,6 +39,7 @@ import Dexie from 'dexie'
 import { db, newUid, type SyncKind, type Item, type List } from './db'
 import { EDITION, grantedEdition, setGrantedVariant, tierActuallyChanged } from './edition'
 import { hydrateSettings } from './prefs'
+import { filePending } from './list'
 
 /**
  * Sync is a devondoes.dev feature: it needs the platform session cookie, which
@@ -504,6 +505,9 @@ export async function sync(): Promise<SyncResult> {
   const editionChanged = tierActuallyChanged()
 
   const counts = await applyRemote(state)
+  // Rows the hub added arrive half-made; finish them with the ordinary add
+  // engine (list.ts). A failure leaves them pending for the next sync.
+  await filePending().catch(() => 0)
   // Settings that arrived from another device are rows; the synchronous read
   // path in front of them has to be told.
   await hydrateSettings().catch(() => [])

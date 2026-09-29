@@ -153,6 +153,14 @@ export interface Item {
    * week's plan and are not recipes.
    */
   recipeUid?: string
+  /**
+   * Added from the devondoes.dev hub and not yet filed by this app. The hub
+   * writes only a name (and a count) — it does not know the catalogue, the
+   * aisles or what is already on the list — so the first device to see it runs
+   * it through the same merge as every other add (see filePending in list.ts).
+   * A device on an older version just shows it as an ordinary row.
+   */
+  pending?: boolean
 }
 
 /** One line of a recipe. `optional` ingredients are never added to the list
