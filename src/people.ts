@@ -66,15 +66,6 @@ export async function shares(): Promise<Array<Person & { list_uid: string; mine:
   return d?.shares ?? []
 }
 
-/** The uids of lists somebody else owns and shared with you, or null when the
- *  server could not be asked (offline, signed out) — which is not the same as
- *  "none", so callers that must not touch a shared list should skip on null. */
-export async function sharedToMe(): Promise<Set<string> | null> {
-  const d = await get<{ shares: Array<{ list_uid: string; mine: boolean }> }>('/api/mise/shares')
-  if (!d) return null
-  return new Set((d.shares ?? []).filter((x) => !x.mine).map((x) => x.list_uid))
-}
-
 export async function sendTo(to: string, label: string, payload: unknown) {
   return post<{ ok: boolean }>('/api/mise/send', { to, label, payload })
 }
