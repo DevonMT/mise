@@ -11,6 +11,7 @@ import {
   type ParseResult,
 } from './parse'
 import { saveRecipeFromParse } from './recipes'
+import { planPlainPaste } from './plainPaste'
 import { defaultGroceryListId } from './lists'
 import { Icon } from './Icon'
 import { Sheet } from './Sheet'
@@ -54,6 +55,9 @@ export function CaptureSheet({
   const [error, setError] = useState('')
   const [parsed, setParsed] = useState<ParseResult | null>(null)
   const [rows, setRows] = useState<Row[]>([])
+  // The rows came from plain code (no model), so the review hint says so.
+  const [plain, setPlain] = useState(false)
+  const aiOn = useAiEnabled()
   const fileRef = useRef<HTMLInputElement>(null)
 
   const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -64,8 +68,44 @@ export function CaptureSheet({
     setPreview(dataUrl)
   }
 
+  /** Paste with no model: the same review step, filled by plainPaste.ts. */
+  const runPlain = async () => {
+    if (!content.trim()) return
+    setError('')
+    try {
+      const planned = await planPlainPaste(content)
+      setPlain(true)
+      setParsed(null)
+      setRows(
+        planned.map((p) => ({
+          displayName: p.displayName,
+          canonicalKey: p.canonicalKey,
+          quantityStr: p.quantity != null ? String(p.quantity) : '',
+          unit: p.unit ?? null,
+          buyCount: p.buyCount,
+          sizeAmount: p.sizeAmount,
+          sizeUnit: p.sizeUnit,
+          packaging: p.packaging,
+          section: p.section,
+          include: true,
+          isStaple: false,
+          optional: false,
+        })),
+      )
+      if (planned.length) setStage('review')
+      else {
+        setError('Nothing to add in that.')
+        setStage('error')
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      setStage('error')
+    }
+  }
+
   const run = async () => {
     if (!content.trim()) return
+    setPlain(false)
     setStage('loading')
     setError('')
     try {
@@ -140,6 +180,8 @@ export function CaptureSheet({
     setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...next } : r)))
 
   const headingIcon = mode === 'url' ? 'link' : mode === 'image' ? 'camera' : 'clipboard'
+  // No model for this account: Paste is plain code, with no parser round trip.
+  const textOnly = mode === 'text' && !forRecipe && !aiOn
   const heading =
     mode === 'url'
       ? 'Paste a recipe link'
@@ -174,7 +216,11 @@ export function CaptureSheet({
             {mode === 'text' && (
               <textarea
                 className="field textarea"
-                placeholder={'e.g.\n2 onions\nmilk\nchicken breast\n…or a whole recipe'}
+                placeholder={
+                  textOnly
+                    ? 'e.g.\n2 lb ground beef\nmilk\n3 cans black beans'
+                    : 'e.g.\n2 onions\nmilk\nchicken breast\n…or a whole recipe'
+                }
                 autoFocus
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
@@ -204,9 +250,22 @@ export function CaptureSheet({
             )}
 
             {stage === 'error' && <p className="err-text">{error}</p>}
-            <button className="primary" onClick={run} disabled={!content.trim()}>
-              <Icon name="sparkle" size={18} /> Parse it
-            </button>
+            {textOnly ? (
+              <button className="primary" onClick={runPlain} disabled={!content.trim()}>
+                <Icon name="check" size={18} /> Add these
+              </button>
+            ) : (
+              <button className="primary" onClick={run} disabled={!content.trim()}>
+                <Icon name="sparkle" size={18} /> Parse it
+              </button>
+            )}
+            {/* The parser failed (off the tailnet, server down): a typed list
+                does not need it. */}
+            {stage === 'error' && mode === 'text' && !forRecipe && !textOnly && (
+              <button className="ghost" onClick={runPlain} disabled={!content.trim()} style={{ marginTop: 10 }}>
+                Add it without the parser
+              </button>
+            )}
           </>
         )}
 
@@ -223,8 +282,8 @@ export function CaptureSheet({
               {isRecipe && parsed?.recipeTitle ? `“${parsed.recipeTitle}”` : 'Review items'}
             </h3>
             <p className="review-hint">
-              {includedCount} of {rows.length} will be added. Tap to toggle; staples and optional
-              extras are pre-skipped.
+              {includedCount} of {rows.length} will be added. Tap to toggle
+              {plain ? '; aisles come from what you have added before.' : '; staples and optional extras are pre-skipped.'}
               {isRecipe && ' · saved to your recipes'}
               {isRecipe && parsed?.tips && parsed.tips.length > 0 && (
                 <>
@@ -340,17 +399,20 @@ export function AddMenu({
         <Icon name="edit" size={20} /> {meta.due ? 'Type a task' : 'Type one item'}
       </button>
       {aiOn && meta.recipes && (
-        <>
-          <button className="menu-item" onClick={() => onPick('image')}>
-            <Icon name="camera" size={20} /> Snap a photo
-          </button>
-          <button className="menu-item" onClick={() => onPick('text')}>
-            <Icon name="clipboard" size={20} /> Paste a list or recipe
-          </button>
-          <button className="menu-item" onClick={() => onPick('url')}>
-            <Icon name="link" size={20} /> From a recipe link
-          </button>
-        </>
+        <button className="menu-item" onClick={() => onPick('image')}>
+          <Icon name="camera" size={20} /> Snap a photo
+        </button>
+      )}
+      {/* Pasting a list needs no model, so it stays when the AI is off. */}
+      {meta.recipes && (
+        <button className="menu-item" onClick={() => onPick('text')}>
+          <Icon name="clipboard" size={20} /> {aiOn ? 'Paste a list or recipe' : 'Paste a list'}
+        </button>
+      )}
+      {aiOn && meta.recipes && (
+        <button className="menu-item" onClick={() => onPick('url')}>
+          <Icon name="link" size={20} /> From a recipe link
+        </button>
       )}
     </Sheet>
   )
