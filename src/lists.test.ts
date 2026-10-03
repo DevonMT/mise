@@ -64,63 +64,19 @@ test('the repair removes an empty duplicate the app made', async () => {
   assert.equal(left[0].id, keep, 'the oldest survived')
 })
 
-test('the repair NEVER removes a non-pantry list with anything in it', async () => {
+test('the repair NEVER removes a list with anything in it', async () => {
   await db.lists.clear()
   await db.items.clear()
-  await addList('Groceries', 'grocery', 'default:list')
-  const dup = await addList('Groceries', 'grocery', 'other')
+  await addList('Pantry', 'pantry', 'default:pantry')
+  const dup = await addList('Pantry', 'pantry', 'other')
   await db.items.add({
     listId: dup as number, displayName: 'Salt', canonicalKey: 'salt',
     section: 'pantry', checked: false, backlog: false, createdAt: 1,
   })
-  const { removed, leftAlone, merged } = await lists.dedupeDefaultLists()
+  const { removed, leftAlone } = await lists.dedupeDefaultLists()
   assert.deepEqual(removed, [], 'nothing deleted')
-  assert.deepEqual(leftAlone, ['Groceries'], 'and it says so')
-  assert.equal(merged, 0)
+  assert.deepEqual(leftAlone, ['Pantry'], 'and it says so')
   assert.equal((await db.lists.toArray()).length, 2)
-})
-
-test('a leftover Pantry with items is folded into default:pantry', async () => {
-  await db.lists.clear()
-  await db.items.clear()
-  const keep = (await addList('Pantry', 'pantry', 'default:pantry')) as number
-  const dup = (await addList('Pantry', 'pantry', 'random-uid')) as number
-  const base = { section: 'pantry', checked: false, backlog: false, createdAt: 1 } as never
-  await db.items.add({ ...base, listId: dup, displayName: 'Salt', canonicalKey: 'salt', alwaysHave: true })
-  await db.items.add({ ...base, listId: dup, displayName: 'Pepper', canonicalKey: 'pepper', alwaysHave: true })
-  await db.items.add({ ...base, listId: keep, displayName: 'Pepper', canonicalKey: 'pepper' })
-  const { removed, merged } = await lists.dedupeDefaultLists()
-  assert.deepEqual(removed, ['Pantry'])
-  assert.equal(merged, 2)
-  const left = await db.lists.toArray()
-  assert.deepEqual(left.map((l) => l.uid), ['default:pantry'], 'the shared one survives')
-  const items = await db.items.toArray()
-  assert.deepEqual(items.map((i) => i.canonicalKey).sort(), ['pepper', 'salt'], 'no duplicate pepper')
-  assert.ok(items.every((i) => i.listId === keep))
-  assert.ok(items.find((i) => i.canonicalKey === 'pepper')?.alwaysHave, 'flag carried over')
-  assert.equal((await lists.dedupeDefaultLists()).merged, 0, 'second run is a no-op')
-})
-
-test('a leftover Pantry with items and no shared Pantry is left alone', async () => {
-  await db.lists.clear()
-  await db.items.clear()
-  await addList('Pantry', 'pantry', 'older-random')
-  const dup = await addList('Pantry', 'pantry', 'newer-random')
-  await db.items.add({
-    listId: dup as number, displayName: 'Salt', canonicalKey: 'salt',
-    section: 'pantry', checked: false, backlog: false, createdAt: 1,
-  })
-  const { removed, leftAlone, merged } = await lists.dedupeDefaultLists()
-  assert.deepEqual(removed, [])
-  assert.deepEqual(leftAlone, ['Pantry'])
-  assert.equal(merged, 0)
-})
-
-test('ensurePantryList prefers the shared Pantry over a lower-id leftover', async () => {
-  await db.lists.clear()
-  await addList('Pantry', 'pantry', 'random-uid')
-  const shared = (await addList('Pantry', 'pantry', 'default:pantry')) as number
-  assert.equal(await lists.ensurePantryList(), shared)
 })
 
 test('the repair never touches a list you named yourself', async () => {
