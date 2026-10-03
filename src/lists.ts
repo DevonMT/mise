@@ -1,6 +1,7 @@
 import { db, type Item, type List, type ListKind } from './db'
 import { lastSyncedAt, resolveSyncDefault, syncEnabled } from './sync'
 import { addItem } from './list'
+import { sharedToMe } from './people'
 
 const ACTIVE_KEY = 'mise.activeList'
 
@@ -285,12 +286,20 @@ export async function dedupeDefaultLists(): Promise<{
     const [keeper, ...rest] = group.sort(
       (a, b) => Number(isDefault(b)) - Number(isDefault(a)) || (a.id ?? 0) - (b.id ?? 0),
     )
+    // Lists other people shared with this user look just like a leftover: same
+    // name and kind, a random uid, items in them. They are not ours to fold or
+    // delete (the items and tombstones would land in the owner's space, or the
+    // list would come straight back and be deleted again every sync). Fetched
+    // once, lazily; if it cannot be fetched nothing is touched this launch.
+    let sharedUids: Set<string> | null | undefined
     for (const dup of rest) {
       if (dup.id == null || isDefault(dup)) continue
       if (!APP_MADE_NAMES.has(dup.name.trim().toLowerCase())) continue
+      if (sharedUids === undefined) sharedUids = await sharedToMe()
+      if (sharedUids === null || (dup.uid && sharedUids.has(dup.uid))) continue
       const count = await db.items.filter((i) => i.listId === dup.id).count()
       if (count > 0) {
-        if (dup.kind === 'pantry' && keeper.id != null && isDefault(keeper)) {
+        if (dup.kind === 'pantry' && keeper.id != null && keeper.uid === DEFAULT_PANTRY_UID) {
           merged += await foldInto(dup.id, keeper.id)
         } else {
           leftAlone.push(dup.name)
