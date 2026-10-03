@@ -40,6 +40,12 @@ test('slashes, commas and lines all separate entries; bullets are dropped', () =
     ['eggs', '1/2 cup rice', 'bread', 'butter'])
 })
 
+test('a thousands comma stays inside its number', () => {
+  assert.deepEqual(splitEntries('1,000 g flour, eggs'), ['1000 g flour', 'eggs'])
+  assert.deepEqual(parseEntry('1000 g flour'),
+    { displayName: 'flour', canonicalKey: 'flour', quantity: 1000, unit: 'g' })
+})
+
 test('an amount and unit come off the front; a bare name stays whole', () => {
   assert.deepEqual(parseEntry('2 lb ground beef'),
     { displayName: 'ground beef', canonicalKey: 'ground beef', quantity: 2, unit: 'lb' })

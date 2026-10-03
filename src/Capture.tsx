@@ -30,6 +30,8 @@ interface Row {
   sizeAmount?: number
   sizeUnit?: string
   packaging?: string
+  /** Plain paste: buyCount is the catalogue's pack as filed, not a container count from the source. */
+  plain?: boolean
   section: Section
   include: boolean
   isStaple: boolean
@@ -86,6 +88,7 @@ export function CaptureSheet({
           sizeAmount: p.sizeAmount,
           sizeUnit: p.sizeUnit,
           packaging: p.packaging,
+          plain: true,
           section: p.section,
           include: true,
           isStaple: false,
@@ -159,7 +162,7 @@ export function CaptureSheet({
         section: r.section,
         // When the source named a pack, buyCount *is* the container count — so
         // editing the qty here ("2 cans" → "3") has to carry into what you buy.
-        buyCount: r.buyCount != null ? packCount(quantity ?? r.buyCount) : undefined,
+        buyCount: r.plain ? r.buyCount : r.buyCount != null ? packCount(quantity ?? r.buyCount) : undefined,
         sizeAmount: r.sizeAmount,
         sizeUnit: r.sizeUnit,
         packaging: r.packaging,

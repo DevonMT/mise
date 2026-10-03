@@ -47,9 +47,10 @@ function readNumber(s: string): number | undefined {
 const NUM = String.raw`\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?|[½¼¾⅓⅔]`
 const LEAD = new RegExp(`^(${NUM})(\\s*)(.*)$`)
 
-/** Split pasted text into entries: one per line, and also at " / ", ";" and ",". */
+/** Split pasted text into entries: one per line, and also at " / ", ";" and ",". A thousands comma (1,000) is dropped, not split. */
 export function splitEntries(text: string): string[] {
   return text
+    .replace(/(\d),(?=\d{3}(?!\d))/g, '$1')
     .split(/[\r\n;,]+|\s\/\s/)
     .map((s) => s.replace(/^\s*(?:[-*•–]|\d+[.)]|\[[ xX]?\])\s+/, '').trim())
     .filter(Boolean)
