@@ -24,11 +24,15 @@ Object.defineProperty(globalThis, 'window', {
 })
 ;(globalThis as unknown as { CustomEvent: unknown }).CustomEvent = class {}
 
-// The repair asks the server which lists are shared TO this user; tests answer.
+// The repair asks the platform which lists have people attached; tests answer
+// and record the URL they were asked at.
 let sharedUids: string[] | null = []
-;(globalThis as unknown as { fetch: unknown }).fetch = async () => {
+let sharedOut = false
+const fetched: string[] = []
+;(globalThis as unknown as { fetch: unknown }).fetch = async (url: string) => {
+  fetched.push(String(url))
   if (sharedUids === null) throw new Error('offline')
-  return { ok: true, json: async () => ({ shares: sharedUids!.map((u) => ({ list_uid: u, mine: false })) }) }
+  return { ok: true, json: async () => ({ shares: sharedUids!.map((u) => ({ list_uid: u, mine: sharedOut })) }) }
 }
 
 const { db } = await import('./db')
@@ -275,4 +279,58 @@ test('items fold only into default:pantry, never another default: uid', async ()
   const { merged, leftAlone } = await lists.dedupeDefaultLists()
   assert.equal(merged, 0)
   assert.deepEqual(leftAlone, ['Pantry'])
+})
+
+test('the shares are asked of the platform directly, never a same-origin path', async () => {
+  await db.lists.clear()
+  await db.items.clear()
+  await addList('Pantry', 'pantry', 'default:pantry')
+  await addList('Pantry', 'pantry', 'random-uid')
+  fetched.length = 0
+  await lists.dedupeDefaultLists()
+  assert.deepEqual(fetched, ['https://id.devondoes.dev/api/mise/shares'])
+})
+
+test('a Pantry you own and shared OUT is never folded or deleted', async () => {
+  await db.lists.clear()
+  await db.items.clear()
+  await addList('Pantry', 'pantry', 'default:pantry')
+  const mine = (await addList('Pantry', 'pantry', 'my-shared-out')) as number
+  await db.items.add({
+    listId: mine, displayName: 'Salt', canonicalKey: 'salt',
+    section: 'pantry', checked: false, backlog: false, createdAt: 1,
+  })
+  sharedUids = ['my-shared-out']
+  sharedOut = true
+  const { removed, merged } = await lists.dedupeDefaultLists()
+  sharedUids = []
+  sharedOut = false
+  assert.deepEqual(removed, [])
+  assert.equal(merged, 0)
+  assert.equal((await db.lists.toArray()).length, 2)
+  assert.equal((await db.items.toArray())[0].listId, mine)
+})
+
+test('an unshared random-uid Pantry with items folds into default:pantry', async () => {
+  await db.lists.clear()
+  await db.items.clear()
+  const keep = (await addList('Pantry', 'pantry', 'default:pantry')) as number
+  const dup = (await addList('Pantry', 'pantry', 'random-uid')) as number
+  for (const k of ['salt', 'rice']) {
+    await db.items.add({
+      listId: dup, displayName: k, canonicalKey: k, alwaysHave: true,
+      section: 'pantry', checked: false, backlog: false, createdAt: 1,
+    })
+  }
+  const { removed, merged } = await lists.dedupeDefaultLists()
+  assert.equal(merged, 2)
+  assert.deepEqual(removed, ['Pantry'])
+  assert.deepEqual((await db.lists.toArray()).map((l) => l.uid), ['default:pantry'])
+  assert.ok((await db.items.toArray()).every((i) => i.listId === keep))
+})
+
+test('people.ts holds no non-ASCII garbage bytes (valid UTF-8)', async () => {
+  const { readFileSync } = await import('node:fs')
+  const buf = readFileSync(new URL('./people.ts', import.meta.url))
+  assert.doesNotThrow(() => new TextDecoder('utf-8', { fatal: true }).decode(buf))
 })

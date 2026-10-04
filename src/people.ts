@@ -1,3 +1,5 @@
+import { ENDPOINT } from './sync'
+
 /**
  * The estate's people, as Mise needs them.
  *
@@ -6,6 +8,7 @@
  *
  * Every call is same-origin: the gateway proxies /api/me on each app hostname,
  * and Mise's own sync endpoints are already served from here.
+ * (sharedListUids is the exception: it calls the platform directly, see there.)
  */
 export interface Person {
   id: string
@@ -66,13 +69,18 @@ export async function shares(): Promise<Array<Person & { list_uid: string; mine:
   return d?.shares ?? []
 }
 
-/** The uids of lists somebody else owns and shared with you, or null when the
- *  server could not be asked (offline, signed out) — which is not the same as
- *  "none", so callers that must not touch a shared list should skip on null. */
-export async function sharedToMe(): Promise<Set<string> | null> {
-  const d = await get<{ shares: Array<{ list_uid: string; mine: boolean }> }>('/api/mise/shares')
-  if (!d) return null
-  return new Set((d.shares ?? []).filter((x) => !x.mine).map((x) => x.list_uid))
+/** The uid of every list that appears in /shares at all, whether somebody
+ *  shared it to you or you shared it out. Either way it has other people
+ *  attached, so a repair must not fold or delete it. Null when the server could
+ *  not be asked (offline, signed out), which is not the same as "none".
+ *
+ *  Called straight at the platform, not same-origin: on mise.devondoes.dev the
+ *  gateway only proxies /api/me and /api/sign-out, so a relative path lands on
+ *  the parse server (no such route, and it counts against the daily AI cap). */
+export async function sharedListUids(): Promise<Set<string> | null> {
+  const d = await get<{ shares: Array<{ list_uid: string }> }>(`${ENDPOINT}/shares`)
+  if (!d || !Array.isArray(d.shares)) return null
+  return new Set(d.shares.map((x) => x.list_uid))
 }
 
 export async function sendTo(to: string, label: string, payload: unknown) {

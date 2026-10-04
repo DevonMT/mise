@@ -47,7 +47,7 @@ import { filePending } from './list'
  * devontroedel.com is a different registrable domain and can never sync — it
  * stays a purely local app, which is what Mise Lite is anyway.
  */
-const ENDPOINT = 'https://id.devondoes.dev/api/mise'
+export const ENDPOINT = 'https://id.devondoes.dev/api/mise'
 
 const ENABLED_KEY = 'mise.sync.enabled'
 const LAST_KEY = 'mise.sync.last'
