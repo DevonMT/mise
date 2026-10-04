@@ -74,6 +74,19 @@ export default defineConfig({
         // Absolute paths + PNG only. Relative paths and an SVG in the icon list
         // have both been implicated in Android minting a generic launcher icon;
         // this is the stable config, so the WebAPK stops getting re-generated.
+        // "Share to Mise" from the Android share sheet: a GET to the start page
+        // (see src/shareTarget.ts). Personal edition only — Lite has no parser
+        // to hand a link to. Changing the manifest re-mints the WebAPK, so this
+        // goes out once, with the icon checked afterwards.
+        ...(lite
+          ? {}
+          : {
+              share_target: {
+                action: base,
+                method: 'GET',
+                params: { title: 'title', text: 'text', url: 'url' },
+              },
+            }),
         icons: [
           { src: `${base}icon-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: `${base}icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },

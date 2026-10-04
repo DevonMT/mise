@@ -42,6 +42,7 @@ export function CaptureSheet({
   listId,
   mode,
   forRecipe = false,
+  seed,
   onClose,
 }: {
   listId: number
@@ -49,10 +50,12 @@ export function CaptureSheet({
   /** Opened from the Recipes tab: the library is the goal, so lead with
    *  "Save recipe" and send any list items to a grocery list, not `listId`. */
   forRecipe?: boolean
+  /** A link already in hand (Android's share sheet) — fills the field, runs nothing. */
+  seed?: string
   onClose: () => void
 }) {
   const [stage, setStage] = useState<Stage>('input')
-  const [content, setContent] = useState('') // text, url, or image data-URL
+  const [content, setContent] = useState(seed ?? '') // text, url, or image data-URL
   const [preview, setPreview] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [parsed, setParsed] = useState<ParseResult | null>(null)

@@ -47,7 +47,8 @@ import { EditListSheet } from './EditListSheet'
 import { ImportSheet, ImportLinkSheet } from './ImportSheet'
 import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayload } from './share'
 import { SharePeople, Handoffs } from './SharePeople'
-import { useAiEnabled } from './edition'
+import { useAiEnabled, editionKnown } from './edition'
+import { isShareQuery, sharedLink } from './shareTarget'
 import { startAutoSync } from './sync'
 import { useBackLayer } from './back'
 import { usePointer } from './ds/usePointer'
@@ -84,6 +85,9 @@ export default function App() {
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [capture, setCapture] = useState<null | CaptureMode>(null)
   const [captureForRecipe, setCaptureForRecipe] = useState(false)
+  // A link handed over by Android's share sheet, waiting for the account's tier.
+  const [sharedUrl, setSharedUrl] = useState<string | null>(null)
+  const [captureSeed, setCaptureSeed] = useState<string | undefined>()
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [recipePickOpen, setRecipePickOpen] = useState(false)
   const [refineOpen, setRefineOpen] = useState(false)
@@ -166,6 +170,44 @@ export default function App() {
     return () => window.removeEventListener('hashchange', consume)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Android share sheet -> Mise. The manifest's share_target is a GET, so the
+  // link arrives as ?url=/?text=. Nothing is added: it only opens the capture
+  // sheet with the link filled in, and parsing waits for a tap.
+  useEffect(() => {
+    if (!isShareQuery(location.search)) return
+    const link = sharedLink(location.search)
+    history.replaceState(null, '', location.pathname + location.hash)
+    if (link) setSharedUrl(link)
+    else showToast('No link in what you shared.')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // The tier arrives with the first sync, so a cold launch from the share sheet
+  // has to wait for it. If it never arrives (offline), open anyway: the server
+  // refuses the parse for an account without it, which says so in the sheet.
+  useEffect(() => {
+    if (!sharedUrl) return
+    const open = () => {
+      setCaptureSeed(sharedUrl)
+      setCaptureForRecipe(true)
+      setCapture('url')
+      setTab('recipes')
+      setSharedUrl(null)
+    }
+    if (aiOn) {
+      open()
+      return
+    }
+    const t = window.setTimeout(() => {
+      if (editionKnown()) {
+        showToast('Importing a recipe link is not available on this account.')
+        setSharedUrl(null)
+      } else open()
+    }, 5000)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sharedUrl, aiOn])
 
   const activeList: List | undefined = useMemo(
     () => lists.find((l) => l.id === activeId),
@@ -406,6 +448,7 @@ export default function App() {
   useBackLayer(capture !== null, () => {
     setCapture(null)
     setCaptureForRecipe(false)
+    setCaptureSeed(undefined)
   })
   useBackLayer(sheet !== null, () => setSheet(null))
   useBackLayer(pending !== null, () => setPending(null))
@@ -951,9 +994,11 @@ export default function App() {
           listId={activeId}
           mode={capture}
           forRecipe={captureForRecipe}
+          seed={captureSeed}
           onClose={() => {
             setCapture(null)
             setCaptureForRecipe(false)
+            setCaptureSeed(undefined)
           }}
         />
       )}
