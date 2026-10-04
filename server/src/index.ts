@@ -236,6 +236,9 @@ app.post('/api/parse', async (c) => {
       text = await fetchReadable(raw)
     } catch (e) {
       const why = e instanceof Error ? e.message : String(e)
+      // One journal line per failed import (`journalctl -u mise`): the host and
+      // why, never the full URL (paths and queries can carry tokens).
+      console.warn(`link import failed: host=${linkHost(raw)} reason="${why}"${causeCode(e)}`)
       return c.json(
         { error: `Couldn't read that link — ${why}. Try copying the recipe text and pasting it instead.` },
         502,
@@ -371,6 +374,21 @@ function parseImage(
   return { media, data }
 }
 
+/** Hostname only, for logs; anything unparseable is reported as such, never echoed. */
+function linkHost(url: string): string {
+  try {
+    return new URL(url).hostname || 'unknown'
+  } catch {
+    return 'invalid-url'
+  }
+}
+
+/** The low-level network code (ENOTFOUND, ECONNRESET, ...) behind a fetch failure, if any. */
+function causeCode(e: unknown): string {
+  const code = (e instanceof Error ? (e.cause as { code?: unknown } | undefined)?.code : undefined)
+  return typeof code === 'string' ? ` code=${code}` : ''
+}
+
 /** Fetch a URL and crudely reduce HTML to readable text, truncated.
  *  Uses a real browser UA (recipe sites 403 obvious bots) and a hard timeout
  *  (a hanging site must fail fast, or the phone's request drops → NetworkError). */
@@ -403,7 +421,7 @@ async function fetchReadable(url: string): Promise<string> {
     if (e instanceof Error && e.name === 'AbortError') {
       throw new Error('the site took too long to respond')
     }
-    throw new Error('the site could not be reached')
+    throw new Error('the site could not be reached', { cause: (e as Error | undefined)?.cause })
   } finally {
     clearTimeout(timer)
   }
