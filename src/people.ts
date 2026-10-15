@@ -6,9 +6,11 @@ import { ENDPOINT } from './sync'
  * Friends live on the platform — one directory for every app, rather than each
  * app keeping a list that disagrees with the others. Mise only reads it.
  *
- * Every call is same-origin: the gateway proxies /api/me on each app hostname,
- * and Mise's own sync endpoints are already served from here.
- * (sharedListUids is the exception: it calls the platform directly, see there.)
+ * Every call goes straight to the platform (ENDPOINT, as sync does), never
+ * same-origin: on mise.devondoes.dev the gateway proxies only /api/me and
+ * /api/sign-out, so a relative /api path lands on the parse server instead —
+ * which has no such route, answers 200 with index.html, and counts the call
+ * against its daily AI cap.
  */
 export interface Person {
   id: string
@@ -56,7 +58,7 @@ async function post<T>(path: string, body: unknown): Promise<T | null> {
 }
 
 export async function friends(): Promise<Person[]> {
-  const d = await get<{ friends: Person[] }>('/api/friends')
+  const d = await get<{ friends: Person[] }>(`${ENDPOINT}/friends`)
   return d?.friends ?? []
 }
 
@@ -65,7 +67,7 @@ export async function friends(): Promise<Person[]> {
  *  growing somebody else's groceries. */
 export async function shares(): Promise<Array<Person & { list_uid: string; mine: boolean }>> {
   const d = await get<{ shares: Array<Person & { list_uid: string; mine: boolean }> }>(
-    '/api/mise/shares')
+    `${ENDPOINT}/shares`)
   return d?.shares ?? []
 }
 
@@ -73,10 +75,7 @@ export async function shares(): Promise<Array<Person & { list_uid: string; mine:
  *  shared it to you or you shared it out. Either way it has other people
  *  attached, so a repair must not fold or delete it. Null when the server could
  *  not be asked (offline, signed out), which is not the same as "none".
- *
- *  Called straight at the platform, not same-origin: on mise.devondoes.dev the
- *  gateway only proxies /api/me and /api/sign-out, so a relative path lands on
- *  the parse server (no such route, and it counts against the daily AI cap). */
+ */
 export async function sharedListUids(): Promise<Set<string> | null> {
   const d = await get<{ shares: Array<{ list_uid: string }> }>(`${ENDPOINT}/shares`)
   if (!d || !Array.isArray(d.shares)) return null
@@ -84,26 +83,26 @@ export async function sharedListUids(): Promise<Set<string> | null> {
 }
 
 export async function sendTo(to: string, label: string, payload: unknown) {
-  return post<{ ok: boolean }>('/api/mise/send', { to, label, payload })
+  return post<{ ok: boolean }>(`${ENDPOINT}/send`, { to, label, payload })
 }
 
 export async function subscribe(listUid: string, to: string) {
-  return post<{ ok: boolean }>(`/api/mise/lists/${encodeURIComponent(listUid)}/share`, { to })
+  return post<{ ok: boolean }>(`${ENDPOINT}/lists/${encodeURIComponent(listUid)}/share`, { to })
 }
 
 export async function unsubscribe(listUid: string, who: string) {
-  return post<{ ok: boolean }>(`/api/mise/lists/${encodeURIComponent(listUid)}/unshare`, { who })
+  return post<{ ok: boolean }>(`${ENDPOINT}/lists/${encodeURIComponent(listUid)}/unshare`, { who })
 }
 
 export async function inbox(): Promise<Waiting[]> {
-  const d = await get<{ waiting: Waiting[] }>('/api/mise/inbox')
+  const d = await get<{ waiting: Waiting[] }>(`${ENDPOINT}/inbox`)
   return d?.waiting ?? []
 }
 
 export async function claim(id: string) {
-  return post<{ payload: unknown }>(`/api/mise/inbox/${encodeURIComponent(id)}/claim`, {})
+  return post<{ payload: unknown }>(`${ENDPOINT}/inbox/${encodeURIComponent(id)}/claim`, {})
 }
 
 export async function dismiss(id: string) {
-  return post<{ ok: boolean }>(`/api/mise/inbox/${encodeURIComponent(id)}/dismiss`, {})
+  return post<{ ok: boolean }>(`${ENDPOINT}/inbox/${encodeURIComponent(id)}/dismiss`, {})
 }
