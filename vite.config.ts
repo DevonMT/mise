@@ -54,6 +54,13 @@ export default defineConfig({
               // after 4s, serve the last shell and carry on.
               networkTimeoutSeconds: 4,
               expiration: { maxEntries: 4 },
+              // Only a real shell may replace the saved one. Workbox's default
+              // also keeps status-0 responses, and a navigation the gateway
+              // bounces to sign-in (the 7-day session lapsed) arrives as an
+              // opaque redirect with status 0. Saved, it took the shell's place:
+              // offline, the app "opened" to a sign-in page that needs the
+              // network, so Mise would not open in a shop with no signal.
+              cacheableResponse: { statuses: [200] },
             },
           },
         ],
