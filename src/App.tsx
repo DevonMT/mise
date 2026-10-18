@@ -100,6 +100,7 @@ export default function App() {
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [toast, setToast] = useState<{ msg: string; undo?: () => void } | null>(null)
+  const [signedOut, setSignedOut] = useState(false)
   const [showHint, setShowHint] = useState(() => !localStorage.getItem('mise.swipeHint'))
 
   // A Pantry on every install, not only new ones: "things I always have" lives
@@ -117,9 +118,17 @@ export default function App() {
   // The one result worth surfacing is a tier change. Three buttons appearing or
   // vanishing with no explanation is its own kind of confusion, so it is said
   // once, in the toast the app already uses for things that just happened.
+  //
+  // Except being signed out. Offline or a server hiccup fixes itself; a lapsed
+  // session never does, and reported only in Settings it meant an installed app
+  // that quietly stopped syncing for a week while the list on the web moved on.
+  // So it gets a standing banner that clears on the next good sync. Offline
+  // results leave it as it was: no connection says nothing about the session.
   useEffect(
     () =>
       startAutoSync((r) => {
+        if (r.ok) setSignedOut(false)
+        else if (r.reason === 'signin') setSignedOut(true)
         // The first sync is what tells a fresh device whether the account
         // already has lists, so seeding is decided here rather than at mount.
         if (r.ok) void ensureDefaultLists().then(() => dedupeDefaultLists())
@@ -574,6 +583,18 @@ export default function App() {
                   <Icon name="chevronRight" size={16} />
                 </span>
               </button>
+            )}
+
+            {signedOut && (
+              <div className="hint-banner signin-banner" role="status">
+                <span>Signed out — this list isn’t syncing.</span>
+                <a
+                  className="signin-link"
+                  href={`https://id.devondoes.dev/?next=${encodeURIComponent(location.origin + '/')}`}
+                >
+                  Sign in
+                </a>
+              </div>
             )}
 
             {showHint && !selectMode && active.length > 0 && (

@@ -71,8 +71,14 @@ export default defineConfig({
         description: lite
           ? 'A clean, offline smart grocery list — aisle-grouped, swipe to check.'
           : 'Snap it, paste it, or type it — one smart grocery list.',
-        theme_color: '#f4fbf8',
-        background_color: '#f4fbf8',
+        // Dark, though the default theme is light. Chrome paints an installed
+        // Android app's system navigation bar from these, baked in when the
+        // WebAPK is minted; the theme-color meta reaches only the status bar.
+        // Light here left a white bar under the dark theme. A dark bar under the
+        // light theme reads as deliberate; a white bar under the dark one does
+        // not. --bg and --surface of the dark theme (src/ds/theme.css).
+        theme_color: '#110f08',
+        background_color: '#1e1c14',
         display: 'standalone',
         orientation: 'portrait',
         start_url: base,

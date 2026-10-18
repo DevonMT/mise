@@ -431,6 +431,14 @@
   font-size: 0.85rem;
   font-weight: 600;
 }
+.signin-link {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  text-decoration: none;
+}
 .hint-x {
   flex: 0 0 auto;
   width: 36px;
