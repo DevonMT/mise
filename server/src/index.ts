@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import * as jose from 'jose'
 import { askStructured, BrokerError } from './broker.js'
+import { BlockedAddressError, safeGet, type SafeResponse } from './safeFetch.js'
 import {
   PARSE_SCHEMA,
   SYSTEM_PROMPT,
@@ -405,35 +406,35 @@ async function fetchReadable(url: string): Promise<string> {
 
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), 12_000)
-  let res: Response
+  let res: SafeResponse
   try {
-    res = await fetch(target, {
-      redirect: 'follow',
-      signal: ctrl.signal,
-      headers: {
-        'user-agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'accept-language': 'en-US,en;q=0.9',
-      },
-    })
+    // safeGet, not fetch: this runs on the mini, and a link must never reach
+    // the LAN, loopback or the docker bridges (see safeFetch.ts).
+    res = await safeGet(target, {
+      'user-agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'accept-language': 'en-US,en;q=0.9',
+    }, ctrl.signal)
   } catch (e) {
+    if (e instanceof BlockedAddressError) throw new Error("that link points somewhere private, so Mise won't open it")
     if (e instanceof Error && e.name === 'AbortError') {
       throw new Error('the site took too long to respond')
     }
-    throw new Error('the site could not be reached', { cause: (e as Error | undefined)?.cause })
+    if (e instanceof Error && e.message === 'the link redirected too many times') throw e
+    throw new Error('the site could not be reached', { cause: e })
   } finally {
     clearTimeout(timer)
   }
 
-  if (!res.ok) throw new Error(`the site returned HTTP ${res.status}`)
+  if (res.status < 200 || res.status >= 300) throw new Error(`the site returned HTTP ${res.status}`)
 
-  const ctype = res.headers.get('content-type') ?? ''
+  const ctype = res.contentType
   if (ctype && !/html|xml|json|text/i.test(ctype)) {
     throw new Error(`that link is ${ctype.split(';')[0].trim()}, not a recipe page`)
   }
 
-  const html = await res.text()
+  const html = res.body
 
   // Prefer JSON-LD recipe blocks if present — they're clean and structured.
   const ld = [...html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)]
