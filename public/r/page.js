@@ -60,6 +60,14 @@ addEventListener('hashchange', () => location.reload())
     const unit = i.u && i.u !== 'whole' ? ' ' + str(i.u) : ''
     return kitchen(i.q) + unit
   }
+  // The pack to grab, as the app's formatBuy() writes it: "15 oz can", "2 × 10 oz can".
+  const pack = (i) => {
+    const size = typeof i.a === 'number' && i.z ? kitchen(i.a) + ' ' + str(i.z) : ''
+    const label = [size, str(i.p).trim()].filter(Boolean).join(' ')
+    if (!label) return ''
+    return typeof i.b === 'number' && i.b > 1 ? kitchen(i.b) + ' × ' + label : label
+  }
+  const named = (i) => str(i.n) + (pack(i) ? ' (' + pack(i) + ')' : '')
 
   const fill = (listId, items) => {
     const ul = $(listId)
@@ -72,7 +80,7 @@ addEventListener('hashchange', () => location.reload())
         q.textContent = a
         li.append(q)
       }
-      li.append(document.createTextNode(str(i.n)))
+      li.append(document.createTextNode(named(i)))
       ul.append(li)
     }
   }
@@ -117,7 +125,7 @@ addEventListener('hashchange', () => location.reload())
   $('import').href = '/#i=' + body
 
   const asText = () => {
-    const line = (i) => '• ' + (amount(i) ? amount(i) + ' ' : '') + str(i.n)
+    const line = (i) => '• ' + (amount(i) ? amount(i) + ' ' : '') + named(i)
     const out = [title]
     if (recipe.servings) out.push('Serves ' + kitchen(Number(recipe.servings)))
     out.push('', 'INGREDIENTS', ...required.map(line))

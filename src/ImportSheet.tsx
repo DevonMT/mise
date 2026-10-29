@@ -2,11 +2,29 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Recipe } from './db'
 import { KINDS, listIcon } from './kinds'
-import { addItem } from './list'
+import { addItem, formatBuy, type NewItem } from './list'
 import { createList } from './lists'
-import { decodeShare, sharedToItem, type SharePayload } from './share'
+import { decodeShare, sharedPack, sharedToItem, type SharedItem, type SharePayload } from './share'
 import { Icon } from './Icon'
 import { Sheet } from './Sheet'
+
+/** A shared line as addItem takes it, pack and brand included. */
+function toNewItem(s: SharedItem, listId: number): NewItem {
+  const { displayName, canonicalKey, quantity, unit, section, dueAt, notes, detail } = sharedToItem(s)
+  return { listId, displayName, canonicalKey, quantity, unit, section, dueAt, notes, detail, ...sharedPack(s) }
+}
+
+/** Preview row: the amount, or the pack you'd buy when the sender set one. */
+function SharedRow({ item: i }: { item: SharedItem }) {
+  const pack = formatBuy(sharedPack(i))
+  const amount = i.q != null ? `${i.q}${i.u ? ' ' + i.u : ''}` : ''
+  return (
+    <div className="ing-row">
+      <span className="ing-name">{i.n}</span>
+      <span className="ing-qty">{pack ? (amount ? `${amount} · ${pack}` : pack) : amount}</span>
+    </div>
+  )
+}
 
 /** Manually paste a shared link (for when tapping the link didn't route in). */
 export function ImportLinkSheet({
@@ -82,6 +100,7 @@ export function ImportSheet({
           canonicalKey: i.k,
           quantity: i.q,
           unit: i.u,
+          ...sharedPack(i),
           section: i.s,
           optional: i.x || undefined,
         })),
@@ -106,12 +125,7 @@ export function ImportSheet({
         </p>
         <div className="ing-list">
           {payload.ingredients.map((i, idx) => (
-            <div key={idx} className="ing-row">
-              <span className="ing-name">{i.n}</span>
-              <span className="ing-qty">
-                {i.q != null ? `${i.q}${i.u ? ' ' + i.u : ''}` : ''}
-              </span>
-            </div>
+            <SharedRow key={idx} item={i} />
           ))}
         </div>
         <button className="primary" onClick={save} disabled={busy}>
@@ -131,37 +145,13 @@ export function ImportSheet({
   const importAsNew = async () => {
     setBusy(true)
     const id = await createList(payload.name, payload.kind)
-    for (const s of payload.items) {
-      const it = sharedToItem(s)
-      await addItem({
-        listId: id,
-        displayName: it.displayName,
-        canonicalKey: it.canonicalKey,
-        quantity: it.quantity,
-        unit: it.unit,
-        section: it.section,
-        dueAt: it.dueAt,
-        notes: it.notes,
-      })
-    }
+    for (const s of payload.items) await addItem(toNewItem(s, id))
     onDone(`Imported “${payload.name}” (${payload.items.length} items)`, id)
   }
 
   const mergeIntoExisting = async (listId: number, listName: string) => {
     setBusy(true)
-    for (const s of payload.items) {
-      const it = sharedToItem(s)
-      await addItem({
-        listId,
-        displayName: it.displayName,
-        canonicalKey: it.canonicalKey,
-        quantity: it.quantity,
-        unit: it.unit,
-        section: it.section,
-        dueAt: it.dueAt,
-        notes: it.notes,
-      })
-    }
+    for (const s of payload.items) await addItem(toNewItem(s, listId))
     onDone(`Merged ${payload.items.length} items into “${listName}”`, listId)
   }
 
@@ -175,12 +165,7 @@ export function ImportSheet({
 
       <div className="ing-list">
         {payload.items.map((i, idx) => (
-          <div key={idx} className="ing-row">
-            <span className="ing-name">{i.n}</span>
-            <span className="ing-qty">
-              {i.q != null ? `${i.q}${i.u ? ' ' + i.u : ''}` : ''}
-            </span>
-          </div>
+          <SharedRow key={idx} item={i} />
         ))}
       </div>
 

@@ -1,4 +1,5 @@
 import type { Recipe, RecipeIngredient } from './db'
+import { formatBuy, packCount } from './list'
 
 /**
  * A recipe as a text message.
@@ -26,12 +27,19 @@ export function kitchenNumber(n: number): string {
 }
 
 function line(ing: RecipeIngredient, factor: number): string {
-  if (ing.quantity == null) return `• ${ing.displayName}`
+  // "15 oz can" tells the person at the shelf which one; the count scales like
+  // addRecipeToList's does, rounding up to whole packs.
+  const pack = formatBuy({
+    ...ing,
+    buyCount: ing.buyCount != null ? packCount(ing.buyCount * factor) : undefined,
+  })
+  const name = pack ? `${ing.displayName} (${pack})` : ing.displayName
+  if (ing.quantity == null) return `• ${name}`
   const q = kitchenNumber(ing.quantity * factor)
   // "whole" is how the parser marks a countable thing; "3 whole eggs" reads
   // worse than "3 eggs".
   const unit = ing.unit && ing.unit !== 'whole' ? ` ${ing.unit}` : ''
-  return `• ${q}${unit} ${ing.displayName}`
+  return `• ${q}${unit} ${name}`
 }
 
 export function recipeText(recipe: Recipe, factor = 1): string {

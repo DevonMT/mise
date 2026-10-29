@@ -20,6 +20,13 @@ export interface SharedItem {
   d?: number // dueAt
   o?: string // notes
   x?: boolean // optional (recipe ingredient)
+  // The Buy layer: what you actually grab off the shelf. Added after v1 links
+  // were in the wild, so every key is optional and an old reader skips them.
+  b?: number // buyCount
+  a?: number // sizeAmount
+  z?: string // sizeUnit
+  p?: string // packaging
+  t?: string // detail — the refined product/brand, list items only
 }
 
 export type SharePayload =
@@ -131,6 +138,11 @@ const toShared = (i: {
   dueAt?: number
   notes?: string
   optional?: boolean
+  buyCount?: number
+  sizeAmount?: number
+  sizeUnit?: string
+  packaging?: string
+  detail?: string
 }): SharedItem => ({
   n: i.displayName,
   k: i.canonicalKey,
@@ -140,6 +152,19 @@ const toShared = (i: {
   ...(i.dueAt != null ? { d: i.dueAt } : {}),
   ...(i.notes ? { o: i.notes } : {}),
   ...(i.optional ? { x: true } : {}),
+  ...(i.buyCount != null ? { b: i.buyCount } : {}),
+  ...(i.sizeAmount != null ? { a: i.sizeAmount } : {}),
+  ...(i.sizeUnit ? { z: i.sizeUnit } : {}),
+  ...(i.packaging ? { p: i.packaging } : {}),
+  ...(i.detail ? { t: i.detail } : {}),
+})
+
+/** The Buy layer of a shared line, in Item field names. */
+export const sharedPack = (s: SharedItem) => ({
+  buyCount: s.b,
+  sizeAmount: s.a,
+  sizeUnit: s.z,
+  packaging: s.p,
 })
 
 export async function shareListPayload(
@@ -176,6 +201,8 @@ export function sharedToItem(s: SharedItem): Omit<Item, 'id' | 'listId'> {
     createdAt: Date.now(),
     dueAt: s.d,
     notes: s.o,
+    ...sharedPack(s),
+    detail: s.t,
   }
 }
 
