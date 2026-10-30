@@ -65,7 +65,19 @@ export interface List {
   /** Icon key (see Icon.tsx LIST_ICON_KEYS). Falls back to the kind's default. */
   icon?: string
   createdAt: number
+  /**
+   * Set on a legacy duplicate that was folded into the shared list of its kind
+   * (the uid it points at, e.g. `default:list`; see fold.ts). The row stays, as
+   * a forwarding address: an item that still lands on it from an offline or
+   * older device is moved on after the next sync instead of vanishing. Hidden
+   * everywhere a list is shown or picked (liveLists).
+   */
+  foldedInto?: string
 }
+
+/** Every list a person can see or pick: all but the folded leftovers. */
+export const isLive = (l: List): boolean => !l.foldedInto
+export const liveLists = (): Promise<List[]> => db.lists.filter(isLive).toArray()
 
 export interface Item {
   id?: number

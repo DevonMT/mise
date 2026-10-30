@@ -40,6 +40,7 @@ import { db, newUid, type SyncKind, type Item, type List } from './db'
 import { EDITION, grantedEdition, setGrantedVariant, tierActuallyChanged } from './edition'
 import { hydrateSettings } from './prefs'
 import { filePending } from './list'
+import { foldLegacyLists } from './fold'
 
 /**
  * Sync is a devondoes.dev feature: it needs the platform session cookie, which
@@ -100,6 +101,36 @@ const TABLES: Array<{ kind: Kind; table: Dexie.Table<AnyRow, number> }> = [
  */
 let applyingRemote = false
 
+/** For the legacy-list fold (fold.ts), which must never run inside a merge:
+ *  the hooks are off then, so nothing it wrote would be recorded. */
+export function isApplyingRemote(): boolean {
+  return applyingRemote
+}
+
+/**
+ * Transactions whose writes carry their OWN `updatedAt` (and write their own
+ * tombstones), instead of being stamped with this device's clock.
+ *
+ * For a repair that must lose to every real edit (fold.ts): it stamps a moved
+ * row one millisecond after the version it moved, so an edit made anywhere
+ * after that version still wins, on the server and on every device. Scoped to
+ * one transaction rather than a flag, so a tap that lands while it runs is
+ * stamped as usual.
+ */
+const ownStamps = new WeakSet<object>()
+
+export function keepingStamps<T>(
+  tables: Array<Dexie.Table<never, number> | Dexie.Table>,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return db.transaction('rw', tables as Dexie.Table[], async (tx) => {
+    ownStamps.add(tx)
+    return fn()
+  })
+}
+
+const stampsOwn = (tx: unknown) => typeof tx === 'object' && tx != null && ownStamps.has(tx)
+
 /**
  * Set by startAutoSync while the app is running. The hooks call it on every
  * local write so a change is pushed within a couple of seconds rather than
@@ -118,8 +149,12 @@ function touched(): void {
 // ---------------------------------------------------------------------------
 
 for (const { kind, table } of TABLES) {
-  table.hook('creating', (_pk, obj) => {
+  table.hook('creating', (_pk, obj, tx) => {
     if (applyingRemote) return
+    if (stampsOwn(tx)) {
+      touched()
+      return
+    }
     // A seeded singleton (default:list, default:pantry) is created at time 0 on
     // purpose. Every device mints the same uid, so a new device's empty
     // "My list" must lose to the account's copy — stamped now, it would win the
@@ -133,16 +168,21 @@ for (const { kind, table } of TABLES) {
     touched()
   })
 
-  table.hook('updating', (_mods, _pk, obj) => {
+  table.hook('updating', (_mods, _pk, obj, tx) => {
     if (applyingRemote) return
     touched()
+    if (stampsOwn(tx)) return
     // Returning a patch merges it into the update Dexie is already doing, so
     // this costs no extra write.
     return obj.uid ? { updatedAt: Date.now() } : { uid: newUid(), updatedAt: Date.now() }
   })
 
-  table.hook('deleting', function (_pk, obj) {
+  table.hook('deleting', function (_pk, obj, tx) {
     if (applyingRemote) return
+    if (stampsOwn(tx)) {
+      touched()
+      return
+    }
     const uid = (obj as AnyRow | undefined)?.uid
     if (typeof uid !== 'string' || !uid) return
     // Only once the delete has actually committed. Writing the tombstone here
@@ -448,7 +488,20 @@ export async function syncAvailable(): Promise<Availability> {
  * device has applied someone else's changes but not yet sent its own, and a
  * crash in that window loses the local edits.
  */
-export async function sync(): Promise<SyncResult> {
+let inflight: Promise<SyncResult> | null = null
+
+export function sync(): Promise<SyncResult> {
+  // One at a time. Settings' "Sync now" calls this beside the auto-sync, and two
+  // merges at once share the one applyingRemote flag: the first to finish turns
+  // it off while the second is still writing server rows, which then get
+  // stamped as local edits. The second caller gets the first one's answer.
+  inflight ??= syncOnce().finally(() => {
+    inflight = null
+  })
+  return inflight
+}
+
+async function syncOnce(): Promise<SyncResult> {
   if (!syncEnabled()) return { ok: false, reason: 'off', message: 'Sync is off.' }
   if (!navigator.onLine) {
     return { ok: false, reason: 'offline', message: 'No connection — your list is safe on this device.' }
@@ -505,6 +558,10 @@ export async function sync(): Promise<SyncResult> {
   const editionChanged = tierActuallyChanged()
 
   const counts = await applyRemote(state)
+  // Legacy duplicate lists fold here and only here: after this device holds the
+  // agreed state, never on a stale one at launch (fold.ts). Before filePending,
+  // so a hub add that landed on a folded list is filed on the list it moved to.
+  await foldLegacyLists().catch(() => null)
   // Rows the hub added arrive half-made; finish them with the ordinary add
   // engine (list.ts). A failure leaves them pending for the next sync.
   await filePending().catch(() => 0)

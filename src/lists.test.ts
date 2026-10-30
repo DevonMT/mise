@@ -84,32 +84,10 @@ test('the repair NEVER removes a non-pantry list with anything in it', async () 
     listId: dup as number, displayName: 'Salt', canonicalKey: 'salt',
     section: 'pantry', checked: false, backlog: false, createdAt: 1,
   })
-  const { removed, leftAlone, merged } = await lists.dedupeDefaultLists()
+  const { removed, leftAlone } = await lists.dedupeDefaultLists()
   assert.deepEqual(removed, [], 'nothing deleted')
   assert.deepEqual(leftAlone, ['Groceries'], 'and it says so')
-  assert.equal(merged, 0)
   assert.equal((await db.lists.toArray()).length, 2)
-})
-
-test('a leftover Pantry with items is folded into default:pantry', async () => {
-  await db.lists.clear()
-  await db.items.clear()
-  const keep = (await addList('Pantry', 'pantry', 'default:pantry')) as number
-  const dup = (await addList('Pantry', 'pantry', 'random-uid')) as number
-  const base = { section: 'pantry', checked: false, backlog: false, createdAt: 1 } as never
-  await db.items.add({ ...base, listId: dup, displayName: 'Salt', canonicalKey: 'salt', alwaysHave: true })
-  await db.items.add({ ...base, listId: dup, displayName: 'Pepper', canonicalKey: 'pepper', alwaysHave: true })
-  await db.items.add({ ...base, listId: keep, displayName: 'Pepper', canonicalKey: 'pepper' })
-  const { removed, merged } = await lists.dedupeDefaultLists()
-  assert.deepEqual(removed, ['Pantry'])
-  assert.equal(merged, 2)
-  const left = await db.lists.toArray()
-  assert.deepEqual(left.map((l) => l.uid), ['default:pantry'], 'the shared one survives')
-  const items = await db.items.toArray()
-  assert.deepEqual(items.map((i) => i.canonicalKey).sort(), ['pepper', 'salt'], 'no duplicate pepper')
-  assert.ok(items.every((i) => i.listId === keep))
-  assert.ok(items.find((i) => i.canonicalKey === 'pepper')?.alwaysHave, 'flag carried over')
-  assert.equal((await lists.dedupeDefaultLists()).merged, 0, 'second run is a no-op')
 })
 
 test('a leftover Pantry with items and no shared Pantry is left alone', async () => {
@@ -121,10 +99,46 @@ test('a leftover Pantry with items and no shared Pantry is left alone', async ()
     listId: dup as number, displayName: 'Salt', canonicalKey: 'salt',
     section: 'pantry', checked: false, backlog: false, createdAt: 1,
   })
-  const { removed, leftAlone, merged } = await lists.dedupeDefaultLists()
+  const { removed, leftAlone } = await lists.dedupeDefaultLists()
   assert.deepEqual(removed, [])
   assert.deepEqual(leftAlone, ['Pantry'])
-  assert.equal(merged, 0)
+})
+
+test('the repair never moves items, even into default:pantry: fold.ts does that after a sync', async () => {
+  await db.lists.clear()
+  await db.items.clear()
+  await addList('Pantry', 'pantry', 'default:pantry')
+  const dup = (await addList('Pantry', 'pantry', 'random-uid')) as number
+  await db.items.add({
+    listId: dup, displayName: 'Salt', canonicalKey: 'salt', alwaysHave: true,
+    section: 'pantry', checked: false, backlog: false, createdAt: 1,
+  })
+  const { removed, leftAlone } = await lists.dedupeDefaultLists()
+  assert.deepEqual(removed, [])
+  assert.deepEqual(leftAlone, ['Pantry'])
+  assert.equal((await db.items.toArray())[0].listId, dup)
+})
+
+test('the repair never deletes a folded list, empty or not: it is a forwarding address', async () => {
+  await db.lists.clear()
+  await db.items.clear()
+  await addList('My list', 'grocery', 'default:list')
+  const old = (await addList('My list', 'grocery', 'legacy')) as number
+  await db.lists.update(old, { foldedInto: 'default:list' })
+  const { removed } = await lists.dedupeDefaultLists()
+  assert.deepEqual(removed, [])
+  assert.ok(await db.lists.get(old))
+})
+
+test('ensureSeed and resolveActiveId never land on a folded list', async () => {
+  await db.lists.clear()
+  const old = (await addList('My list', 'grocery', 'legacy')) as number
+  await db.lists.update(old, { foldedInto: 'default:list' })
+  const keep = (await addList('My list', 'grocery', 'default:list')) as number
+  assert.equal(await lists.ensureSeed(), keep, 'the lower-id folded list is skipped')
+  lists.writeActiveId(old)
+  assert.equal(await lists.resolveActiveId(), keep, 'standing on it forwards to where it went')
+  assert.equal(lists.readActiveId(), keep)
 })
 
 test('ensurePantryList prefers the shared Pantry over a lower-id leftover', async () => {
@@ -245,9 +259,8 @@ test('a Pantry somebody shared with you is never folded or deleted', async () =>
     section: 'pantry', checked: false, backlog: false, createdAt: 1,
   })
   sharedUids = ['owners-random-uid']
-  const { removed, merged } = await lists.dedupeDefaultLists()
+  const { removed } = await lists.dedupeDefaultLists()
   assert.deepEqual(removed, [])
-  assert.equal(merged, 0)
   assert.equal((await db.lists.toArray()).length, 2, 'the shared list stays')
   assert.equal((await db.items.toArray())[0].listId, theirs, 'and its items stay put')
   assert.ok(keep)
@@ -260,9 +273,8 @@ test('when the shares cannot be fetched the repair touches nothing', async () =>
   await addList('Pantry', 'pantry', 'default:pantry')
   await addList('Pantry', 'pantry', 'random-uid')
   sharedUids = null
-  const { removed, merged } = await lists.dedupeDefaultLists()
+  const { removed } = await lists.dedupeDefaultLists()
   assert.deepEqual(removed, [])
-  assert.equal(merged, 0)
   assert.equal((await db.lists.toArray()).length, 2)
   sharedUids = []
 })
@@ -276,8 +288,7 @@ test('items fold only into default:pantry, never another default: uid', async ()
     listId: dup, displayName: 'Salt', canonicalKey: 'salt',
     section: 'pantry', checked: false, backlog: false, createdAt: 1,
   })
-  const { merged, leftAlone } = await lists.dedupeDefaultLists()
-  assert.equal(merged, 0)
+  const { leftAlone } = await lists.dedupeDefaultLists()
   assert.deepEqual(leftAlone, ['Pantry'])
 })
 
@@ -302,31 +313,12 @@ test('a Pantry you own and shared OUT is never folded or deleted', async () => {
   })
   sharedUids = ['my-shared-out']
   sharedOut = true
-  const { removed, merged } = await lists.dedupeDefaultLists()
+  const { removed } = await lists.dedupeDefaultLists()
   sharedUids = []
   sharedOut = false
   assert.deepEqual(removed, [])
-  assert.equal(merged, 0)
   assert.equal((await db.lists.toArray()).length, 2)
   assert.equal((await db.items.toArray())[0].listId, mine)
-})
-
-test('an unshared random-uid Pantry with items folds into default:pantry', async () => {
-  await db.lists.clear()
-  await db.items.clear()
-  const keep = (await addList('Pantry', 'pantry', 'default:pantry')) as number
-  const dup = (await addList('Pantry', 'pantry', 'random-uid')) as number
-  for (const k of ['salt', 'rice']) {
-    await db.items.add({
-      listId: dup, displayName: k, canonicalKey: k, alwaysHave: true,
-      section: 'pantry', checked: false, backlog: false, createdAt: 1,
-    })
-  }
-  const { removed, merged } = await lists.dedupeDefaultLists()
-  assert.equal(merged, 2)
-  assert.deepEqual(removed, ['Pantry'])
-  assert.deepEqual((await db.lists.toArray()).map((l) => l.uid), ['default:pantry'])
-  assert.ok((await db.items.toArray()).every((i) => i.listId === keep))
 })
 
 test('people.ts holds no non-ASCII garbage bytes (valid UTF-8)', async () => {

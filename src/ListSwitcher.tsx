@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type Item, type List, type ListKind } from './db'
+import { db, liveLists, type Item, type List, type ListKind } from './db'
 import { KINDS, KIND_LIST, listIcon } from './kinds'
 import * as people from './people'
 import { createList, deleteList, mergeInto, renameList } from './lists'
@@ -30,7 +30,7 @@ export function ListSwitcher({
   onImport: () => void
   onClose: () => void
 }) {
-  const lists = useLiveQuery(() => db.lists.toArray(), []) ?? []
+  const lists = useLiveQuery(() => liveLists(), []) ?? []
   const counts = useLiveQuery(async () => {
     const items = await db.items.toArray()
     const m = new Map<number, number>()
@@ -181,7 +181,7 @@ export function ManageLists({
   onMerged: (source: List, target: List, n: number) => void
   onDeleted: (snapshot: { list: List; items: Item[] }) => void
 }) {
-  const lists = useLiveQuery(() => db.lists.toArray(), []) ?? []
+  const lists = useLiveQuery(() => liveLists(), []) ?? []
   const [editing, setEditing] = useState<number | null>(null)
   const [draft, setDraft] = useState('')
   const [mergeFrom, setMergeFrom] = useState<List | null>(null)

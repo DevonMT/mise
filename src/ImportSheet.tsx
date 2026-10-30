@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type Recipe } from './db'
+import { db, liveLists, type Recipe } from './db'
 import { KINDS, listIcon } from './kinds'
 import { addItem, formatBuy, type NewItem } from './list'
 import { createList } from './lists'
@@ -86,7 +86,7 @@ export function ImportSheet({
   onClose: () => void
   onDone: (msg: string, listId?: number) => void
 }) {
-  const lists = useLiveQuery(() => db.lists.toArray(), []) ?? []
+  const lists = useLiveQuery(() => liveLists(), []) ?? []
   const [busy, setBusy] = useState(false)
 
   if (payload.t === 'recipe') {

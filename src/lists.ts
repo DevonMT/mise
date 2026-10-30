@@ -1,4 +1,4 @@
-import { db, type Item, type List, type ListKind } from './db'
+import { db, isLive, type Item, type List, type ListKind } from './db'
 import { lastSyncedAt, resolveSyncDefault, syncEnabled } from './sync'
 import { addItem } from './list'
 import { sharedListUids } from './people'
@@ -30,7 +30,8 @@ export async function ensureSeed(): Promise<number> {
   // One atomic transaction so concurrent callers (React StrictMode double-mount,
   // or two effects) can't each create a duplicate "Groceries" list.
   return db.transaction('rw', db.lists, async () => {
-    const existing = await db.lists.orderBy('id').first()
+    // A folded leftover (fold.ts) is often the oldest row, and is hidden.
+    const existing = await db.lists.orderBy('id').filter(isLive).first()
     if (existing?.id != null) return existing.id
     // Neutral default — Mise isn't only for groceries. Grocery *kind* (the
     // richest), but the name/icon are the user's to change.
@@ -82,7 +83,16 @@ export function writeActiveId(id: number): void {
 /** The stored active list, falling back to the first list if it's gone. */
 export async function resolveActiveId(): Promise<number> {
   const stored = readActiveId()
-  if (stored != null && (await db.lists.get(stored))) return stored
+  const list = stored != null ? await db.lists.get(stored) : undefined
+  if (list && isLive(list)) return stored!
+  // Standing on a list that was folded away: follow it to where its items went.
+  const forward = list?.foldedInto
+    ? await db.lists.where('uid').equals(list.foldedInto).first()
+    : undefined
+  if (forward?.id != null && isLive(forward)) {
+    writeActiveId(forward.id)
+    return forward.id
+  }
   const id = await ensureSeed()
   writeActiveId(id)
   return id
@@ -146,8 +156,8 @@ export async function mergeInto(sourceId: number, targetId: number): Promise<num
 /** The list a recipe or an AI capture should land on. */
 export async function defaultGroceryListId(preferred: number): Promise<number | null> {
   const p = await db.lists.get(preferred)
-  if (p?.kind === 'grocery') return preferred
-  const first = await db.lists.filter((l) => l.kind === 'grocery').first()
+  if (p?.kind === 'grocery' && isLive(p)) return preferred
+  const first = await db.lists.filter((l) => l.kind === 'grocery' && isLive(l)).first()
   return first?.id ?? null
 }
 
@@ -185,7 +195,7 @@ export async function restockFromPurchase(bought: Item[]): Promise<Item[]> {
   if (!bought.length) return []
   const keys = new Set(bought.map((b) => b.canonicalKey))
   const pantryIds = new Set(
-    (await db.lists.filter((l) => l.kind === 'pantry').toArray()).map((l) => l.id!),
+    (await db.lists.filter((l) => l.kind === 'pantry' && isLive(l)).toArray()).map((l) => l.id!),
   )
   if (!pantryIds.size) return []
 
@@ -213,7 +223,7 @@ export async function ensurePantryList(): Promise<number> {
   return db.transaction('rw', db.lists, async () => {
     // The shared singleton first: a leftover random-uid Pantry can have a lower
     // id, and `.first()` alone would pick it over the one every device shares.
-    const pantries = await db.lists.filter((l) => l.kind === 'pantry').toArray()
+    const pantries = await db.lists.filter((l) => l.kind === 'pantry' && isLive(l)).toArray()
     const existing = pantries.find((l) => l.uid === DEFAULT_PANTRY_UID) ?? pantries[0]
     if (existing?.id != null) return existing.id
     return db.lists.add({
@@ -245,28 +255,21 @@ export async function ensurePantryList(): Promise<number> {
  *
  * Anything with items in it is left alone and reported, because merging two
  * lists somebody filled is a decision for them, not a repair to run at startup.
- *
- * ONE exception, for the Pantry only: an app-named, random-uid Pantry that has
- * items, sitting beside the shared `default:pantry`, is folded INTO the shared
- * one and then removed. Its items are things like "always have" staples, and
- * leaving them in a second Pantry forever (2026-10) made the loop pick the
- * wrong list. Items move rather than copy, a key the shared Pantry already
- * has is not duplicated (the always-have flag carries over), and the shared
- * list is never the one deleted. Without a `default:pantry` to receive them,
- * nothing moves.
+ * The one exception, the legacy "My list" / "Pantry" with items beside the
+ * shared `default:` list, is folded after a sync instead (fold.ts), and a list
+ * it has folded (`foldedInto`) is never touched here: it is a forwarding
+ * address and has to stay.
  */
-const APP_MADE_NAMES = new Set(['my list', 'pantry', 'groceries'])
+export const APP_MADE_NAMES = new Set(['my list', 'pantry', 'groceries'])
 
 export async function dedupeDefaultLists(): Promise<{
   removed: string[]
   leftAlone: string[]
-  merged: number
 }> {
   const removed: string[] = []
   const leftAlone: string[] = []
-  let merged = 0
 
-  const lists = await db.lists.orderBy('id').toArray()
+  const lists = (await db.lists.orderBy('id').toArray()).filter(isLive)
   const byKind = new Map<string, typeof lists>()
   for (const l of lists) {
     const arr = byKind.get(l.kind) ?? []
@@ -283,28 +286,23 @@ export async function dedupeDefaultLists(): Promise<{
     // own random-uid "My list" was older kept that one and tombstoned
     // default:list. Deleting a random-uid duplicate touches only itself.
     const isDefault = (l: (typeof group)[number]) => !!l.uid?.startsWith('default:')
-    const [keeper, ...rest] = group.sort(
+    const [, ...rest] = group.sort(
       (a, b) => Number(isDefault(b)) - Number(isDefault(a)) || (a.id ?? 0) - (b.id ?? 0),
     )
     // Lists shared to this user, or shared out by them, look just like a
-    // leftover: same name and kind, a random uid, items in them. They are not ours to fold or
-    // delete (the items and tombstones would land in the owner's space, or the
-    // list would come straight back and be deleted again every sync). Fetched
-    // once, lazily; if it cannot be fetched nothing is touched this launch.
+    // leftover: same name and kind, a random uid. They are not ours to delete
+    // (the list would come straight back and be deleted again every sync).
+    // Fetched once, lazily; if it cannot be fetched nothing is touched.
     let sharedUids: Set<string> | null | undefined
     for (const dup of rest) {
       if (dup.id == null || isDefault(dup)) continue
       if (!APP_MADE_NAMES.has(dup.name.trim().toLowerCase())) continue
       if (sharedUids === undefined) sharedUids = await sharedListUids()
       if (sharedUids === null || (dup.uid && sharedUids.has(dup.uid))) continue
-      const count = await db.items.filter((i) => i.listId === dup.id).count()
+      const count = await db.items.where('listId').equals(dup.id).count()
       if (count > 0) {
-        if (dup.kind === 'pantry' && keeper.id != null && keeper.uid === DEFAULT_PANTRY_UID) {
-          merged += await foldInto(dup.id, keeper.id)
-        } else {
-          leftAlone.push(dup.name)
-          continue
-        }
+        leftAlone.push(dup.name)
+        continue
       }
       // The delete hook writes a tombstone, so the removal reaches the other
       // devices instead of the duplicate coming straight back on the next pull.
@@ -312,31 +310,5 @@ export async function dedupeDefaultLists(): Promise<{
       removed.push(dup.name)
     }
   }
-  return { removed, leftAlone, merged }
-}
-
-/**
- * Move every item of `fromId` into `toId` and return how many moved. A key the
- * target already holds is not doubled: the target keeps its row (taking the
- * always-have flag if the other had it) and the duplicate row is deleted, which
- * leaves a tombstone like any delete. One transaction, so a crash half way
- * cannot strand items between two lists.
- */
-async function foldInto(fromId: number, toId: number): Promise<number> {
-  return db.transaction('rw', db.items, async () => {
-    const mine = await db.items.filter((i) => i.listId === fromId).toArray()
-    const target = await db.items.filter((i) => i.listId === toId).toArray()
-    const byKey = new Map(target.map((t) => [t.canonicalKey, t]))
-    for (const it of mine) {
-      const twin = byKey.get(it.canonicalKey)
-      if (twin?.id != null) {
-        if (it.alwaysHave && !twin.alwaysHave) await db.items.update(twin.id, { alwaysHave: true })
-        await db.items.delete(it.id!)
-      } else {
-        await db.items.update(it.id!, { listId: toId })
-        byKey.set(it.canonicalKey, it)
-      }
-    }
-    return mine.length
-  })
+  return { removed, leftAlone }
 }

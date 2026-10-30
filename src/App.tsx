@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type Item, type List, type Section, type Schedule } from './db'
+import { db, liveLists, type Item, type List, type Section, type Schedule } from './db'
 import { SECTIONS, SECTION_META } from './sections'
 import {
   addItem,
@@ -49,7 +49,7 @@ import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayloa
 import { SharePeople, Handoffs } from './SharePeople'
 import { useAiEnabled, editionKnown } from './edition'
 import { isShareQuery, sharedLink } from './shareTarget'
-import { startAutoSync } from './sync'
+import { startAutoSync, syncEnabled } from './sync'
 import { useBackLayer } from './back'
 import { usePointer } from './ds/usePointer'
 import { RecipePickSheet } from './RecipePick'
@@ -72,7 +72,9 @@ export default function App() {
   const [sharing, setSharing] = useState<{ uid: string | null; name: string; payload: SharePayload | null } | null>(null)
 
   // Left undefined while loading, so we can tell "not loaded yet" from "none".
-  const listsRaw = useLiveQuery(() => db.lists.toArray(), [])
+  // Live lists only: a folded leftover (fold.ts) is hidden, so standing on one
+  // trips the safety net below and lands on the list its items went to.
+  const listsRaw = useLiveQuery(() => liveLists(), [])
   const lists = listsRaw ?? []
   const allItems = useLiveQuery(() => db.items.toArray(), []) ?? []
   const catalog = useLiveQuery(() => db.catalog.toArray(), []) ?? []
@@ -106,8 +108,10 @@ export default function App() {
   // there now, so Settings has nowhere to put them without it.
   useEffect(() => {
     // Also removes duplicates the old random-uid seeders left behind. Only ever
-    // empty ones the app itself made — see dedupeDefaultLists.
-    void ensureDefaultLists().then(() => dedupeDefaultLists())
+    // empty ones the app itself made — see dedupeDefaultLists. Not on a device
+    // that syncs: at launch it holds a possibly stale copy, and a list empty
+    // here may have items elsewhere. Those dedupe after each sync instead.
+    void ensureDefaultLists().then(() => (syncEnabled() ? undefined : dedupeDefaultLists()))
   }, [])
 
   // Sync, if it is switched on. A merge needs no handling here — the tables are
