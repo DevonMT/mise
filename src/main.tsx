@@ -7,6 +7,7 @@ import '@fontsource/fredoka/latin-600.css'
 import './index.css'
 import App from './App.tsx'
 import { EstateBar } from './EstateBar.tsx'
+import { legacyThemeOnce } from './legacyTheme'
 import { applyTheme, configureTheme, cookieThemeStore, readTheme, startTheme } from './ds/theme'
 import { migrateStaples } from './db'
 import { hydrateSettings, migrateSettings, readSetting } from './prefs'
@@ -17,12 +18,13 @@ import { hydrateSettings, migrateSettings, readSetting } from './prefs'
  * Mise's own synced 'mise.theme' setting is only read, once, so nobody's pick
  * resets: with no cookie yet, the store adopts what this device had (the row's
  * localStorage mirror) and writes it to the cookie, and the platform adopts it
- * from there. Nothing writes 'mise.theme' any more.
+ * from there. That read happens once per device (legacyTheme.ts): nothing writes
+ * 'mise.theme' any more, so a stale copy must not outvote a later pick.
  *
  * The cookie is read synchronously, which is what keeps the first paint right,
  * offline included: ds/chrome.js stamps it from the head before this runs.
  */
-configureTheme(cookieThemeStore({ read: () => readSetting('mise.theme'), write: () => {}, clear: () => {} }))
+configureTheme(cookieThemeStore({ read: () => legacyThemeOnce(() => readSetting('mise.theme'), localStorage), write: () => {}, clear: () => {} }))
 
 // Before the first render: stamping the root afterwards means a frame of the
 // wrong theme, which on a dark-mode phone is a white flash in a dark room.
