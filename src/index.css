@@ -229,6 +229,10 @@
 }
 .group {
   margin-bottom: 20px;
+  /* A grid item's min-width is `auto`, so one unbreakable name (a pasted link)
+     stretched the group, and with it every row, past the column and pushed each
+     quantity off-screen. 0 lets the row clip the name with its ellipsis. */
+  min-width: 0;
 }
 .group-head {
   margin: 6px 4px 9px;
