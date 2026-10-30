@@ -1340,6 +1340,74 @@
   color: var(--accent);
 }
 
+/* ---- Tap an ingredient (recipe detail) ---- */
+.ing-tap {
+  width: 100%;
+  min-width: 0;
+  align-items: baseline;
+  text-align: left;
+  background: transparent;
+}
+.ing-tap .ing-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ing-tap:hover,
+.ing-tap:active {
+  background: var(--accent-soft);
+}
+.opt-wrap {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--line);
+}
+.opt-wrap:last-child {
+  border-bottom: none;
+}
+.opt-wrap .opt-row {
+  flex: 1;
+  min-width: 0;
+  border-bottom: none;
+}
+.opt-more {
+  flex: 0 0 auto;
+  width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+}
+.ing-sheet-qty {
+  margin: 0 2px 8px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.ing-status {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.ing-status-line,
+.ing-status-none {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.ing-status-line {
+  color: var(--ink);
+  font-weight: 600;
+}
+.ing-status-line .icon {
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
 /* ---- Optional ingredients (recipe detail) ---- */
 .rev-tag.optional {
   color: var(--fav);

@@ -1,6 +1,6 @@
 import { db, canonicalize, type Recipe, type Item } from './db'
 import { addItem, fallsOn, packCount, startOfDay } from './list'
-import { getStapleKeys, type ParseResult } from './parse'
+import { getStapleKeys, isStaple, type ParseResult } from './parse'
 
 const KNOWN_UNITS = new Set([
   'cup', 'cups', 'tbsp', 'tsp', 'oz', 'lb', 'lbs', 'g', 'kg', 'ml', 'l',
@@ -92,7 +92,7 @@ export async function addRecipeToList(
   let added = 0
   for (let i = 0; i < recipe.ingredients.length; i++) {
     const ing = recipe.ingredients[i]
-    if (staples.has(ing.canonicalKey)) continue
+    if (isStaple(staples, ing)) continue
     if (ing.optional && !includeOptional?.has(i)) continue
     await addItem({
       listId,

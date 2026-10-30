@@ -2,6 +2,7 @@ import { db, isLive, type Item, type List, type ListKind } from './db'
 import { lastSyncedAt, resolveSyncDefault, syncEnabled } from './sync'
 import { addItem } from './list'
 import { sharedListUids } from './people'
+import { itemKeys } from './match'
 
 const ACTIVE_KEY = 'mise.activeList'
 
@@ -193,14 +194,18 @@ export async function addOutToGroceries(
  */
 export async function restockFromPurchase(bought: Item[]): Promise<Item[]> {
   if (!bought.length) return []
-  const keys = new Set(bought.map((b) => b.canonicalKey))
+  const keys = new Set(bought.flatMap((b) => [...itemKeys(b)]))
   const pantryIds = new Set(
     (await db.lists.filter((l) => l.kind === 'pantry' && isLive(l)).toArray()).map((l) => l.id!),
   )
   if (!pantryIds.size) return []
 
   const flipped = await db.items
-    .filter((i) => pantryIds.has(i.listId) && !!i.checked && keys.has(i.canonicalKey))
+    .filter((i) => {
+      if (!pantryIds.has(i.listId) || !i.checked) return false
+      for (const k of itemKeys(i)) if (keys.has(k)) return true
+      return false
+    })
     .toArray()
   for (const f of flipped) await db.items.update(f.id!, { checked: false })
   return flipped

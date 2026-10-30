@@ -1,4 +1,5 @@
 import { db, type Section } from './db'
+import { itemKeys } from './match'
 
 /**
  * Where the parse endpoint lives.
@@ -126,7 +127,19 @@ export async function parseCapture(input: {
  */
 export async function getStapleKeys(): Promise<Set<string>> {
   const items = await db.items.filter((i) => i.alwaysHave === true).toArray()
-  return new Set(items.map((i) => i.canonicalKey))
+  // Every key a staple answers to (see match.ts), so the "kosher salt" a recipe
+  // asks for is skipped when the pantry's staple is "salt". Test a recipe line
+  // with isStaple(), not with staples.has(canonicalKey), to get that.
+  return new Set(items.flatMap((i) => [i.canonicalKey, ...itemKeys(i)]))
+}
+
+/** Is this recipe/parse line one of the staples from getStapleKeys()? */
+export function isStaple(
+  staples: Set<string>,
+  line: { displayName: string; canonicalKey?: string },
+): boolean {
+  for (const k of itemKeys(line)) if (staples.has(k)) return true
+  return false
 }
 
 export interface PriceEstimate {

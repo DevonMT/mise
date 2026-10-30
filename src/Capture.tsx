@@ -6,6 +6,7 @@ import { addItem, packCount } from './list'
 import {
   parseCapture,
   getStapleKeys,
+  isStaple as isStapleLine,
   fileToDataUrl,
   type ParsedItem,
   type ParseResult,
@@ -120,7 +121,7 @@ export function CaptureSheet({
         getStapleKeys(),
       ])
       const built: Row[] = result.items.map((it: ParsedItem) => {
-        const isStaple = staples.has(it.canonicalKey)
+        const isStaple = isStapleLine(staples, it)
         const optional = Boolean(it.optional)
         return {
           displayName: it.displayName,

@@ -1,6 +1,7 @@
 import {db, canonicalize, type Item, type Section, type Schedule } from './db'
 import { recordCatalog } from './catalog'
 import { KINDS } from './kinds'
+import { itemKeys } from './match'
 
 /** Units that just mean "a count of whole things" — treated as interchangeable
  *  (and with no unit) so "2 onions" and "1 whole onion" merge. */
@@ -99,6 +100,41 @@ export interface NewItem {
 }
 
 /**
+ * The line an add would merge into, if there is one: same list, same side of
+ * the backlog, same unit, and the same thing by name.
+ *
+ * "The same thing" is the stored canonical key first (exactly as it always
+ * was), then, on a list that has aisles (grocery, pantry), the ingredient
+ * matcher in match.ts, so "ground cumin" meets "cumin powder". A tasks list or
+ * a packing list keeps exact keys: "Fresh paint" is not "paint" there.
+ * Nothing is written; the stored keys are never touched.
+ */
+export async function findMergeTarget(
+  input: Pick<NewItem, 'listId' | 'displayName' | 'unit' | 'backlog'> & { canonicalKey?: string },
+): Promise<Item | undefined> {
+  const canonicalKey = input.canonicalKey?.trim() || canonicalize(input.displayName)
+  const backlog = input.backlog ?? false
+  const sameSlot = (i: Item) =>
+    i.listId === input.listId && i.backlog === backlog && unitKey(i.unit) === unitKey(input.unit)
+
+  const exact = await db.items.where('canonicalKey').equals(canonicalKey).filter(sameSlot).first()
+  if (exact) return exact
+
+  const list = await db.lists.get(input.listId)
+  if (!list || !KINDS[list.kind]?.sections) return undefined
+  const mine = itemKeys({ displayName: input.displayName, canonicalKey })
+  return db.items
+    .where('listId')
+    .equals(input.listId)
+    .filter((i) => {
+      if (!sameSlot(i)) return false
+      for (const k of itemKeys(i)) if (mine.has(k)) return true
+      return false
+    })
+    .first()
+}
+
+/**
  * Add an item to a list, merging into an existing line there when the
  * canonical key + unit match. Returns the id of the affected row.
  * This is the single merge engine — capture, quick-add, recipes, list merges,
@@ -106,7 +142,6 @@ export interface NewItem {
  */
 export async function addItem(input: NewItem): Promise<number> {
   const canonicalKey = input.canonicalKey?.trim() || canonicalize(input.displayName)
-  const backlog = input.backlog ?? false
 
   await recordCatalog({
     canonicalKey,
@@ -115,16 +150,8 @@ export async function addItem(input: NewItem): Promise<number> {
     section: input.section,
   })
 
-  const existing = await db.items
-    .where('canonicalKey')
-    .equals(canonicalKey)
-    .filter(
-      (i) =>
-        i.listId === input.listId &&
-        i.backlog === backlog &&
-        unitKey(i.unit) === unitKey(input.unit),
-    )
-    .first()
+  const backlog = input.backlog ?? false
+  const existing = await findMergeTarget({ ...input, canonicalKey })
 
   if (existing?.id != null) {
     await mergeInto(existing, input)

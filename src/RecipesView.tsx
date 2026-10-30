@@ -12,6 +12,7 @@ import { Icon } from './Icon'
 import { useAiEnabled } from './edition'
 import { RecipeEditor } from './RecipeEditor'
 import { CookMode } from './CookMode'
+import { IngredientSheet } from './IngredientSheet'
 
 /** Title or any ingredient, case- and accent-insensitive: "jack" finds the
  *  enchiladas by their cheese. Exported for the tests. */
@@ -163,7 +164,10 @@ function RecipeDetail({
   const [sharing, setSharing] = useState(false)
   const [editing, setEditing] = useState(false)
   const [cooking, setCooking] = useState(false)
+  // Which ingredient's sheet is open (index into recipe.ingredients).
+  const [picked, setPicked] = useState<number | null>(null)
   useBackLayer(sharing, () => setSharing(false))
+  useBackLayer(picked !== null, () => setPicked(null))
   const link = () => recipePageUrl(shareRecipePayload(recipe))
 
   // Texting goes straight to Messages with the body filled in and nobody
@@ -239,10 +243,15 @@ ${url}`)
 
       <div className="ing-list">
         {required.map(({ ing, i }) => (
-          <div key={i} className="ing-row">
+          <button
+            key={i}
+            className="ing-row ing-tap"
+            aria-label={`${ing.displayName}: add to shopping list or pantry`}
+            onClick={() => setPicked(i)}
+          >
             <span className="ing-name">{ing.displayName}</span>
             <span className="ing-qty">{qtyOf(ing)}</span>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -253,15 +262,20 @@ ${url}`)
             {optional.map(({ ing, i }) => {
               const on = optSel.has(i)
               return (
-                <button
-                  key={i}
-                  className={on ? 'opt-row on' : 'opt-row'}
-                  onClick={() => toggleOpt(i)}
-                >
-                  <span className="opt-check">{on ? '✓' : ''}</span>
-                  <span className="ing-name">{ing.displayName}</span>
-                  <span className="ing-qty">{qtyOf(ing)}</span>
-                </button>
+                <div key={i} className="opt-wrap">
+                  <button className={on ? 'opt-row on' : 'opt-row'} onClick={() => toggleOpt(i)}>
+                    <span className="opt-check">{on ? '✓' : ''}</span>
+                    <span className="ing-name">{ing.displayName}</span>
+                    <span className="ing-qty">{qtyOf(ing)}</span>
+                  </button>
+                  <button
+                    className="opt-more"
+                    aria-label={`${ing.displayName}: add to shopping list or pantry`}
+                    onClick={() => setPicked(i)}
+                  >
+                    <Icon name="cart" size={18} />
+                  </button>
+                </div>
               )
             })}
           </div>
@@ -300,6 +314,15 @@ ${url}`)
         Delete Recipe
       </button>
 
+      {picked !== null && recipe.ingredients[picked] && (
+        <IngredientSheet
+          ing={recipe.ingredients[picked]}
+          factor={factor}
+          activeListId={activeListId}
+          onClose={() => setPicked(null)}
+          onToast={onToast}
+        />
+      )}
       {editing && <RecipeEditor recipe={recipe} onClose={() => setEditing(false)} />}
       {cooking && (
         <CookMode recipe={recipe} factor={factor} includeOptional={optSel} onClose={() => setCooking(false)} />
