@@ -39,6 +39,12 @@
  *     not "chicken breast"). The parser's own canonicalKey is matched too, so
  *     "Yellow onion" with key "onion" still meets "onion".
  *   - Cumin seed (whole) is not ground cumin. Cilantro is not coriander.
+ *   - A word after a comma is a qualifier unless it is prep: "rice, brown" is
+ *     "brown rice", "pepper, red" is "red pepper", "onion, chopped" is "onion".
+ *
+ * KNOWN LIMITS (a missed match, or a merge the unit check usually stops):
+ *   "1 can tomatoes" and "tomatoes" share a key, as do "sliced cheese" and
+ *   "cheese"; the line's unit keeps the can apart from fresh when merging.
  */
 
 const QTY = /^[\d½¼¾⅓⅔⅛][\d\s/.½¼¾⅓⅔⅛]*(?!%)/
@@ -127,6 +133,16 @@ function singular(w: string): string {
   return w
 }
 
+function tokens(t: string): string[] {
+  return t
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9%\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+}
+
 function alias(p: string): string | undefined {
   if (SALT.test(p)) return 'salt'
   return ALIASES[p] ?? BARE[p]
@@ -140,10 +156,15 @@ function alias(p: string): string | undefined {
 export function matchKey(name: string): string {
   let s = name
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/\([^)]*\)/g, ' ')
-  s = s.split(',')[0]
+  // "onion, chopped" is an onion, but "rice, brown" is brown rice: what follows
+  // the first comma becomes a leading qualifier, and the prep words in it are
+  // dropped below like any others. A tail with an amount or an "or" is a note.
+  const [head, tail = ''] = s.split(',')
+  s = head
+  const tailWords = /\d(?!%)|\b(?:or|and|plus)\b/.test(tail) ? [] : tokens(tail)
   s = s.replace(/['’`]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9%\s/.½¼¾⅓⅔⅛]/g, ' ')
   s = s.trim()
   const hadQty = QTY.test(s)
@@ -163,12 +184,17 @@ export function matchKey(name: string): string {
   // Nothing but an amount ("2 cups") is not a name.
   if (hadQty && words.length === 1 && (UNITS.has(words[0]) || UNIT_PLURAL.test(words[0]))) return ''
 
+  words = [...tailWords, ...words]
+  const plural = words.includes('peppers')
+
   words = words.map((w) => SPELLING[w] ?? singular(w)).map((w) => SPELLING[w] ?? w)
 
   // A can of diced tomatoes is not a fresh tomato: "diced" stays beside it.
   const keep = words.includes('tomato') ? 'diced' : ''
   const p1 = words.filter((w) => w === keep || !FILLER.has(w)).join(' ')
   if (!p1) return ''
+  // "peppers" are not the jar of black pepper.
+  if (plural && p1 === 'pepper') return p1
   const a1 = alias(p1)
   if (a1) return a1
 

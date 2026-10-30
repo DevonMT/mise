@@ -40,9 +40,11 @@ export function IngredientSheetView({
   onClose: () => void
 }) {
   const lines = status ? statusLines(ing, status) : []
-  const inStock = status?.pantry.some((p) => !p.item.checked) ?? false
-  const markedOut = !inStock && (status?.pantry.length ?? 0) > 0
-  const mergeWith = status?.onList.find((h) => !h.item.backlog) ?? status?.onList[0]
+  // What each tap will do, from the same rows the actions use.
+  const pantryRow = status?.pantryTarget
+  const inStock = !!pantryRow && !pantryRow.checked
+  const markedOut = !!pantryRow && pantryRow.checked
+  const mergeWith = status?.listTarget
   return (
     <Sheet className="menu" label={`${ing.displayName}`} onClose={onClose}>
       <h3 className="sheet-title">{ing.displayName}</h3>
@@ -64,7 +66,7 @@ export function IngredientSheetView({
             {listName == null
               ? 'Make a grocery list first'
               : mergeWith
-                ? `Merges with the line already on ${mergeWith.list.name}`
+                ? `Merges with the line already on ${listName}`
                 : `${qty ? `${qty} to ` : 'To '}${listName}`}
           </span>
         </span>
@@ -97,11 +99,13 @@ export function IngredientSheet({
   onClose: () => void
   onToast: (msg: string) => void
 }) {
-  const status = useLiveQuery(() => ingredientStatus(ing), [ing.displayName, ing.canonicalKey])
-  const target = useLiveQuery(async () => {
+  const data = useLiveQuery(async () => {
     const id = await defaultGroceryListId(activeListId)
-    return id == null ? null : { id, name: (await db.lists.get(id))?.name ?? 'Groceries' }
-  }, [activeListId])
+    const target = id == null ? null : { id, name: (await db.lists.get(id))?.name ?? 'Groceries' }
+    return { target, status: await ingredientStatus(ing, id ?? undefined) }
+  }, [activeListId, ing.displayName, ing.canonicalKey, ing.unit])
+  const status = data?.status
+  const target = data?.target
   const [busy, setBusy] = useState(false)
 
   const qty = formatQty({

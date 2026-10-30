@@ -103,7 +103,7 @@ test('status is empty for something that is not there, and ignores look-alikes',
   await db.items.add({ listId: pantry, displayName: 'chili', canonicalKey: 'chili', section: 'pantry',
     checked: false, backlog: false, createdAt: 1 })
   const st = await ingredientStatus(cumin)
-  assert.deepEqual(st, { pantry: [], onList: [] })
+  assert.deepEqual([st.pantry, st.onList, st.pantryTarget, st.listTarget], [[], [], undefined, undefined])
 })
 
 test('add to shopping list merges into the matching line instead of duplicating', async () => {
@@ -156,7 +156,7 @@ test('the sheet shows where it already is, and says it will merge', async () => 
   await db.items.add({ listId: pantry, displayName: 'Cumin', canonicalKey: 'cumin', section: 'pantry',
     checked: false, backlog: false, createdAt: 1 })
   await addItem({ listId: groceries, displayName: 'cumin powder', quantity: 2, unit: 'tsp', section: 'pantry' })
-  const status = await ingredientStatus(cumin)
+  const status = await ingredientStatus(cumin, groceries)
   const html = renderToStaticMarkup(
     React.createElement(IngredientSheetView, {
       ing: cumin, qty: '1 tsp', status, listName: 'Groceries', busy: false,
@@ -190,11 +190,51 @@ test('the sheet marks a pantry item that is out, and a list with no grocery list
     checked: true, backlog: false, createdAt: 1 }, list: { name: 'Pantry', kind: 'pantry' as const, createdAt: 1 } }
   const html = renderToStaticMarkup(
     React.createElement(IngredientSheetView, {
-      ing: cumin, qty: '', status: { pantry: [out], onList: [] }, listName: null, busy: false,
+      ing: cumin, qty: '', status: { pantry: [out], onList: [], pantryTarget: out.item }, listName: null, busy: false,
       onList: () => {}, onPantry: () => {}, onClose: () => {},
     }),
   )
   assert.match(html, /In your pantry, marked out/)
   assert.match(html, /Marks it back in stock/)
   assert.match(html, /Make a grocery list first/)
+})
+
+test('the sheet only promises a merge the add will make', async () => {
+  // Same name, different unit: the add makes a second line, so no "merges" promise.
+  await addItem({ listId: groceries, displayName: 'cumin powder', quantity: 2, unit: 'tbsp', section: 'pantry' })
+  const st = await ingredientStatus(cumin, groceries)
+  assert.equal(st.onList.length, 1, 'it is on the list')
+  assert.equal(st.listTarget, undefined, 'but not as the line this add would merge into')
+  const html = renderToStaticMarkup(
+    React.createElement(IngredientSheetView, {
+      ing: cumin, qty: '1 tsp', status: st, listName: 'Groceries', busy: false,
+      onList: () => {}, onPantry: () => {}, onClose: () => {},
+    }),
+  )
+  assert.doesNotMatch(html, /Merges with/)
+  assert.match(html, /1 tsp to Groceries/)
+  assert.equal((await addIngredientToList(cumin, 1, groceries)).result, 'added')
+})
+
+test('a pantry row that carries a unit is still the pantry row', async () => {
+  const flour = { displayName: 'flour', canonicalKey: 'flour', section: 'baking' as const }
+  await db.items.add({ listId: pantry, displayName: 'Flour', canonicalKey: 'flour', unit: 'lb', quantity: 5,
+    section: 'baking', checked: false, backlog: false, createdAt: 1 })
+  const st = await ingredientStatus(flour, groceries)
+  assert.ok(st.pantryTarget, 'status finds it')
+  assert.equal((await addIngredientToPantry(flour)).result, 'already')
+  assert.equal(await db.items.filter((i) => i.listId === pantry).count(), 1, 'no second flour')
+})
+
+test('the pantry label follows the row the action will touch', async () => {
+  await db.items.add({ listId: pantry, displayName: 'Cumin', canonicalKey: 'cumin', section: 'pantry',
+    checked: true, backlog: false, createdAt: 1 })
+  const st = await ingredientStatus(cumin, groceries)
+  const html = renderToStaticMarkup(
+    React.createElement(IngredientSheetView, {
+      ing: cumin, qty: '', status: st, listName: 'Groceries', busy: false,
+      onList: () => {}, onPantry: () => {}, onClose: () => {},
+    }),
+  )
+  assert.match(html, /Marks it back in stock/)
 })

@@ -151,3 +151,25 @@ function legacy(name: string): string {
   else if (k.endsWith('s') && !k.endsWith('ss')) k = k.slice(0, -1)
   return k
 }
+
+test('a word after a comma is a qualifier unless it is prep', () => {
+  same('Rice, brown', 'brown rice')
+  same('Pepper, red', 'red pepper')
+  same('Beans, black', 'black beans')
+  same('Cheese, Swiss', 'swiss cheese')
+  same('Ginger, ground', 'ground ginger')
+  same('onion, chopped', 'onion')
+  same('butter, 1 stick', 'butter')
+  same('butter, or margarine', 'butter')
+  apart('Rice, brown', 'Rice, jasmine')
+  apart('Sugar, brown', 'sugar')
+  apart('Wine, red', 'wine')
+  apart('Pepper, red', 'black pepper')
+  apart('Ginger, ground', 'fresh ginger')
+})
+
+test('peppers are not the pepper jar', () => {
+  apart('peppers', 'pepper')
+  apart('2 peppers', 'black pepper')
+  assert.equal(matchKey('pepper'), 'black pepper')
+})
