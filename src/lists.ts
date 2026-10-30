@@ -246,16 +246,25 @@ export async function ensurePantryList(): Promise<number> {
  * Anything with items in it is left alone and reported, because merging two
  * lists somebody filled is a decision for them, not a repair to run at startup.
  *
- * ONE exception, for the Pantry only: an app-named, random-uid Pantry that has
- * items, sitting beside the shared `default:pantry`, is folded INTO the shared
- * one and then removed. Its items are things like "always have" staples, and
- * leaving them in a second Pantry forever (2026-10) made the loop pick the
- * wrong list. Items move rather than copy, a key the shared Pantry already
- * has is not duplicated (the always-have flag carries over), and the shared
- * list is never the one deleted. Without a `default:pantry` to receive them,
- * nothing moves.
+ * ONE exception: an app-named, random-uid list that has items, sitting beside
+ * the shared `default:` list of its kind AND carrying that list's name, is
+ * folded INTO the shared one and then removed. The Pantry's items are things
+ * like "always have" staples, and leaving them in a second Pantry forever
+ * (2026-10) made the loop pick the wrong list; a "My list" made before the
+ * `default:` uids (2026-09-06) showed up as a second "My list" row beside the
+ * empty shared one (#680). Items move rather than copy, a key the shared list
+ * already has is not duplicated (the always-have flag carries over), and the
+ * shared list is never the one deleted. Without a shared list of that kind to
+ * receive them, or with a different name on either side (a rename is a
+ * decision), nothing moves.
  */
 const APP_MADE_NAMES = new Set(['my list', 'pantry', 'groceries'])
+
+/** The shared singleton each kind folds into; a kind without one never folds. */
+const DEFAULT_UID_BY_KIND: Partial<Record<string, string>> = {
+  grocery: DEFAULT_LIST_UID,
+  pantry: DEFAULT_PANTRY_UID,
+}
 
 export async function dedupeDefaultLists(): Promise<{
   removed: string[]
@@ -299,7 +308,11 @@ export async function dedupeDefaultLists(): Promise<{
       if (sharedUids === null || (dup.uid && sharedUids.has(dup.uid))) continue
       const count = await db.items.filter((i) => i.listId === dup.id).count()
       if (count > 0) {
-        if (dup.kind === 'pantry' && keeper.id != null && keeper.uid === DEFAULT_PANTRY_UID) {
+        if (
+          keeper.id != null &&
+          keeper.uid === DEFAULT_UID_BY_KIND[dup.kind] &&
+          keeper.name.trim().toLowerCase() === dup.name.trim().toLowerCase()
+        ) {
           merged += await foldInto(dup.id, keeper.id)
         } else {
           leftAlone.push(dup.name)

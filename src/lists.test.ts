@@ -75,10 +75,11 @@ test('the repair removes an empty duplicate the app made', async () => {
   assert.equal(left[0].id, keep, 'the oldest survived')
 })
 
-test('the repair NEVER removes a non-pantry list with anything in it', async () => {
+test('the repair NEVER removes a list with items when it cannot fold it', async () => {
+  // No shared list of this kind to receive the items: nothing moves, and it says so.
   await db.lists.clear()
   await db.items.clear()
-  await addList('Groceries', 'grocery', 'default:list')
+  await addList('Groceries', 'grocery', 'older-random')
   const dup = await addList('Groceries', 'grocery', 'other')
   await db.items.add({
     listId: dup as number, displayName: 'Salt', canonicalKey: 'salt',
@@ -89,6 +90,100 @@ test('the repair NEVER removes a non-pantry list with anything in it', async () 
   assert.deepEqual(leftAlone, ['Groceries'], 'and it says so')
   assert.equal(merged, 0)
   assert.equal((await db.lists.toArray()).length, 2)
+})
+
+const base = { section: 'pantry', checked: false, backlog: false, createdAt: 1 } as never
+const addItem = (listId: number, key: string, extra: object = {}) =>
+  db.items.add({ ...base, listId, displayName: key, canonicalKey: key, ...extra })
+
+/** The state #680 found: an empty default:list beside a pre-09-06 random-uid "My list" with items. */
+async function seedPair(dupName = 'My list') {
+  await db.lists.clear()
+  await db.items.clear()
+  const keep = (await addList('My list', 'grocery', 'default:list')) as number
+  const dup = (await addList(dupName, 'grocery', '3fc04e98-random')) as number
+  for (const k of ['milk', 'eggs', 'rice', 'oats', 'salt', 'tea']) await addItem(dup, k)
+  return { keep, dup }
+}
+
+test('#680: a random-uid "My list" with items folds into default:list', async () => {
+  const { keep } = await seedPair()
+  const { removed, leftAlone, merged } = await lists.dedupeDefaultLists()
+  assert.deepEqual(removed, ['My list'])
+  assert.deepEqual(leftAlone, [])
+  assert.equal(merged, 6)
+  assert.deepEqual((await db.lists.toArray()).map((l) => l.uid), ['default:list'])
+  const items = await db.items.toArray()
+  assert.equal(items.length, 6)
+  assert.ok(items.every((i) => i.listId === keep), 'every item moved to the shared list')
+})
+
+test('#680: the removal is a tombstone, so the other devices drop the duplicate too', async () => {
+  const { dup } = await seedPair()
+  const uid = (await db.lists.get(dup))!.uid!
+  await db.tombstones.clear()
+  await lists.dedupeDefaultLists()
+  assert.equal(await db.lists.get(dup), undefined)
+  const tombs = await db.tombstones.toArray()
+  assert.ok(tombs.some((t) => t.kind === 'list' && t.uid === uid), 'a tombstone for the duplicate list')
+  assert.ok(!tombs.some((t) => t.uid === 'default:list'), 'and never one for the shared list')
+})
+
+test('#680: a renamed list is never folded', async () => {
+  const { dup } = await seedPair('Costco run')
+  const { removed, merged } = await lists.dedupeDefaultLists()
+  assert.deepEqual(removed, [])
+  assert.equal(merged, 0)
+  assert.equal((await db.lists.toArray()).length, 2)
+  assert.equal((await db.items.toArray()).filter((i) => i.listId === dup).length, 6)
+})
+
+test('#680: a list shared with you (or by you) is never folded', async () => {
+  const { dup } = await seedPair()
+  for (const out of [false, true]) {
+    sharedUids = ['3fc04e98-random']
+    sharedOut = out
+    const { removed, merged } = await lists.dedupeDefaultLists()
+    assert.deepEqual(removed, [])
+    assert.equal(merged, 0)
+    assert.equal((await db.items.toArray()).filter((i) => i.listId === dup).length, 6)
+  }
+  sharedUids = []
+  sharedOut = false
+})
+
+test('#680: folding is idempotent, and two devices converge on the same result', async () => {
+  // Device A runs it, then device B (which held the same pair) does. Both end
+  // with one list holding the same six keys, and a second run changes nothing.
+  const keysAfter = async () => (await db.items.toArray()).map((i) => i.canonicalKey).sort()
+  await seedPair()
+  await lists.dedupeDefaultLists()
+  const a = await keysAfter()
+  await seedPair()
+  await lists.dedupeDefaultLists()
+  assert.deepEqual(await keysAfter(), a)
+  const again = await lists.dedupeDefaultLists()
+  assert.deepEqual(again, { removed: [], leftAlone: [], merged: 0 })
+  assert.deepEqual(await keysAfter(), a)
+})
+
+test('#680: a key already on the shared list is not doubled', async () => {
+  const { keep } = await seedPair()
+  await addItem(keep, 'milk', { alwaysHave: false })
+  await lists.dedupeDefaultLists()
+  const keys = (await db.items.toArray()).map((i) => i.canonicalKey)
+  assert.equal(keys.filter((k) => k === 'milk').length, 1)
+  assert.equal(keys.length, 6)
+})
+
+test('#680: after Devon merges the pair by hand there is nothing left to do', async () => {
+  const { keep, dup } = await seedPair()
+  await lists.mergeInto(dup, keep)
+  const items = await db.items.toArray()
+  const out = await lists.dedupeDefaultLists()
+  assert.deepEqual(out, { removed: [], leftAlone: [], merged: 0 })
+  assert.deepEqual((await db.items.toArray()).map((i) => i.id).sort(), items.map((i) => i.id).sort())
+  assert.deepEqual((await db.lists.toArray()).map((l) => l.uid), ['default:list'])
 })
 
 test('a leftover Pantry with items is folded into default:pantry', async () => {
