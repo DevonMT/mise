@@ -48,7 +48,7 @@ export function ImportLinkSheet({
 
   return (
     <Sheet className="import" label="Import" onClose={onClose}>
-      <h3 className="sheet-title">Paste a shared link</h3>
+      <h3 className="sheet-title">Paste a Shared Link</h3>
       <p className="review-hint">
         Paste a Mise list or recipe link someone sent you — you’ll get to review it before anything’s
         added.
@@ -129,10 +129,10 @@ export function ImportSheet({
           ))}
         </div>
         <button className="primary" onClick={save} disabled={busy}>
-          Save to my recipes
+          Save to My Recipes
         </button>
         <button className="ghost" style={{ marginTop: 10 }} onClick={onClose}>
-          No thanks
+          No Thanks
         </button>
       </Sheet>
     )
@@ -170,7 +170,7 @@ export function ImportSheet({
       </div>
 
       <button className="primary" onClick={importAsNew} disabled={busy}>
-        Keep as a new list
+        Keep as a New List
       </button>
 
       {compatible.length > 0 && (
@@ -198,7 +198,7 @@ export function ImportSheet({
       )}
 
       <button className="ghost" style={{ marginTop: 12, width: '100%' }} onClick={onClose}>
-        No thanks
+        No Thanks
       </button>
     </Sheet>
   )

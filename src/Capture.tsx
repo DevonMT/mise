@@ -269,7 +269,7 @@ export function CaptureSheet({
                 does not need it. */}
             {stage === 'error' && mode === 'text' && !forRecipe && !textOnly && (
               <button className="ghost" onClick={runPlain} disabled={!content.trim()} style={{ marginTop: 10 }}>
-                Add it without the parser
+                Add It Without the Parser
               </button>
             )}
           </>
@@ -347,7 +347,7 @@ export function CaptureSheet({
             {forRecipe && isRecipe ? (
               <>
                 <button className="primary" onClick={saveRecipeOnly}>
-                  <Icon name="book" size={18} /> Save recipe
+                  <Icon name="book" size={18} /> Save Recipe
                 </button>
                 {includedCount > 0 && (
                   <button className="ghost" onClick={commit} style={{ marginTop: 10 }}>

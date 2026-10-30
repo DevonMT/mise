@@ -58,7 +58,7 @@ export function ListSwitcher({
   if (creating) {
     return (
       <Sheet className="lists" label="Your lists" onClose={() => setCreating(false)}>
-        <h3 className="sheet-title">New list</h3>
+        <h3 className="sheet-title">New List</h3>
         <input
           className="field name-field"
           placeholder="Name it — Costco, Weeknight, Chores…"
@@ -91,7 +91,7 @@ export function ListSwitcher({
         <p className="form-label">Icon</p>
         <IconGrid value={icon} onChange={setIcon} />
         <button className="primary" onClick={create} disabled={!name.trim()} style={{ marginTop: 16 }}>
-          Create list
+          Create List
         </button>
       </Sheet>
     )
@@ -109,7 +109,7 @@ export function ListSwitcher({
   return (
     <Sheet className="lists" label="Your lists" onClose={onClose}>
       <div className="qa-header">
-        <h3 className="sheet-title">Your lists</h3>
+        <h3 className="sheet-title">Your Lists</h3>
         <button className="add-btn" onClick={() => setCreating(true)}>
           <Icon name="plus" size={18} /> New
         </button>
@@ -148,10 +148,10 @@ export function ListSwitcher({
 
       <div className="switcher-foot">
         <button className="ghost" onClick={onImport}>
-          <Icon name="link" size={18} /> Paste a shared link
+          <Icon name="link" size={18} /> Paste a Shared Link
         </button>
         <button className="ghost" onClick={onManage}>
-          Manage lists
+          Manage Lists
         </button>
       </div>
     </Sheet>
@@ -235,7 +235,7 @@ export function ManageLists({
 
   return (
     <Sheet className="lists" label="Your lists" onClose={onClose}>
-      <h3 className="sheet-title">Manage lists</h3>
+      <h3 className="sheet-title">Manage Lists</h3>
       <div className="manage-rows">
         {lists.map((l) => (
           <div key={l.id} className="manage-row">

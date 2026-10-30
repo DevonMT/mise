@@ -14,6 +14,9 @@ Checks every text-on-ground pair the contract implies, in BOTH themes:
     --fav            on --bg                   need 4.5 (Matinee's warnings use it)
     --ink            on --accent-soft          need 4.5 (a selected chip)
     --accent-ink     on --accent               need 4.5 (text on a button)
+    --bg             on --danger               need 4.5 (the bar's unread badge digits)
+    --danger         on --surface              need 3.0 (the badge's shape on the bar)
+    --accent         on --surface              need 3.0 (the bar's focus ring)
     --faint          on --bg                   need 3.0, and only 3.0 —
                                                it is documented as optional
                                                metadata, never body text.
@@ -73,6 +76,8 @@ PAIRS = [
     ("--fav", "--bg", 4.5), ("--ink", "--accent-soft", 4.5),
     ("--accent-ink", "--accent", 4.5),
     ("--notice-ink", "--notice-bg", 4.5),
+    ("--bg", "--danger", 4.5), ("--danger", "--surface", 3.0),
+    ("--accent", "--surface", 3.0),
     ("--faint", "--bg", 3.0),
 ]
 

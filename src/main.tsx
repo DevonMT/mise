@@ -1,44 +1,28 @@
 import { StrictMode } from 'react'
+import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 // Fredoka, Mise's display face, bundled so it is precached and works offline.
 // Latin only, one weight: titles, recipe cards and section labels use it.
 import '@fontsource/fredoka/latin-600.css'
 import './index.css'
 import App from './App.tsx'
-import { configureTheme, startTheme } from './ds/theme'
+import { EstateBar } from './EstateBar.tsx'
+import { applyTheme, configureTheme, cookieThemeStore, readTheme, startTheme } from './ds/theme'
 import { migrateStaples } from './db'
-import { hydrateSettings, migrateSettings, readSetting, setSetting } from './prefs'
+import { hydrateSettings, migrateSettings, readSetting } from './prefs'
 
 /*
- * Persist the theme through the sync layer, so choosing dark on the phone
- * reaches the laptop. The shared module defaults to localStorage; Mise is the
- * app that has somewhere better to put it.
+ * The theme is the estate's now: the ds_theme cookie, set from the bar's own
+ * control and followed across every app (ds/react/theme.ts, SPEC-estate-shell).
+ * Mise's own synced 'mise.theme' setting is only read, once, so nobody's pick
+ * resets: with no cookie yet, the store adopts what this device had (the row's
+ * localStorage mirror) and writes it to the cookie, and the platform adopts it
+ * from there. Nothing writes 'mise.theme' any more.
  *
- * Reads stay synchronous against localStorage underneath, which is what lets
- * the first paint be correct — a synced value arriving later is applied by the
- * settings hydration below.
+ * The cookie is read synchronously, which is what keeps the first paint right,
+ * offline included: ds/chrome.js stamps it from the head before this runs.
  */
-configureTheme({
-  read: () => readSetting('mise.theme'),
-  write: (choice) => {
-    void setSetting('mise.theme', choice).catch(() => {
-      try {
-        localStorage.setItem('mise.theme', choice)
-      } catch {
-        /* the choice still applies for this session */
-      }
-    })
-  },
-  clear: () => {
-    void setSetting('mise.theme', 'system').catch(() => {
-      try {
-        localStorage.removeItem('mise.theme')
-      } catch {
-        /* nothing cached */
-      }
-    })
-  },
-})
+configureTheme(cookieThemeStore({ read: () => readSetting('mise.theme'), write: () => {}, clear: () => {} }))
 
 // Before the first render: stamping the root afterwards means a frame of the
 // wrong theme, which on a dark-mode phone is a white flash in a dark room.
@@ -62,14 +46,22 @@ void migrateStaples().catch(() => {
  */
 void migrateSettings()
   .then(() => hydrateSettings())
+  // A device that never had a pick of its own may only learn the old one here,
+  // from the synced row: with no cookie, reading the theme adopts it.
+  .then(() => applyTheme(readTheme()))
   .catch(() => {
     /* retried on the next open */
   })
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
+// Drawn synchronously: ds/chrome.js looks for the estate bar once, when the document finishes loading, and a
+// render React schedules for later would miss it (the avatar and menus would never fill in).
+flushSync(() =>
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <EstateBar />
+      <App />
+    </StrictMode>,
+  ),
 )
 
 // Persistent storage is NOT requested here any more.

@@ -52,7 +52,6 @@ import { isShareQuery, sharedLink } from './shareTarget'
 import { startAutoSync } from './sync'
 import { useBackLayer } from './back'
 import { usePointer } from './ds/usePointer'
-import { EstateBar } from './EstateBar'
 import { RecipePickSheet } from './RecipePick'
 import { shopTheWeek } from './recipes'
 
@@ -478,7 +477,7 @@ export default function App() {
           <div className="blocked-emoji">
             <Icon name="lock" size={40} />
           </div>
-          <h2>Storage is locked</h2>
+          <h2>Storage Is Locked</h2>
           <p>
             Mise looks like it’s open in more than one place at once, and the copies are blocking
             each other from reading your data.
@@ -505,10 +504,8 @@ export default function App() {
   const isEmpty = groups.every((g) => g.items.length === 0)
 
   return (
-    // The bar sits OUTSIDE .app: at 900px .app becomes a grid whose first
-    // column is the rail, so a bar inside it would be placed in the rail.
+    // The estate bar is outside App altogether (main.tsx): see EstateBar.tsx.
     <>
-      <EstateBar />
       <Handoffs onTake={(p) => setPending(p)} onToast={showToast} />
       <div className="app">
       <header className="topbar">

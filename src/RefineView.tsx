@@ -112,7 +112,7 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
         <button className="icon-back" onClick={onClose} aria-label="Back to list">
           <Icon name="back" size={22} />
         </button>
-        <h2 className="detail-title" id="refine-title">Refine your list</h2>
+        <h2 className="detail-title" id="refine-title">Refine Your List</h2>
       </div>
 
       <div className="fullview-body">

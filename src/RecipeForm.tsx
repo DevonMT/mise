@@ -25,7 +25,7 @@ export function RecipeForm({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet className="recipe-form" label="Recipe" onClose={onClose}>
-      <h3 className="sheet-title">New recipe</h3>
+      <h3 className="sheet-title">New Recipe</h3>
       <input
         className="field name-field"
         placeholder="Recipe name"
@@ -56,7 +56,7 @@ export function RecipeForm({ onClose }: { onClose: () => void }) {
         onChange={(e) => setInstructions(e.target.value)}
       />
       <button className="primary" onClick={save} disabled={!canSave} style={{ marginTop: 12 }}>
-        Save recipe
+        Save Recipe
       </button>
     </Sheet>
   )

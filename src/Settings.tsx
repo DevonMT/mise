@@ -16,7 +16,6 @@ import {
 import { Icon } from './Icon'
 import { EDITION, useAiEnabled } from './edition'
 import { setSetting } from './prefs'
-import { readTheme, setTheme, type ThemeChoice } from './ds/theme'
 import {
   lastSyncedAt, setSyncEnabled, sync, syncAvailable, syncEnabled,
   type Availability, type SyncResult,
@@ -175,12 +174,6 @@ export function SettingsView() {
     if (on) await runSync()
   }
 
-  const [theme, setThemeChoice] = useState<ThemeChoice>(readTheme)
-  const onTheme = (t: ThemeChoice) => {
-    setTheme(t)
-    setThemeChoice(t)
-  }
-
   const [protectMsg, setProtectMsg] = useState('')
   const onProtect = async () => {
     try {
@@ -281,7 +274,7 @@ export function SettingsView() {
     <div className="view">
 
       <section className="settings-group">
-        <h3 className="group-title">Your data &amp; backup</h3>
+        <h3 className="group-title">Your Data &amp; Backup</h3>
         {dataErr ? (
           <p className="err-text">Couldn’t read storage: {dataErr}</p>
         ) : dataCounts ? (
@@ -371,7 +364,7 @@ export function SettingsView() {
       */}
       {EDITION === 'personal' && (
         <section className="settings-group">
-          <h3 className="group-title">Sync across devices</h3>
+          <h3 className="group-title">Sync Across Devices</h3>
           {canSync === undefined ? (
             <p className="group-hint">Checking…</p>
           ) : canSync === 'ok' ? (
@@ -426,7 +419,7 @@ export function SettingsView() {
 
       {aiOn && (
         <section className="settings-group">
-          <h3 className="group-title">Store prices</h3>
+          <h3 className="group-title">Store Prices</h3>
           <p className="group-hint">
             Estimated prices for the {priceCount} item{priceCount === 1 ? '' : 's'} on your grocery
             lists — only those, never anything you've removed. Prices you set yourself stay put.
@@ -456,7 +449,7 @@ export function SettingsView() {
       )}
 
       <section className="settings-group">
-        <h3 className="group-title">Aisle order</h3>
+        <h3 className="group-title">Aisle Order</h3>
         <p className="group-hint">
           The order your list groups sections while you shop. Arrange it to match{' '}
           {store.trim() ? store.trim() : 'your store'}’s layout.
@@ -487,12 +480,12 @@ export function SettingsView() {
           ))}
         </ul>
         <button className="ghost" onClick={resetAisles} disabled={!hasCustomOrder(store)}>
-          Reset to store-walk default
+          Reset to Store-Walk Default
         </button>
       </section>
 
       <section className="settings-group">
-        <h3 className="group-title">Never add these</h3>
+        <h3 className="group-title">Never Add These</h3>
         <p className="group-hint">
           Things you always have, so a recipe asking for them shouldn’t put them on
           your shopping list. Salt, oil, pepper. Nothing is filtered out of a list
@@ -538,27 +531,6 @@ export function SettingsView() {
           out of it on the device where it is most used. Settings rather than the
           bottom bar: leaving is rare, and the bottom bar is for the three things
           that are not. */}
-      <section className="settings-group">
-        <h3 className="group-title">Appearance</h3>
-        <p className="group-hint">
-          Light is the default because the list is read in a shop, where a bright
-          screen wins. Dark suits a desk, and a phone in a dim kitchen.
-        </p>
-        <div className="seg-group" role="group" aria-label="Theme">
-          {(['system', 'light', 'dark'] as ThemeChoice[]).map((t) => (
-            <button
-              key={t}
-              type="button"
-              className={theme === t ? 'seg-btn on' : 'seg-btn'}
-              aria-pressed={theme === t}
-              onClick={() => onTheme(t)}
-            >
-              {t === 'system' ? 'Match device' : t === 'light' ? 'Light' : 'Dark'}
-            </button>
-          ))}
-        </div>
-      </section>
-
       <section className="settings-group">
         <h3 className="group-title">Elsewhere</h3>
         <a className="home-link" href="https://devondoes.dev/">

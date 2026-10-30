@@ -16,9 +16,9 @@
  *
  * Extracted from Mise with two couplings removed:
  *
- *   PERSISTENCE is injected. Mise writes the choice through its sync layer so
- *   it reaches the other devices; an app with no sync passes nothing and gets
- *   localStorage. Either way the choice applies immediately — a theme is not
+ *   PERSISTENCE is injected. The default is the estate cookie store below, so
+ *   the choice follows you across apps; an app that needs something else passes
+ *   its own. Either way the choice applies immediately — a theme is not
  *   worth waiting on a network round trip for.
  *
  *   THE GROUND COLOUR IS READ, NOT DECLARED. It has to match --bg or the
@@ -62,7 +62,72 @@ const localStore = (key: string): ThemeStore => ({
   },
 })
 
-let store: ThemeStore = localStore(KEY)
+/**
+ * The estate store: the ds_theme cookie, shared by every app and by ds/chrome.js
+ * (same attributes, so they never write two cookies). The platform keeps it in
+ * step with the profile; a pick here is also saved there, signed in or not
+ * (a signed-out save is refused and ignored: the cookie already carries it).
+ *
+ * 'system' is WRITTEN, not cleared: a stored 'system' is a choice, an absent
+ * cookie is "never chosen", and the profile needs to tell them apart.
+ *
+ * Migration: the first read with no cookie adopts whatever the app stored
+ * before (Mise's sync layer or localStorage, passed as `legacy`) and writes it
+ * to the cookie once (the platform adopts it from there), so nobody's choice resets.
+ */
+const THEME_COOKIE = /(?:^|; )ds_theme=(light|dark|system)(?:;|$)/
+
+// The types are erased at runtime and this string goes into a cookie.
+const valid = (v: unknown): v is ThemeChoice => v === 'light' || v === 'dark' || v === 'system'
+
+const writeCookie = (choice: ThemeChoice): void => {
+  if (!valid(choice)) return
+  document.cookie =
+    `ds_theme=${choice}; Max-Age=31536000; Path=/; SameSite=Lax` +
+    (location.hostname === 'localhost' ? '' : '; Domain=.devondoes.dev; Secure')
+}
+
+/**
+ * `platform` is the origin of the estate API, like `data-platform` on the bar:
+ * empty for an app behind the gateway (same-origin, the gateway proxies the
+ * path), the platform's origin for one outside it (Rumpus, Delve), which must
+ * also be in the platform's BAR_ORIGINS. Defaults to the bar's own attribute.
+ */
+export function cookieThemeStore(legacy: ThemeStore = localStore(KEY), platform?: string): ThemeStore {
+  const base = () => platform ?? document.querySelector<HTMLElement>('.ds-bar')?.dataset.platform ?? ''
+  const save = (choice: ThemeChoice): void => {
+    if (!valid(choice)) return
+    writeCookie(choice)
+    fetch(base() + '/api/estate/prefs', {
+      method: 'POST',
+      credentials: 'include',
+      redirect: 'manual',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme: choice }),
+    }).catch(() => {
+      /* offline: the cookie carries the choice on this device */
+    })
+  }
+  return {
+    read: () => {
+      const m = THEME_COOKIE.exec(document.cookie)
+      if (m) return m[1]
+      const old = legacy.read()
+      if (valid(old)) {
+        // Cookie only, no POST: /api/me adopts it if the profile has no answer
+        // yet, and a profile that already has one must win over a stale local
+        // choice on a new device.
+        writeCookie(old)
+        return old
+      }
+      return null
+    },
+    write: save,
+    clear: () => save('system'),
+  }
+}
+
+let store: ThemeStore = cookieThemeStore()
 
 /** Point the theme at an app's own persistence. Call once, before startTheme. */
 export function configureTheme(custom: ThemeStore): void {

@@ -158,7 +158,7 @@ export function RecipeEditor({ recipe, onClose }: { recipe: Recipe; onClose: () 
           <Icon name="back" size={22} />
         </button>
         <h2 className="detail-title" id="editor-title">
-          Edit recipe
+          Edit Recipe
         </h2>
       </div>
 
@@ -198,7 +198,7 @@ export function RecipeEditor({ recipe, onClose }: { recipe: Recipe; onClose: () 
 
       <div className="fullview-foot">
         <button className="primary" onClick={save} disabled={!canSave || saving}>
-          Save changes
+          Save Changes
         </button>
       </div>
     </div>

@@ -1,67 +1,36 @@
-import { useEffect, useState } from 'react'
+import { memo } from 'react'
+
+const HUB = 'https://devondoes.dev'
 
 /**
- * The estate bar — on desktop only.
+ * The estate bar, bar v2 (ds/chrome.css), at every width.
  *
- * Mise is the one app that is INSTALLED. On a phone it fills the screen, you
- * are not hopping between apps mid-shop, and a strip across the top costs a row
- * of the only thing that matters there: the list. On a desktop there is room,
- * and it is where you do move between apps.
+ * Mise draws the markup and ds/chrome.js, loaded in index.html's head, fills it
+ * in from /api/me: the avatar, the switcher and the theme menus. chrome.js edits
+ * these nodes in place (an avatar into the button, a plain label for the switcher
+ * when signed out), so React must never render over them: no props, memo, and
+ * main.tsx draws it OUTSIDE App, so the loading and storage-locked screens have
+ * the bar too. chrome.js looks for it once, when the document finishes loading.
  *
- * Width, not pointer: this is a question about how much space there is, and
- * usePointer answers a different one — see ds/usePointer.
+ * It used to be desktop-only, to give a phone's one row to the list. A v2 bar is
+ * the only place the theme and the way to the other apps live, so it shows on a
+ * phone too, and offline it is still there: the place stays a plain label and the
+ * theme control still works (the estate cookie, not the network).
+ *
+ * The emblems and the avatar come from the hub; offline they are simply absent.
  */
-const DESKTOP = '(min-width: 900px)'
-
-export function EstateBar() {
-  const [wide, setWide] = useState(() => window.matchMedia?.(DESKTOP).matches ?? false)
-  const [who, setWho] = useState('')
-
-  useEffect(() => {
-    const mq = window.matchMedia?.(DESKTOP)
-    const on = () => setWide(mq?.matches ?? false)
-    mq?.addEventListener('change', on)
-    return () => mq?.removeEventListener('change', on)
-  }, [])
-
-  useEffect(() => {
-    if (!wide) return
-    // Same-origin: the gateway proxies this path on every app hostname.
-    fetch('/api/me', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setWho(d?.user?.name || d?.user?.email || ''))
-      .catch(() => {
-        /* offline, or the platform is down. The bar still says where you are. */
-      })
-  }, [wide])
-
-  if (!wide) return null
-
+export const EstateBar = memo(function EstateBar() {
   return (
-    <header className="ds-bar">
-      <a className="ds-mark" href="https://devondoes.dev/">devondoes.dev</a>
+    <header className="ds-bar" data-app="mise">
+      <a className="ds-mark" href={`${HUB}/`}><img src={`${HUB}/emblems/hub.svg`} alt="" width="26" height="26" /><span>devondoes</span></a>
       <span className="ds-sep" aria-hidden="true">/</span>
-      <span className="ds-here">mise</span>
+      <button className="ds-switch" type="button" aria-haspopup="menu" aria-expanded="false"><img src={`${HUB}/emblems/mise.svg`} alt="" width="22" height="22" /><span>Mise</span></button>
       <span className="ds-fill" />
-      <span className="ds-who">{who}</span>
-      {who && (
-        <button
-          className="ds-out"
-          type="button"
-          onClick={() => {
-            void fetch('/api/sign-out', {
-              method: 'POST',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              body: '{}',
-            })
-              .catch(() => undefined)
-              .then(() => location.reload())
-          }}
-        >
-          Sign out
-        </button>
-      )}
+      <nav className="ds-nav" aria-label="Site">
+        <a className="ds-people" href={`${HUB}/people`} aria-label="People" />
+        <button className="ds-me" type="button" aria-haspopup="menu" aria-label="Account" />
+      </nav>
+      <button className="ds-theme" type="button" aria-haspopup="menu" aria-label="Theme" hidden />
     </header>
   )
-}
+})

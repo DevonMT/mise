@@ -77,7 +77,7 @@ export function RecipesView({
             {aiOn ? 'snap, paste, link, or type one in.' : 'enter one by hand.'}
           </p>
           <button className="add-btn" onClick={onAddRecipe}>
-            <Icon name="plus" size={18} /> New recipe
+            <Icon name="plus" size={18} /> New Recipe
           </button>
         </div>
       ) : (
@@ -248,7 +248,7 @@ ${url}`)
 
       {optional.length > 0 && (
         <div className="opt-block">
-          <h4 className="steps-head">Optional — tap to include</h4>
+          <h4 className="steps-head">Optional — Tap to Include</h4>
           <div className="ing-list">
             {optional.map(({ ing, i }) => {
               const on = optSel.has(i)
@@ -297,7 +297,7 @@ ${url}`)
         Add to list{optSel.size > 0 ? ` · +${optSel.size} optional` : ''}
       </button>
       <button className="ghost danger" onClick={remove} style={{ marginTop: 10 }}>
-        Delete recipe
+        Delete Recipe
       </button>
 
       {editing && <RecipeEditor recipe={recipe} onClose={() => setEditing(false)} />}
