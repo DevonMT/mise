@@ -167,6 +167,53 @@ test('#680: folding is idempotent, and two devices converge on the same result',
   assert.deepEqual(await keysAfter(), a)
 })
 
+test('#680: when the shares cannot be fetched a pair with items is not folded', async () => {
+  const { dup } = await seedPair()
+  sharedUids = null
+  const { removed, merged } = await lists.dedupeDefaultLists()
+  sharedUids = []
+  assert.deepEqual(removed, [])
+  assert.equal(merged, 0)
+  assert.equal((await db.items.toArray()).filter((i) => i.listId === dup).length, 6)
+})
+
+test('#680: a renamed default:list keeper is left alone, not folded into', async () => {
+  const { keep, dup } = await seedPair()
+  await db.lists.update(keep, { name: 'Home' })
+  const { removed, leftAlone, merged } = await lists.dedupeDefaultLists()
+  assert.deepEqual(removed, [])
+  assert.deepEqual(leftAlone, ['My list'])
+  assert.equal(merged, 0)
+  assert.equal((await db.items.toArray()).filter((i) => i.listId === dup).length, 6)
+})
+
+test('#680: a kind with no default: uid never folds', async () => {
+  await db.lists.clear()
+  await db.items.clear()
+  await addList('My list', 'shopping-other', 'default:other')
+  const dup = (await addList('My list', 'shopping-other', 'random')) as number
+  await addItem(dup, 'milk')
+  const { merged } = await lists.dedupeDefaultLists()
+  assert.equal(merged, 0)
+  assert.equal((await db.lists.toArray()).length, 2)
+})
+
+test('#680: device B, already synced part-way, converges on the same items as device A', async () => {
+  // A folded and pushed; B pulled the moved items (now on default:list) but still has the
+  // random list with the same keys. Its fold must not double them.
+  const { keep, dup } = await seedPair()
+  for (const k of ['milk', 'eggs', 'rice']) {
+    const row = (await db.items.filter((i) => i.listId === dup && i.canonicalKey === k).first())!
+    await db.items.update(row.id!, { listId: keep })
+    await addItem(dup, k)
+  }
+  await lists.dedupeDefaultLists()
+  const items = await db.items.toArray()
+  assert.deepEqual(items.map((i) => i.canonicalKey).sort(), ['eggs', 'milk', 'oats', 'rice', 'salt', 'tea'])
+  assert.ok(items.every((i) => i.listId === keep))
+  assert.deepEqual((await db.lists.toArray()).map((l) => l.uid), ['default:list'])
+})
+
 test('#680: a key already on the shared list is not doubled', async () => {
   const { keep } = await seedPair()
   await addItem(keep, 'milk', { alwaysHave: false })

@@ -256,7 +256,9 @@ export async function ensurePantryList(): Promise<number> {
  * already has is not duplicated (the always-have flag carries over), and the
  * shared list is never the one deleted. Without a shared list of that kind to
  * receive them, or with a different name on either side (a rename is a
- * decision), nothing moves.
+ * decision), nothing moves. ACCEPTED: a second same-named list you made on
+ * purpose looks identical to a leftover (random uid, same kind and name), so it
+ * folds too; its items are kept, only the second row goes.
  */
 const APP_MADE_NAMES = new Set(['my list', 'pantry', 'groceries'])
 
