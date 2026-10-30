@@ -10,3 +10,4 @@ Offline-first grocery list at mise.devondoes.dev (React 19 + Vite + Dexie, insta
 - 2026-10-29: the SPA has no CSP of its own (the gateway adds none; only the public `/r` reader has one, and it loads no bar), so there is no `img-src` to loosen for the hub's emblems. If a CSP is added, `img-src` needs `https://devondoes.dev`.
 - 2026-10-29: Title Case (#562): headings, buttons and tabs are Title Case; run devondoes `node ds/lint/check-title-case.mjs mise` (it reads the sibling checkout).
 - 2026-10-29: `npm run lint:ds` and `ds/sync.mjs` resolve Mise as `../../mise` from the devondoes checkout they run from, so from a worktree of either repo they check or write the MAIN Mise checkout, not the worktree.
+- 2026-10-30: `ListSwitcher` hooks must all sit above the `creating` early return (#675): opening the create sheet otherwise renders fewer hooks than the last render and React throws; oxlint's rules-of-hooks error also blocks the land gate.

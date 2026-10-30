@@ -46,6 +46,13 @@ export function ListSwitcher({
   const [kind, setKind] = useState<ListKind>('grocery')
   const [icon, setIcon] = useState('list')
 
+  const [shares, setShares] = useState<Share[]>([])
+  useEffect(() => {
+    // Offline it stays empty and the switcher simply says nothing extra,
+    // which is the right degradation: the lists still work.
+    void people.shares().then((r) => setShares(r as unknown as Share[]))
+  }, [])
+
   const create = async () => {
     const id = await createList(name, kind, icon)
     setCreating(false)
@@ -54,6 +61,9 @@ export function ListSwitcher({
     setIcon('list')
     onPick(id)
   }
+
+  const shareOf = (uid?: string | null) =>
+    uid ? shares.find((x) => x.list_uid === uid) : undefined
 
   if (creating) {
     return (
@@ -96,15 +106,6 @@ export function ListSwitcher({
       </Sheet>
     )
   }
-
-  const [shares, setShares] = useState<Share[]>([])
-  useEffect(() => {
-    // Offline it stays empty and the switcher simply says nothing extra,
-    // which is the right degradation: the lists still work.
-    void people.shares().then((r) => setShares(r as unknown as Share[]))
-  }, [])
-  const shareOf = (uid?: string | null) =>
-    uid ? shares.find((x) => x.list_uid === uid) : undefined
 
   return (
     <Sheet className="lists" label="Your lists" onClose={onClose}>
