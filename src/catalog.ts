@@ -1,4 +1,4 @@
-import { db, type CatalogEntry, type Section } from './db'
+import { db, liveLists, type CatalogEntry, type Section } from './db'
 import { estimatePrices } from './parse'
 
 /** Record an add into the catalog: bump its count and refresh its details.
@@ -136,7 +136,7 @@ export async function setPrice(
  *  backlog). This — NOT the whole historical catalog — is what pricing targets,
  *  so we never pay to price things you've since removed. */
 export async function priceableKeys(): Promise<Set<string>> {
-  const lists = await db.lists.toArray()
+  const lists = await liveLists()
   const groceryIds = new Set(lists.filter((l) => l.kind === 'grocery').map((l) => l.id))
   const items = await db.items.toArray()
   return new Set(

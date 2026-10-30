@@ -483,7 +483,8 @@ export async function readAllWithTimeout(ms = 8000): Promise<{
   const read = (async () => ({
     items: await db.items.toArray(),
     recipes: await db.recipes.count(),
-    lists: await db.lists.toArray(),
+    // Folded leftovers are hidden here too, or Settings' counts show two "My list".
+    lists: await liveLists(),
     catalog: await db.catalog.count(),
   }))()
   const timeout = new Promise<never>((_, reject) =>

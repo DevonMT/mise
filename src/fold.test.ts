@@ -37,6 +37,7 @@ type Rec = { kind: string; uid: string; updatedAt: number; body: Record<string, 
 type Tomb = { kind: string; uid: string; deletedAt: number }
 const server = { records: new Map<string, Rec>(), tombs: new Map<string, Tomb>() }
 const key = (x: { kind: string; uid: string }) => `${x.kind}|${x.uid}`
+const DAY = 86_400_000
 
 function postState(body: { records: Rec[]; tombstones: Tomb[] }) {
   for (const r of body.records) {
@@ -52,6 +53,7 @@ function postState(body: { records: Rec[]; tombstones: Tomb[] }) {
     const r = server.records.get(k)
     if (r && t.deletedAt >= r.updatedAt) server.records.delete(k)
   }
+  for (const [k, t] of server.tombs) if (t.deletedAt < Date.now() - 90 * DAY) server.tombs.delete(k)
   return structuredClone({
     records: [...server.records.values()], tombstones: [...server.tombs.values()], variant: null,
   })
@@ -118,7 +120,7 @@ const KEYS = ['milk', 'eggs', 'rice', 'oats', 'salt', 'tea']
 /** The account #680 found: an empty default:list beside a pre-09-06 "My list"
  *  holding the groceries. Pushed to the server unfolded (shares unreachable,
  *  so the fold that every sync runs skips it). */
-async function legacyAccount(opts: { oldName?: string; createdAt?: number } = {}) {
+async function legacyAccount(opts: { oldName?: string; createdAt?: number; editedAt?: number } = {}) {
   await reset()
   const keep = await lists.ensureSeed()
   const old = (await db.lists.add({
@@ -129,6 +131,10 @@ async function legacyAccount(opts: { oldName?: string; createdAt?: number } = {}
       listId: old, displayName: k, canonicalKey: k, section: 'other',
       checked: false, backlog: false, createdAt: AUGUST,
     })
+  }
+  if (opts.editedAt != null) {
+    await sync.keepingStamps([db.items], () =>
+      db.items.toCollection().modify({ updatedAt: opts.editedAt }))
   }
   shared = null
   assert.equal((await sync.sync()).ok, true)
@@ -153,6 +159,8 @@ test('after a sync the old list is hidden, its items are on default:list, everyw
   assert.deepEqual(await onList(keep), [...KEYS].sort())
   assert.deepEqual(await onList(old), [])
   assert.equal((await db.lists.get(old))?.foldedInto, 'default:list', 'kept, as a forwarding address')
+  assert.equal((await db.lists.get(old))?.name, 'My list (moved)')
+  assert.ok(!lists.APP_MADE_NAMES.has('my list (moved)'), "so an older build's repair leaves it be")
   assert.deepEqual((await liveLists()).map((l) => l.uid), ['default:list'], 'and hidden')
   assert.equal(serverList(LEGACY)?.body.foldedInto, 'default:list')
   assert.ok(serverItems().every((r) => r.body.listUid === 'default:list'))
@@ -163,7 +171,7 @@ test('after a sync the old list is hidden, its items are on default:list, everyw
   assert.deepEqual(await onList(keep), [...KEYS].sort())
   assert.equal((await db.lists.get(old))?.foldedInto, 'default:list')
   const again = await fold.foldLegacyLists()
-  assert.deepEqual(again, { folded: [], moved: 0, dropped: 0 }, 'a second pass has nothing to do')
+  assert.deepEqual(again, { folded: [], moved: 0 }, 'a second pass has nothing to do')
 })
 
 // ---- Blocking 1: a stale device ---------------------------------------------
@@ -290,26 +298,88 @@ test('3: the fold refuses while a merge is writing', async () => {
   assert.deepEqual(await onList(old), [...KEYS].sort())
 })
 
-test('3: two syncs at once share one run, so two merges never overlap', async () => {
-  await legacyAccount()
+test('3: two syncs at once never overlap, and a call made during a run gets a run after it', async () => {
+  const { keep } = await legacyAccount()
+  shared = null // no fold; this is about the runs
   const a = sync.sync()
+  await db.items.add({ listId: keep, displayName: 'jam', canonicalKey: 'jam', section: 'other',
+    checked: false, backlog: false, createdAt: Date.now() })
   const b = sync.sync()
-  assert.equal(a, b)
-  await a
+  const c = sync.sync()
+  assert.notEqual(a, b)
+  assert.equal(b, c, 'calls made during one run share the next')
+  await Promise.all([a, b])
+  assert.ok(serverItems().some((r) => r.body.canonicalKey === 'jam'), 'what changed meanwhile was sent')
 })
 
-test('3: what the fold drops leaves its own tombstone, written in the same transaction', async () => {
+test('2: an older build deleting the folded list cannot strand a late add', async () => {
+  // The build on the phone today deletes an empty app-made duplicate after
+  // every sync. The rename keeps it out of that; if a delete arrives anyway
+  // (or someone deletes it by hand on an old build), it is refused and the list
+  // is put back.
   const { keep, old } = await legacyAccount()
-  // default:list already holds a tea identical to the old list's.
+  const offline = await snapshot() // a tablet that misses the fold
+  await sync.sync()
+  await sync.sync() // folded and pushed
+  const folder = await snapshot()
+  postState({ records: [], tombstones: [{ kind: 'list', uid: LEGACY, deletedAt: Date.now() }] })
+  assert.equal(serverList(LEGACY), undefined, 'the old build deleted it on the server')
+
+  await become(offline) // comes back with a new line on the old list, and pushes it
+  await tick()
+  await db.items.add({ listId: old, displayName: 'bread', canonicalKey: 'bread', section: 'other',
+    checked: false, backlog: false, createdAt: Date.now() })
+  await sync.sync()
+  const tablet = await snapshot()
+
+  await become(folder) // any device that holds the folded list moves it on
+  await sync.sync()
+  await sync.sync()
+  assert.ok(await db.lists.get(old), 'the list survived the delete')
+  assert.deepEqual(await onList(old), [])
+  assert.ok((await onList(keep)).includes('bread'), 'bread moved on')
+  assert.ok(serverList(LEGACY), 'and the server has the forwarding list again')
+  assert.equal(serverItems().find((r) => r.body.canonicalKey === 'bread')?.body.listUid, 'default:list')
+
+  await become(tablet) // and the tablet, which lost the old list, gets its bread back where it went
+  await sync.sync()
+  assert.equal((await db.items.where('canonicalKey').equals('bread').first())?.listId, keep)
+})
+
+test('4: two devices folding at once, with the same line on both lists, lose nothing', async () => {
+  const { keep } = await legacyAccount()
   await db.items.add({ listId: keep, displayName: 'tea', canonicalKey: 'tea', section: 'other',
     checked: false, backlog: false, createdAt: AUGUST })
-  const teaOld = (await db.items.where('listId').equals(old).filter((i) => i.canonicalKey === 'tea').first())!
-  await sync.sync() // folds, dropping the old tea
-  const local = await db.tombstones.where('[kind+uid]').equals(['item', teaOld.uid!]).first()
-  assert.equal(local?.deletedAt, teaOld.updatedAt! + 1, 'recorded with the drop, not by a hook later')
-  await sync.sync() // and pushed
-  assert.equal(serverItems().filter((r) => r.body.canonicalKey === 'tea').length, 1)
-  assert.equal(server.tombs.get(`item|${teaOld.uid}`)?.deletedAt, teaOld.updatedAt! + 1)
+  shared = null
+  await sync.sync()
+  shared = []
+  fold.forgetShares()
+  const b = await snapshot()
+  // Reverse B's local ids, so any "first one wins" choice would differ.
+  const ids = (b.items as Array<{ id: number }>).map((i) => i.id).reverse()
+  ;(b.items as Array<{ id: number }>).forEach((i, n) => { i.id = ids[n] + 1000 })
+
+  await fold.foldLegacyLists() // A folds, not yet pushed
+  const a = await snapshot()
+  await become(b)
+  await fold.foldLegacyLists() // B folds, not yet pushed
+  await sync.sync()
+  await become(a)
+  await sync.sync()
+  await sync.sync()
+  assert.equal(server.tombs.size, 0, 'nothing dropped')
+  assert.deepEqual(serverItems().map((r) => r.body.canonicalKey).sort(), [...KEYS, 'tea'].sort(),
+    'both teas kept, every key there')
+})
+
+test('4: rows last edited months ago fold once and settle', async () => {
+  const { keep } = await legacyAccount({ editedAt: Date.now() - 120 * DAY })
+  await sync.sync()
+  await sync.sync()
+  assert.deepEqual(await onList(keep), [...KEYS].sort())
+  assert.deepEqual(await fold.foldLegacyLists(), { folded: [], moved: 0 }, 'nothing left to do')
+  const r = await sync.sync()
+  assert.equal(r.ok && r.updated + r.added + r.removed, 0, 'and no sync loop')
 })
 
 // ---- Findings 4-6 and the bounds ---------------------------------------------
@@ -352,22 +422,41 @@ test('5: a device that only received the fold also lands on default:list', async
   assert.equal(await lists.resolveActiveId(), keep)
 })
 
-test('6: a row that differs in unit, ticked or next-time is kept; only an identical one goes', async () => {
-  const { keep, old } = await legacyAccount()
+test('6: every row moves, even beside the same line: nothing is merged away', async () => {
+  const { keep } = await legacyAccount()
   const base = { section: 'other' as const, createdAt: AUGUST, listId: keep }
   await db.items.bulkAdd([
     { ...base, displayName: 'milk', canonicalKey: 'milk', unit: 'gal', checked: false, backlog: false },
     { ...base, displayName: 'eggs', canonicalKey: 'eggs', checked: true, backlog: false },
-    { ...base, displayName: 'rice', canonicalKey: 'rice', checked: false, backlog: true },
     { ...base, displayName: 'Oats', canonicalKey: 'oats', checked: false, backlog: false },
   ])
-  const oatsOld = (await db.items.where('listId').equals(old).filter((i) => i.canonicalKey === 'oats').first())!
   await sync.sync()
   await sync.sync()
-  const keys = await onList(keep)
-  assert.deepEqual(keys, ['eggs', 'eggs', 'milk', 'milk', 'oats', 'rice', 'rice', 'salt', 'tea'])
-  assert.equal(server.tombs.get(`item|${oatsOld.uid}`)?.deletedAt, oatsOld.updatedAt! + 1,
-    'the identical oats went, with a tombstone that loses to any later edit')
+  assert.deepEqual(await onList(keep), ['eggs', 'eggs', 'milk', 'milk', 'oats', 'oats', 'rice', 'salt', 'tea'])
+  assert.equal(server.tombs.size, 0)
+})
+
+test('4: a folded list that is (or becomes) shared is not forwarded, nor when shares are unknown', async () => {
+  const { keep, old } = await legacyAccount()
+  await sync.sync()
+  for (const s of [[LEGACY], null]) {
+    fold.forgetShares()
+    await db.items.add({ listId: old, displayName: 'jam', canonicalKey: 'jam', section: 'other',
+      checked: false, backlog: false, createdAt: Date.now() })
+    shared = s
+    const r = await fold.foldLegacyLists()
+    assert.equal(r.moved, 0, `shared=${JSON.stringify(s)}`)
+    assert.ok((await onList(old)).includes('jam'))
+    await db.items.where('canonicalKey').equals('jam').delete()
+  }
+  assert.ok(!(await onList(keep)).includes('jam'))
+})
+
+test('the marker is stamped one past the list, so a later rename elsewhere un-folds it', async () => {
+  const { old } = await legacyAccount()
+  const v = (await db.lists.get(old))!.updatedAt!
+  await sync.sync()
+  assert.equal((await db.lists.get(old))?.updatedAt, v + 1)
 })
 
 test('a list made after the cutoff, or renamed on either side, never folds', async () => {
@@ -396,7 +485,7 @@ test('after Devon merges the pair by hand, the fold has nothing to do', async ()
 
   await sync.sync()
   assert.deepEqual((await db.items.toArray()).map((i) => i.uid).sort(), after, 'this device')
-  assert.deepEqual(await fold.foldLegacyLists(), { folded: [], moved: 0, dropped: 0 })
+  assert.deepEqual(await fold.foldLegacyLists(), { folded: [], moved: 0 })
 
   await become(other) // a device still holding the unmerged pair
   await sync.sync()

@@ -328,6 +328,13 @@ export async function applyRemote(
         // Same rule the server applies: a delete beats an edit it is at least
         // as new as, and loses to one that came after it.
         if (deletedAt != null && deletedAt >= (row.updatedAt ?? 0)) {
+          if (kind === 'list' && (row as unknown as List).foldedInto) {
+            // A folded list is a forwarding address and must outlive any delete
+            // (fold.ts rule 3): an older build can still send one. Keep it, one
+            // past the delete, so the next push puts it back on the server.
+            await table.put({ ...row, updatedAt: Math.max(Date.now(), deletedAt + 1) })
+            continue
+          }
           await table.delete(row.id)
           removed++
         }
@@ -489,13 +496,22 @@ export async function syncAvailable(): Promise<Availability> {
  * crash in that window loses the local edits.
  */
 let inflight: Promise<SyncResult> | null = null
+let queued: Promise<SyncResult> | null = null
 
 export function sync(): Promise<SyncResult> {
   // One at a time. Settings' "Sync now" calls this beside the auto-sync, and two
   // merges at once share the one applyingRemote flag: the first to finish turns
   // it off while the second is still writing server rows, which then get
-  // stamped as local edits. The second caller gets the first one's answer.
-  inflight ??= syncOnce().finally(() => {
+  // stamped as local edits. A call made during a run gets one more run after
+  // it (shared by every such call), so what changed meanwhile is sent too.
+  if (inflight) {
+    queued ??= inflight.then(() => {
+      queued = null
+      return sync()
+    })
+    return queued
+  }
+  inflight = syncOnce().finally(() => {
     inflight = null
   })
   return inflight
@@ -609,6 +625,7 @@ export function startAutoSync(onResult?: (r: SyncResult) => void): () => void {
   if (EDITION !== 'personal') return () => {}
 
   let running = false
+  let again = false
   let stopped = false
   let live = false
   let debounce: ReturnType<typeof setTimeout> | undefined
@@ -617,12 +634,22 @@ export function startAutoSync(onResult?: (r: SyncResult) => void): () => void {
   let retry = 0
 
   const run = async () => {
-    if (stopped || running || !syncEnabled()) return
+    if (stopped || !syncEnabled()) return
+    // A push asked for mid-run (a tick in the aisle) runs once more after it,
+    // rather than waiting for the next poll, which never comes while live.
+    if (running) {
+      again = true
+      return
+    }
     running = true
     try {
       onResult?.(await sync())
     } finally {
       running = false
+    }
+    if (again) {
+      again = false
+      void run()
     }
   }
 
