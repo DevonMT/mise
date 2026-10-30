@@ -75,9 +75,23 @@ export interface List {
   foldedInto?: string
 }
 
-/** Every list a person can see or pick: all but the folded leftovers. */
+/** Every list the app opens on or adds to: all but the folded leftovers. */
 export const isLive = (l: List): boolean => !l.foldedInto
-export const liveLists = (): Promise<List[]> => db.lists.filter(isLive).toArray()
+
+/** Every list a person can see: the live ones, plus a folded leftover that
+ *  still holds rows. Normally that is only for the moment between a sync and
+ *  its fold, but when the fold cannot forward them (shares unknown, or the list
+ *  is shared now) a hidden list would mean rows nobody can see. It shows under
+ *  its " (moved)" name instead. */
+export async function liveLists(): Promise<List[]> {
+  const out: List[] = []
+  for (const l of await db.lists.toArray()) {
+    if (isLive(l) || (l.id != null && (await db.items.where('listId').equals(l.id).count()) > 0)) {
+      out.push(l)
+    }
+  }
+  return out
+}
 
 export interface Item {
   id?: number

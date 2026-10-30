@@ -160,7 +160,10 @@ test('after a sync the old list is hidden, its items are on default:list, everyw
   assert.deepEqual(await onList(old), [])
   assert.equal((await db.lists.get(old))?.foldedInto, 'default:list', 'kept, as a forwarding address')
   assert.equal((await db.lists.get(old))?.name, 'My list (moved)')
-  assert.ok(!lists.APP_MADE_NAMES.has('my list (moved)'), "so an older build's repair leaves it be")
+  // The build on devices today deletes an empty duplicate with one of these names.
+  const MAIN_APP_MADE_NAMES = ['my list', 'pantry', 'groceries']
+  assert.ok(!MAIN_APP_MADE_NAMES.includes(fold.movedName('My list').toLowerCase()),
+    "so an older build's repair leaves it be")
   assert.deepEqual((await liveLists()).map((l) => l.uid), ['default:list'], 'and hidden')
   assert.equal(serverList(LEGACY)?.body.foldedInto, 'default:list')
   assert.ok(serverItems().every((r) => r.body.listUid === 'default:list'))
@@ -447,6 +450,7 @@ test('4: a folded list that is (or becomes) shared is not forwarded, nor when sh
     const r = await fold.foldLegacyLists()
     assert.equal(r.moved, 0, `shared=${JSON.stringify(s)}`)
     assert.ok((await onList(old)).includes('jam'))
+    assert.ok((await liveLists()).some((l) => l.id === old), 'and the list shows, so jam is visible')
     await db.items.where('canonicalKey').equals('jam').delete()
   }
   assert.ok(!(await onList(keep)).includes('jam'))
@@ -492,6 +496,27 @@ test('after Devon merges the pair by hand, the fold has nothing to do', async ()
   assert.equal(await db.lists.get(old), undefined, 'the merge reached it')
   assert.deepEqual((await db.items.toArray()).map((i) => i.uid).sort(), after, 'six rows, not twelve')
   assert.equal(serverItems().length, 6)
+})
+
+test('3: a run that throws does not stick the queue', async () => {
+  await legacyAccount()
+  // The next merge loses IndexedDB mid-way (iOS does this).
+  const proto = Object.getPrototypeOf(db.items) as { toArray: () => Promise<unknown[]> }
+  const real = proto.toArray
+  let blown = false
+  ;(db.items as unknown as { toArray: () => Promise<unknown[]> }).toArray = function (this: unknown) {
+    if (sync.isApplyingRemote() && !blown) {
+      blown = true
+      return Promise.reject(new Error('Connection to Indexed Database server lost'))
+    }
+    return real.call(this)
+  }
+  const a = sync.sync()
+  const b = sync.sync()
+  await assert.rejects(a)
+  assert.equal((await b).ok, true, 'the call made during it got a run of its own')
+  delete (db.items as unknown as { toArray?: unknown }).toArray
+  assert.equal((await sync.sync()).ok, true)
 })
 
 test('keepingStamps keeps the stamp it is given; a write outside it is stamped as usual', async () => {

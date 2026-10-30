@@ -308,6 +308,7 @@ export async function applyRemote(
   let added = 0
   let updated = 0
   let removed = 0
+  let restored = false
 
   applyingRemote = true
   try {
@@ -333,6 +334,7 @@ export async function applyRemote(
             // (fold.ts rule 3): an older build can still send one. Keep it, one
             // past the delete, so the next push puts it back on the server.
             await table.put({ ...row, updatedAt: Math.max(Date.now(), deletedAt + 1) })
+            restored = true
             continue
           }
           await table.delete(row.id)
@@ -382,6 +384,9 @@ export async function applyRemote(
   } finally {
     applyingRemote = false
   }
+  // The hooks were off, so nothing scheduled a push for a list put back above;
+  // until one goes, the server (and the hub) has no forwarding list.
+  if (restored) touched()
 
   return { added, updated, removed }
 }
@@ -505,7 +510,12 @@ export function sync(): Promise<SyncResult> {
   // stamped as local edits. A call made during a run gets one more run after
   // it (shared by every such call), so what changed meanwhile is sent too.
   if (inflight) {
-    queued ??= inflight.then(() => {
+    // After the run however it ended: a run that threw must not leave every
+    // later caller holding its rejection.
+    queued ??= inflight.then(
+      () => undefined,
+      () => undefined,
+    ).then(() => {
       queued = null
       return sync()
     })

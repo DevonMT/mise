@@ -32,9 +32,12 @@ export interface Waiting {
   accent?: string | null
 }
 
-async function get<T>(path: string): Promise<T | null> {
+async function get<T>(path: string, timeoutMs?: number): Promise<T | null> {
   try {
-    const r = await fetch(path, { credentials: 'include' })
+    const r = await fetch(path, {
+      credentials: 'include',
+      ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+    })
     return r.ok ? ((await r.json()) as T) : null
   } catch {
     // Offline is the normal case for this app, and none of this is worth an
@@ -77,7 +80,9 @@ export async function shares(): Promise<Array<Person & { list_uid: string; mine:
  *  not be asked (offline, signed out), which is not the same as "none".
  */
 export async function sharedListUids(): Promise<Set<string> | null> {
-  const d = await get<{ shares: Array<{ list_uid: string }> }>(`${ENDPOINT}/shares`)
+  // Bounded: the legacy-list fold asks this inside a sync, and sync is one at
+  // a time, so a GET stalled by a weak signal would hold every push behind it.
+  const d = await get<{ shares: Array<{ list_uid: string }> }>(`${ENDPOINT}/shares`, 5_000)
   if (!d || !Array.isArray(d.shares)) return null
   return new Set(d.shares.map((x) => x.list_uid))
 }
