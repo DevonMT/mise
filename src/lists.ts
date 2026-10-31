@@ -346,7 +346,8 @@ export async function dedupeDefaultLists(): Promise<{
       // it. Hidden again as the forwarding address instead, which looks the same.
       const forwarding = asForwarding(dup)
       if (forwarding) {
-        await db.lists.put(forwarding)
+        // update, not put: a no-op if the row went meanwhile (a clear, #278).
+        await db.lists.update(dup.id, { foldedInto: forwarding.foldedInto, name: forwarding.name })
         removed.push(dup.name)
         continue
       }
