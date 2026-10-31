@@ -23,6 +23,9 @@ const ACTIVE_KEY = 'mise.activeList'
  *
  * A list the user creates still gets a random uid. This is only for the ones
  * the app decides to make, which are exactly the ones that must converge.
+ *
+ * A fixed list uid must start with `default:`: the platform refuses to share
+ * those (every account has one), and this client never sends their tombstones (#682).
  */
 export const DEFAULT_LIST_UID = 'default:list'
 export const DEFAULT_PANTRY_UID = 'default:pantry'
