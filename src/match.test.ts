@@ -173,3 +173,219 @@ test('peppers are not the pepper jar', () => {
   apart('2 peppers', 'black pepper')
   assert.equal(matchKey('pepper'), 'black pepper')
 })
+
+test('amounts and units in every common spelling', () => {
+  const lines: [string, string][] = [
+    ['2 lb. ground beef', 'ground beef'], ['1 tbsp. olive oil', 'olive oil'], ['2 tsp. salt', 'salt'],
+    ['1 c. flour', 'flour'], ['4 oz. cream cheese', 'cream cheese'], ['1 T butter', 'butter'],
+    ['1 t cumin', 'cumin'], ['1-2 cloves garlic', 'garlic'], ['2-3 tablespoons olive oil', 'olive oil'],
+    ['1 to 2 cups flour', 'flour'], ['1 1/2 lbs chicken thighs', 'chicken thigh'], ['1.5 lb potatoes', 'potato'],
+    ['1/2-inch piece ginger', 'ginger'], ['2 (8-oz) packages cream cheese', 'cream cheese'],
+    ['a 14-ounce can chickpeas', 'chickpea'], ['1 15oz can black beans', 'black bean'],
+    ['2 heaping tablespoons sugar', 'sugar'], ['2 celery stalks', 'celery'], ['2 ribs celery', 'celery'],
+    ['head of garlic', 'garlic'], ['bunch of cilantro', 'cilantro'], ['1 can of tomatoes', 'tomato'],
+    ['1 stick of butter', 'butter'], ['2 strips bacon', 'bacon'], ['4 links sausage', 'sausage'],
+    ['1 loaf bread', 'bread'], ['2 fillets salmon', 'salmon'], ['two cloves garlic', 'garlic'],
+    ['one onion', 'onion'], ['half an onion', 'onion'], ['1/2 onion', 'onion'], ['1 cup (240 ml) milk', 'milk'],
+    ['pound of ground beef', 'ground beef'], ['teaspoon of salt', 'salt'], ['dash of hot sauce', 'hot sauce'],
+    ['splash of milk', 'milk'], ['extra-large eggs', 'egg'], ['jumbo shrimp', 'shrimp'],
+  ]
+  for (const [line, key] of lines) assert.equal(matchKey(line), key, line)
+  // "half and half" is a product, not an amount.
+  assert.equal(matchKey('half & half'), matchKey('half and half'))
+  assert.notEqual(matchKey('half and half'), matchKey('milk'))
+})
+
+test('a note after the comma never becomes part of the name', () => {
+  const lines: [string, string][] = [
+    ['onion, finely chopped', 'onion'], ['garlic, peeled and crushed', 'garlic'],
+    ['butter, room temperature', 'butter'], ['eggs, room temperature', 'egg'],
+    ['olive oil, for frying', 'olive oil'], ['olive oil, plus more for drizzling', 'olive oil'],
+    ['flour, for dusting', 'flour'], ['water, as needed', 'water'], ['onion, cut into rings', 'onion'],
+    ['carrots, cut into 1-inch pieces', 'carrot'], ['potatoes, scrubbed', 'potato'],
+    ['parsley, stems removed', 'parsley'], ['tomatoes, seeded', 'tomato'], ['tomatoes, diced', 'tomato'],
+    ['spinach, washed and dried', 'spinach'], ['2 eggs, beaten', 'egg'], ['1 lemon, juiced', 'lemon'],
+    ['black beans, drained and rinsed', 'black bean'], ['black beans, rinsed', 'black bean'],
+    ['parmesan, freshly grated', 'parmesan'], ['black pepper, freshly cracked', 'black pepper'],
+    ['olive oil (extra virgin)', 'olive oil'], ['peeled and deveined shrimp', 'shrimp'],
+    ['olive oil for frying', 'olive oil'], ['butter plus more for the pan', 'butter'],
+  ]
+  for (const [line, key] of lines) assert.equal(matchKey(line), key, line)
+  // A real qualifier still counts, and is not mistaken for prep.
+  assert.equal(matchKey('rice, long grain'), 'long grain rice')
+})
+
+test('juice, zest and peel "of" a fruit read as lemon juice, lemon zest', () => {
+  same('juice of 1 lemon', 'lemon juice')
+  same('juice of 2 limes', 'lime juice')
+  same('zest of a lemon', 'lemon zest')
+  same('zest of 1 orange', 'orange zest')
+  same('lemon peel', 'lemon zest')
+  apart('lemon juice', 'lemon')
+  apart('lemon zest', 'lemon juice')
+})
+
+test('a form you buy separately is not its plain self', () => {
+  apart('sliced almonds', 'almonds')
+  apart('slivered almonds', 'sliced almonds')
+  apart('shredded coconut', 'coconut')
+  apart('fresh mozzarella', 'mozzarella')
+  apart('shredded mozzarella', 'fresh mozzarella')
+  apart('fresh turmeric', 'ground turmeric')
+  apart('turmeric root', 'turmeric')
+  apart('fresh coriander', 'ground coriander')
+  apart('fresh pasta', 'pasta')
+  apart('chopped tomatoes', 'tomatoes')
+  apart('crushed tomatoes', 'diced tomatoes')
+  apart('minced beef', 'beef')
+  same('sliced mushrooms', 'mushrooms')
+  same('chopped walnuts', 'walnuts')
+  same('shredded cheddar', 'cheddar')
+  same('grated parmesan', 'parmesan')
+})
+
+test('a last word that names the thing it already names', () => {
+  same('cheddar cheese', 'cheddar')
+  same('Ricotta cheese', 'ricotta')
+  same('shredded cheddar cheese', 'cheddar')
+  same('penne pasta', 'penne')
+  same('thyme sprigs', 'thyme')
+  same('6 sprigs thyme', 'thyme')
+  same('fresh basil leaves', 'basil')
+  same('salmon fillets', 'salmon')
+  same('anchovy fillets', 'anchovies')
+  same('hoisin sauce', 'hoisin')
+  same('romaine lettuce', 'romaine')
+  same('miso paste', 'miso')
+  same('ranch dressing', 'ranch')
+  // ...but not where it makes the product ("cream cheese" is not "cream").
+  apart('cream cheese', 'cheese')
+  apart('cream cheese', 'cream')
+  apart('goat cheese', 'cheese')
+  apart('cottage cheese', 'cheese')
+  apart('bay leaf', 'bay')
+  apart('curry leaf', 'curry')
+  apart('tomato paste', 'tomato')
+  apart('fish sauce', 'fish')
+  apart('oyster sauce', 'oyster')
+})
+
+test('hot, cold and iced water are water', () => {
+  for (const n of ['hot water', 'ice water', 'cold water', 'boiling water', 'warm water', 'lukewarm water']) {
+    assert.equal(matchKey(n), 'water', n)
+  }
+  apart('coconut water', 'water')
+  apart('tonic water', 'water')
+  apart('ice', 'water')
+  same('ice cubes', 'ice')
+})
+
+test('bare words mean the usual thing', () => {
+  same('sugar', 'granulated sugar')
+  same('white sugar', 'sugar')
+  same('brown sugar', 'light brown sugar')
+  apart('brown sugar', 'dark brown sugar')
+  apart('sugar', 'brown sugar')
+  apart('sugar', 'powdered sugar')
+  same('vanilla', 'pure vanilla extract')
+  apart('vanilla extract', 'vanilla bean')
+  same('hamburger', 'ground beef')
+  same('hamburger meat', 'ground beef')
+  same('beef mince', 'ground beef')
+  apart('ground beef', 'ground chuck')
+  same('prawns', 'shrimp')
+  same('plain yogurt', 'yogurt')
+  apart('greek yogurt', 'yogurt')
+  same('plain greek yogurt', 'greek yogurt')
+  same('pure maple syrup', 'maple syrup')
+  same('sweet paprika', 'paprika')
+  apart('smoked paprika', 'paprika')
+  same('italian parsley', 'flat leaf parsley')
+  same('fennel bulb', 'fennel')
+  apart('fennel seeds', 'fennel')
+})
+
+test('more plain salts, still not the seasoned ones', () => {
+  for (const n of ['Maldon sea salt flakes', 'Diamond Crystal kosher salt', 'Morton kosher salt', 'fleur de sel',
+    'flake sea salt', 'Celtic sea salt', 'grey sea salt']) {
+    assert.equal(matchKey(n), 'salt', n)
+  }
+  same('seasoning salt', 'seasoned salt')
+  apart('seasoned salt', 'salt')
+  apart('smoked salt', 'salt')
+  apart('truffle salt', 'salt')
+})
+
+test('pepper in its jars: ground, cracked and whole peppercorns', () => {
+  same('cracked black pepper', 'black pepper')
+  same('coarse black pepper', 'black pepper')
+  same('black peppercorns', 'whole peppercorns')
+  same('peppercorns', 'whole black peppercorns')
+  apart('black peppercorns', 'black pepper')
+  apart('white pepper', 'black pepper')
+  apart('lemon pepper', 'black pepper')
+  apart('pink peppercorns', 'peppercorns')
+})
+
+test('the same product under another name', () => {
+  same('breadcrumbs', 'bread crumbs')
+  same('panko breadcrumbs', 'panko')
+  apart('panko', 'breadcrumbs')
+  same('distilled white vinegar', 'white vinegar')
+  same('cider vinegar', 'apple cider vinegar')
+  same('rice wine vinegar', 'rice vinegar')
+  same('reduced sodium soy sauce', 'low sodium soy sauce')
+  apart('low sodium soy sauce', 'soy sauce')
+  same('shoyu', 'soy sauce')
+  same('veggie broth', 'vegetable broth')
+  same('stock cube', 'bouillon cube')
+  same('old fashioned oats', 'rolled oats')
+  same('flax seeds', 'flaxseed')
+  apart('ground flaxseed', 'flaxseed')
+  same('semi-sweet chocolate chips', 'chocolate chips')
+  same('creamy peanut butter', 'peanut butter')
+  same('canned pumpkin', 'pumpkin puree')
+  same('red kidney beans', 'kidney beans')
+  same('string beans', 'green beans')
+  same('sugar snap peas', 'snap peas')
+  same('swiss chard', 'chard')
+  same('beetroot', 'beets')
+  same('button mushrooms', 'mushrooms')
+  same('baby bella mushrooms', 'cremini mushrooms')
+  same('plum tomatoes', 'roma tomatoes')
+  same('elbow macaroni', 'macaroni')
+  same('lasagne sheets', 'lasagna noodles')
+  same('granulated garlic', 'garlic powder')
+  same('dried minced onion', 'onion flakes')
+  same('ear of corn', 'corn on the cob')
+  same('worcestershire sauce', 'worcestershire')
+  same('mayo', 'mayonnaise')
+  same('bbq sauce', 'barbecue sauce')
+  same('Dijon mustard', 'dijon')
+  same('caster sugar', 'superfine sugar')
+})
+
+test('look-alikes that are different things stay different', () => {
+  const pairs: [string, string][] = [
+    ['coconut milk', 'coconut water'], ['coconut milk', 'milk'], ['almond milk', 'almond flour'],
+    ['rice', 'rice vinegar'], ['rice', 'rice flour'], ['sour cream', 'cream'], ['sour cream', 'cream cheese'],
+    ['peanut butter', 'butter'], ['bread flour', 'flour'], ['cake flour', 'flour'], ['corn syrup', 'corn'],
+    ['cornmeal', 'cornstarch'], ['cornflour', 'cornstarch'], ['sweet potato', 'potato'], ['green onion', 'onion'],
+    ['green bean', 'black bean'], ['hot sauce', 'sauce'], ['apple juice', 'apple cider'],
+    ['apple cider', 'apple cider vinegar'], ['chicken broth', 'chicken bouillon'],
+    ['tomato sauce', 'tomato paste'], ['white wine vinegar', 'white vinegar'],
+    ['red wine vinegar', 'balsamic vinegar'], ['baking powder', 'cocoa powder'], ['chili powder', 'chipotle powder'],
+    ['unsalted butter', 'salted butter'], ['egg whites', 'eggs'], ['egg yolks', 'egg whites'],
+    ['whole wheat flour', 'flour'], ['canned tuna', 'tuna steak'], ['cooked rice', 'rice'],
+    ['frozen peas', 'peas'], ['canned black beans', 'dried black beans'], ['dark chocolate', 'chocolate chips'],
+    ['cumin seeds', 'ground cumin'], ['coriander seeds', 'coriander'], ['cinnamon sticks', 'cinnamon'],
+    ['whole cloves', 'ground cloves'], ['cardamom pods', 'cardamom'], ['garlic', 'cloves'],
+    ['ground sage', 'sage'], ['dried thyme', 'thyme'], ['dried basil', 'basil'], ['dried parsley', 'parsley'],
+    ['thai basil', 'basil'], ['mexican oregano', 'oregano'], ['peppermint', 'mint'],
+    ['ground pork', 'pork chops'], ['ground chicken', 'chicken breast'], ['chicken wings', 'chicken thighs'],
+    ['black garlic', 'garlic'], ['pickled ginger', 'ginger'], ['crystallized ginger', 'ginger'],
+    ['pumpkin puree', 'pumpkin'], ['artichoke hearts', 'artichoke'], ['sun dried tomatoes', 'tomatoes'],
+    ['salsa', 'tomato sauce'], ['marinara', 'pasta sauce'], ['dark soy sauce', 'soy sauce'],
+  ]
+  for (const [a, b] of pairs) apart(a, b)
+})
