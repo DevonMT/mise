@@ -10,8 +10,9 @@ import {
   SYSTEM_PROMPT,
   PRICES_SCHEMA,
   pricesSystem,
-  placeLine,
-  storeLabel,
+  PLACE_RULE,
+  STORE_REF,
+  shopperLine,
   REFINE_SCHEMA,
   refineSystem,
 } from './parseContract.js'
@@ -289,7 +290,7 @@ app.post('/api/prices', async (c) => {
   } catch {
     return c.json({ error: 'Invalid JSON body.' }, 400)
   }
-  const store = storeLabel(body.store, body.area)
+  const shopper = shopperLine(body.store, body.area)
   const items = (body.items ?? []).slice(0, 300)
   if (items.length === 0) return c.json({ prices: [] })
 
@@ -300,9 +301,9 @@ app.post('/api/prices', async (c) => {
   try {
     const data = await askStructured<unknown>({
       user: c.get('caller'),
-      prompt: `Price these items:\n${list}`,
+      prompt: `${shopper}\n\nPrice these items:\n${list}`,
       schema: PRICES_SCHEMA,
-      system: pricesSystem(store) + placeLine(body.area),
+      system: pricesSystem(STORE_REF) + PLACE_RULE,
     })
     return c.json(data)
   } catch (e) {
@@ -333,7 +334,7 @@ app.post('/api/refine', async (c) => {
   } catch {
     return c.json({ error: 'Invalid JSON body.' }, 400)
   }
-  const store = storeLabel(body.store, body.area)
+  const shopper = shopperLine(body.store, body.area)
   const items = (body.items ?? []).slice(0, 100)
   if (items.length === 0) return c.json({ items: [] })
 
@@ -344,9 +345,9 @@ app.post('/api/refine', async (c) => {
   try {
     const data = await askStructured<unknown>({
       user: c.get('caller'),
-      prompt: `Give options for these items:\n${list}`,
+      prompt: `${shopper}\n\nGive options for these items:\n${list}`,
       schema: REFINE_SCHEMA,
-      system: refineSystem(store) + placeLine(body.area),
+      system: refineSystem(STORE_REF) + PLACE_RULE,
     })
     return c.json(data)
   } catch (e) {

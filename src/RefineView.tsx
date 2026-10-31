@@ -104,6 +104,8 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
     try {
       await setAisle(item.id!, item.canonicalKey, section)
     } catch (e) {
+      // The row did not move, so the picker must not say it did.
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, section: item.section } : i)))
       setError(e instanceof Error ? e.message : String(e))
     }
   }

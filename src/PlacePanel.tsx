@@ -106,10 +106,9 @@ export function PlacePanel({
       </div>
 
       <p className="group-hint">
-        Your store and area are sent to our AI service to suggest products and prices
-        near you. Nothing else about you is sent. Your device’s location is only used
-        when you tap Use My Location, and it stays on your phone: only the town name
-        is kept.
+        Your store and ZIP or town are sent to the AI service to find products and
+        prices. Your device’s location is only used when you tap Use My Location, and
+        it stays on your phone: only the town name is kept.
       </p>
 
       <div className="two-btn">
