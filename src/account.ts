@@ -24,7 +24,7 @@
  * device does once on the first sync after this ships.
  */
 import { db } from './db'
-import { keepingStamps } from './sync'
+import { keepingStamps, withoutSync } from './sync'
 
 const ACCOUNT_KEY = 'mise.sync.account'
 
@@ -41,10 +41,12 @@ export function bindAccount(id: string): void {
 }
 
 /** Per-device keys that describe the lists, not the device: they go with them.
- *  The switch, the device id and the theme stay. */
+ *  The switch and the device id stay. `mise.theme` goes too: it is only a
+ *  migration source now (the cookie is the theme), and left here it would
+ *  become a settings row in the new account at the next launch. */
 const DATA_KEYS = [
   'mise.activeList', 'mise.aisleOrder', 'mise.aisles', 'mise.store', 'mise.swipeHint',
-  'mise.sync.folded', 'mise.sync.last',
+  'mise.theme', 'mise.sync.folded', 'mise.sync.last',
 ]
 
 /**
@@ -52,19 +54,22 @@ const DATA_KEYS = [
  * `account`. Nothing goes to any server: the rows are cleared without
  * tombstones (keepingStamps), because a tombstone here would delete them from
  * the account they belong to. Bound only after the clear has committed, so a
- * clear that fails part-way never pushes what is left into the new account.
+ * clear that fails part-way never pushes what is left into the new account,
+ * and with no sync running (withoutSync), so no merge lands in the middle.
  */
-export async function clearThisDevice(account: string): Promise<void> {
-  const tables = [db.lists, db.items, db.recipes, db.staples, db.catalog, db.settings, db.tombstones]
-  await keepingStamps(tables, async () => {
-    for (const t of tables) await t.clear()
-  })
-  for (const k of DATA_KEYS) {
-    try {
-      localStorage.removeItem(k)
-    } catch {
-      /* storage blocked: nothing there to clear */
+export function clearThisDevice(account: string): Promise<void> {
+  return withoutSync(async () => {
+    const tables = [db.lists, db.items, db.recipes, db.staples, db.catalog, db.settings, db.tombstones]
+    await keepingStamps(tables, async () => {
+      for (const t of tables) await t.clear()
+    })
+    for (const k of DATA_KEYS) {
+      try {
+        localStorage.removeItem(k)
+      } catch {
+        /* storage blocked: nothing there to clear */
+      }
     }
-  }
-  bindAccount(account)
+    bindAccount(account)
+  })
 }

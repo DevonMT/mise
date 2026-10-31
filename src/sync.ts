@@ -530,8 +530,11 @@ export async function syncAvailable(): Promise<Availability> {
  */
 let inflight: Promise<SyncResult> | null = null
 let queued: Promise<SyncResult> | null = null
+/** A withoutSync job; every sync asked for meanwhile waits for it. */
+let holding: Promise<unknown> | null = null
 
 export function sync(): Promise<SyncResult> {
+  if (holding) return holding.then(() => undefined, () => undefined).then(() => sync())
   // One at a time. Settings' "Sync now" calls this beside the auto-sync, and two
   // merges at once share the one applyingRemote flag: the first to finish turns
   // it off while the second is still writing server rows, which then get
@@ -553,6 +556,23 @@ export function sync(): Promise<SyncResult> {
     inflight = null
   })
   return inflight
+}
+
+/**
+ * Run `fn` with no sync in flight and none starting until it is done: for
+ * clearing this device (account.ts), where a merge landing half-way through
+ * would leave the last account's rows behind for the next push.
+ */
+export function withoutSync<T>(fn: () => Promise<T>): Promise<T> {
+  const run = (async () => {
+    // Not `queued`: it waits for this, and would wait forever.
+    await inflight?.catch(() => undefined)
+    return fn()
+  })()
+  holding = run
+  return run.finally(() => {
+    if (holding === run) holding = null
+  })
 }
 
 async function syncOnce(): Promise<SyncResult> {

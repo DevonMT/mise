@@ -201,3 +201,25 @@ test('#278: a platform that names another account without refusing: nothing is t
     ;(globalThis as unknown as { fetch: unknown }).fetch = realFetch
   }
 })
+
+test('#278: clearing waits out a sync in flight, so none of its rows survive the clear', async () => {
+  await aliceThenBob()
+  signedIn = 'alice' // Alice signs back in in another tab while the sheet is open
+  const running = sync.sync() // an ok sync, writing Alice's state row by row
+  const clearing = account.clearThisDevice('bob')
+  const asked = sync.sync() // and a sync asked for during the clear runs after it
+  assert.equal((await running).ok, true)
+  await clearing
+  assert.equal(account.boundAccount(), 'bob')
+  const r = await asked
+  assert.equal(!r.ok && r.reason, 'account', 'Alice is signed in, the device is now Bob’s: asked again')
+  assert.deepEqual(await localNames(), [], 'nothing of Alice’s left to push')
+  assert.deepEqual(names('bob'), ['beer'])
+})
+
+test('#278: clearing also drops the old theme pick, so it never becomes a row in the new account', async () => {
+  await aliceThenBob()
+  store.set('mise.theme', 'dark')
+  await account.clearThisDevice('bob')
+  assert.equal(store.get('mise.theme'), undefined)
+})
