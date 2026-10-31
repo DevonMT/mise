@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Recipe } from './db'
-import { addRecipeToList } from './recipes'
+import { addRecipeToList, type Skipped } from './recipes'
 import { formatQty } from './list'
 import { defaultGroceryListId } from './lists'
 import { recipePageUrl, shareRecipePayload } from './share'
@@ -34,7 +34,7 @@ export function RecipesView({
   onAddRecipe: () => void
   /** The grocery list the ingredients actually landed on — may not be the one
    *  you were standing on, so the caller switches you to it. */
-  onAdded: (listId: number) => void
+  onAdded: (listId: number, skipped: Skipped[]) => void
   onToast: (msg: string) => void
 }) {
   const aiOn = useAiEnabled()
@@ -60,9 +60,9 @@ export function RecipesView({
           activeListId={activeListId}
           onBack={() => setSelected(null)}
           onToast={onToast}
-          onDone={(listId) => {
+          onDone={(listId, skipped) => {
             setSelected(null)
-            onAdded(listId)
+            onAdded(listId, skipped)
           }}
         />
       </div>
@@ -125,7 +125,7 @@ function RecipeDetail({
   recipe: Recipe
   activeListId: number
   onBack: () => void
-  onDone: (listId: number) => void
+  onDone: (listId: number, skipped: Skipped[]) => void
   onToast: (msg: string) => void
 }) {
   const base = recipe.servings || 0
@@ -157,8 +157,8 @@ function RecipeDetail({
       onToast('No grocery list to add to — make one first.')
       return
     }
-    await addRecipeToList(recipe, factor, target, optSel)
-    onDone(target)
+    const { skipped } = await addRecipeToList(recipe, factor, target, optSel)
+    onDone(target, skipped)
   }
 
   const [sharing, setSharing] = useState(false)
