@@ -3,6 +3,7 @@ import { useDialog } from './ds/useDialog'
 import { db, type Item } from './db'
 import { applyRefinement } from './catalog'
 import { refineItems, type RefineOption } from './parse'
+import { fitOptions } from './fit'
 import { Icon } from './Icon'
 
 type Stage = 'loading' | 'ready' | 'empty' | 'error'
@@ -136,6 +137,7 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
               {items.map((item) => {
                 const opts = options.get(item.canonicalKey) ?? []
                 const chosen = applied[item.canonicalKey]
+                const fits = fitOptions(item, opts)
                 return (
                   <div key={item.id} className="refine-card">
                     <div className="refine-item">
@@ -150,17 +152,29 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
                       <p className="refine-none">No options suggested.</p>
                     ) : (
                       <div className="refine-opts">
-                        {opts.map((opt, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            className={chosen === opt.label ? 'ropt on' : 'ropt'}
-                            onClick={() => apply(item, opt)}
-                          >
-                            <span className="ropt-label">{opt.label}</span>
-                            <span className="ropt-price">${opt.price.toFixed(2)}</span>
-                          </button>
-                        ))}
+                        {opts.map((opt, i) => {
+                          const fit = fits[i]
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              className={chosen === opt.label ? 'ropt on' : 'ropt'}
+                              onClick={() => apply(item, opt)}
+                            >
+                              <span className="ropt-main">
+                                <span className="ropt-label">{opt.label}</span>
+                                {fit && (
+                                  <span className={`ropt-fit ${fit.kind}`}>
+                                    {fit.best && <span className="ropt-best">Best fit</span>}
+                                    {fit.text}
+                                    {fit.packsText && ` · ${fit.packsText}`}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="ropt-price">${opt.price.toFixed(2)}</span>
+                            </button>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
