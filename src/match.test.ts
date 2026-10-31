@@ -365,6 +365,75 @@ test('the same product under another name', () => {
   same('caster sugar', 'superfine sugar')
 })
 
+test('a comma or a number inside the name is not an amount or a note', () => {
+  // European decimals and thousands: "1,5 kg flour" is flour, not the key "1".
+  assert.equal(matchKey('1,5 kg flour'), 'flour')
+  assert.equal(matchKey('1,000 g sugar'), 'sugar')
+  apart('1,5 kg flour', '1,5 kg rice')
+  // Names that start with a number keep it.
+  assert.equal(matchKey('5 spice'), 'five spice')
+  same('5-spice', 'Chinese five spice powder')
+  assert.equal(matchKey('7 up'), '7up')
+  assert.equal(matchKey('7-Up'), '7up')
+  same('1000 island dressing', 'thousand island dressing')
+  apart('00 flour', 'flour')
+  apart('3 cheese blend', 'cheese blend')
+  apart('three bean salad', 'bean salad')
+  // ...while a real amount still goes.
+  same('5 lb flour', 'flour')
+  same('3 eggs', 'egg')
+  same('2 cheese slices', 'cheese slice')
+})
+
+test('"whole" is a word of the name, not a measure', () => {
+  same('2 cups whole milk', 'whole milk')
+  apart('2 cups whole milk', 'milk')
+  same('2 whole wheat tortillas', 'whole wheat tortillas')
+  same('2 cups whole wheat flour', 'whole wheat flour')
+  apart('1 whole nutmeg', 'nutmeg')
+})
+
+test('a lone word with one qualifier in brackets is a qualifier', () => {
+  same('sugar (brown)', 'brown sugar')
+  same('milk (whole)', 'whole milk')
+  same('beans (black)', 'black beans')
+  apart('cheese (cheddar)', 'cheese')
+  apart('onion (red)', 'onion')
+  // Brackets on a longer name, or with an amount or note, are just a note.
+  same('olive oil (extra virgin)', 'olive oil')
+  same('chicken breasts (about 2 lb)', 'chicken breast')
+  same('Ground Cumin (optional)', 'cumin')
+  same('flour (for dusting)', 'flour')
+})
+
+test('plural peppers are the vegetable, with a key of their own', () => {
+  assert.notEqual(matchKey('peppers'), 'pepper')
+  assert.notEqual(matchKey('2 peppers'), matchKey('black pepper'))
+  assert.ok(!sameIngredient({ displayName: '2 peppers', canonicalKey: 'pepper' }, { displayName: 'Black pepper', canonicalKey: 'black pepper' }))
+})
+
+test('products that share a word with a plain one', () => {
+  apart('fresh yeast', 'yeast')
+  apart('shredded wheat', 'wheat')
+  apart('fresh tuna', 'tuna')
+  apart('tuna, in oil', 'tuna')
+  apart('tuna, in water', 'tuna, in oil')
+})
+
+test('odd input never throws and never makes a junk key', () => {
+  for (const n of ['', ' ', ',', '(', ')', '()', '.', '/', 'a', 'of', '...', '1', '½', '1 1/2', '2 cups', '(((']) {
+    const k = matchKey(n)
+    assert.ok(k === '' || /[a-z]{2}/.test(k), `${JSON.stringify(n)} -> ${JSON.stringify(k)}`)
+  }
+  // Letters that do not decompose are transliterated, not dropped.
+  assert.equal(matchKey('øl'), 'ol')
+  assert.notEqual(matchKey('æg'), matchKey('øl'))
+  // A pasted wall of brackets stays cheap.
+  const start = Date.now()
+  matchKey('( '.repeat(60000))
+  assert.ok(Date.now() - start < 500)
+})
+
 test('look-alikes that are different things stay different', () => {
   const pairs: [string, string][] = [
     ['coconut milk', 'coconut water'], ['coconut milk', 'milk'], ['almond milk', 'almond flour'],

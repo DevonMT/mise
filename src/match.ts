@@ -60,7 +60,13 @@
  *   - Cumin seed (whole) is not ground cumin. Cilantro is not coriander.
  *   - "Low sodium" and "reduced sodium" are one; both stay apart from the plain
  *     product (it is a different thing on the shelf).
- *   - A word after a comma is a qualifier unless it is prep or a note.
+ *   - A word after a comma is a qualifier unless it is prep or a note. A lone
+ *     word with one qualifier in brackets is the same ("sugar (brown)"); longer
+ *     names keep brackets as a note ("olive oil (extra virgin)").
+ *   - "1,5 kg" is a decimal, not a comma. "Whole" is never a measure ("2 cups
+ *     whole milk" is whole milk; "1 whole chicken" stays "whole chicken").
+ *     A number inside a name stays ("5 spice", "7 up", "00 flour", "3 cheese").
+ *   - A key with no letters, or one character, is '' (matches nothing).
  *
  * KNOWN LIMITS (a missed match, or a merge the unit check usually stops):
  *   "sliced cheese" and "cheese" share a key unless the cheese is named; "salt
@@ -80,7 +86,7 @@ const UNITS = new Set([
   'package', 'packet', 'sachet', 'envelope', 'stick', 'dozen', 'pinch', 'dash', 'slice', 'sprig',
   'handful', 'head', 'bulb', 'stalk', 'rib', 'knob', 'inch', 'link', 'strip', 'rasher',
   'wedge', 'fillet', 'filet', 'sheet', 'loaf', 'tub', 'carton', 'container', 'scoop',
-  'jar', 'bag', 'box', 'bottle', 'piece', 'pc', 'pcs', 'whole', 'splash', 'drizzle',
+  'jar', 'bag', 'box', 'bottle', 'piece', 'pc', 'pcs', 'splash', 'drizzle',
 ])
 /** Measures that mean an amount even with no number in front ("pinch of salt"). */
 const LOOSE_UNITS = new Set(['pinch', 'dash', 'handful', 'sprig', 'splash', 'drizzle'])
@@ -104,7 +110,7 @@ const FILLER = new Set([
 /** A tail after the comma that starts like this is a note about the dish. */
 const NOTE_START = new Set([
   'for', 'as', 'to', 'if', 'plus', 'at', 'about', 'more', 'cut', 'into', 'from', 'with', 'without',
-  'on', 'in', 'such', 'preferably', 'divided', 'cold', 'warm', 'lukewarm',
+  'on', 'such', 'preferably', 'divided', 'cold', 'warm', 'lukewarm',
 ])
 
 /**
@@ -121,8 +127,8 @@ const KEEP: Record<string, Set<string>> = {
   diced: new Set(['tomato']),
   chopped: new Set(['tomato']),
   sliced: new Set(['almond', 'cheese', 'bread', 'olive', 'pickle', 'jalapeno', 'pepperoni', 'peach', ...CHEESES]),
-  shredded: new Set(['coconut']),
-  fresh: new Set(['mozzarella', 'pasta', 'turmeric', 'coriander']),
+  shredded: new Set(['coconut', 'wheat']),
+  fresh: new Set(['mozzarella', 'pasta', 'turmeric', 'coriander', 'yeast', 'tuna']),
   minced: new Set(['beef', 'pork', 'lamb', 'turkey', 'chicken']),
 }
 
@@ -196,6 +202,8 @@ const ALIASES: Record<string, string> = {
   'coriander leaf': 'cilantro', 'cilantro leaf': 'cilantro',
   'fresh coriander': 'cilantro', 'fresh coriander leaf': 'cilantro',
   'italian parsley': 'flat leaf parsley',
+  fivespice: 'five spice', 'chinese fivespice': 'five spice', 'fivespice powder': 'five spice',
+  'chinese fivespice powder': 'five spice',
   'turmeric root': 'fresh turmeric', haldi: 'turmeric', jeera: 'cumin seed', 'whole cumin': 'cumin seed',
   'crushed red pepper': 'red pepper flake', 'chili flake': 'red pepper flake',
   'crushed red pepper flake': 'red pepper flake', 'chili pepper flake': 'red pepper flake',
@@ -258,8 +266,15 @@ function singular(w: string): string {
   return w
 }
 
+/** Letters NFD does not take apart; left alone they would vanish and leave one-letter keys. */
+const LETTERS: Record<string, string> = { ø: 'o', æ: 'ae', œ: 'oe', ł: 'l', ß: 'ss', đ: 'd' }
+
 function fold(t: string): string {
-  return t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  return t
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[øæœłßđ]/g, (c) => LETTERS[c])
 }
 
 function tokens(t: string): string[] {
@@ -298,12 +313,25 @@ function tailQualifiers(tail: string): string[] {
  * nothing", not as "matches every other empty name".
  */
 export function matchKey(name: string): string {
-  const [head, tail = ''] = fold(name).replace(/\([^)]*\)/g, ' ').split(',')
+  // A name is a line of a list, not an essay: the cap keeps a pasted wall of text cheap.
+  // "1,5 kg" is a European decimal, not a comma tail.
+  let text = fold(name.slice(0, 500)).replace(/(?<=\d),(?=\d)/g, '.')
+  // "sugar (brown)" is "sugar, brown": a lone word with one qualifier in brackets.
+  const bracket = text.match(/^([^(,]*)\(([^)]*)\)\s*$/)
+  if (bracket && tokens(bracket[1]).length === 1 && tailQualifiers(bracket[2]).length) text = `${bracket[1]},${bracket[2]}`
+  const [head, tail = ''] = text.replace(/\([^)]*\)/g, ' ').split(',')
   const qualifiers = tailQualifiers(tail)
   let words = head
     .replace(/['’`]/g, '')
     .replace(/&/g, ' and ')
     .replace(/[^a-z0-9%\s/.½¼¾⅓⅔⅛]/g, ' ')
+    // A number that is part of the name, not an amount ("5 spice", "7 up").
+    .replace(/\b(?:5|five) ?spice\b/g, 'fivespice')
+    .replace(/\b7 ?up\b/g, '7up')
+    .replace(/\b1000 island\b/g, 'thousand island')
+    .replace(/\b(?:tipo )?00 flour\b/g, 'tipo00 flour')
+    .replace(/\b(?:3|three|4|four) cheese\b/g, 'mixed cheese')
+    .replace(/\b(?:3|three|4|four) bean\b/g, 'mixed bean')
     // "/" and "." belong to numbers only ("1/2", "1.5"): "lb." and "salt/pepper" lose them.
     .replace(/(?<![\d½¼¾⅓⅔⅛])[/.]|[/.](?![\d½¼¾⅓⅔⅛])/g, ' ')
     .split(/\s+/)
@@ -355,14 +383,16 @@ export function matchKey(name: string): string {
   if (out.length > 1 && REDUNDANT[out[out.length - 1]]?.has(out[out.length - 2])) out.pop()
 
   const p1 = out.join(' ')
-  if (plural && p1 === 'pepper') return p1
+  // "peppers" are the vegetable, with a key of their own: never the black pepper jar.
+  if (plural && p1 === 'pepper') return 'peppers'
   const a1 = alias(p1)
   if (a1) return a1
 
   // "ground cumin" / "cumin powder": only when what is left is a dry spice.
   const base = out.filter((w) => w !== 'ground' && w !== 'powder' && w !== 'powdered').join(' ')
   if (base !== p1 && SPICES.has(base)) return alias(base) ?? base
-  return p1
+  // A key with no letters or a single character is a leftover, not a name.
+  return p1.length < 2 || !/[a-z]/.test(p1) ? '' : p1
 }
 
 /** Every key a stored row answers to: its parsed key as it was, plus the two
@@ -370,8 +400,10 @@ export function matchKey(name: string): string {
 export function itemKeys(item: { displayName: string; canonicalKey?: string }): Set<string> {
   const out = new Set<string>()
   const add = (k: string) => k && out.add(k)
-  add(matchKey(item.displayName))
-  if (item.canonicalKey) {
+  const own = matchKey(item.displayName)
+  add(own)
+  // The vegetable's parser key is the same bare "pepper" as the jar's: its name decides.
+  if (item.canonicalKey && own !== 'peppers') {
     add(item.canonicalKey.trim().toLowerCase())
     add(matchKey(item.canonicalKey))
   }
