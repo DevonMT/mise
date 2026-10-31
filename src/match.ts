@@ -202,6 +202,8 @@ const ALIASES: Record<string, string> = {
   'coriander leaf': 'cilantro', 'cilantro leaf': 'cilantro',
   'fresh coriander': 'cilantro', 'fresh coriander leaf': 'cilantro',
   'italian parsley': 'flat leaf parsley',
+  'whole egg': 'egg', 'whole lemon': 'lemon', 'whole star anise': 'star anise',
+  'whole bay leaf': 'bay leaf',
   fivespice: 'five spice', 'chinese fivespice': 'five spice', 'fivespice powder': 'five spice',
   'chinese fivespice powder': 'five spice',
   'turmeric root': 'fresh turmeric', haldi: 'turmeric', jeera: 'cumin seed', 'whole cumin': 'cumin seed',
@@ -330,8 +332,9 @@ export function matchKey(name: string): string {
     .replace(/\b7 ?up\b/g, '7up')
     .replace(/\b1000 island\b/g, 'thousand island')
     .replace(/\b(?:tipo )?00 flour\b/g, 'tipo00 flour')
-    .replace(/\b(?:3|three|4|four) cheese\b/g, 'mixed cheese')
-    .replace(/\b(?:3|three|4|four) bean\b/g, 'mixed bean')
+    // (not inside a range or fraction, and not a count: "2-3 cheese slices", "1/4 cheese")
+    .replace(/(?<![\d/.]\s?)\b(?:3|three|4|four) cheese\b(?! (?:slice|stick|piece))/g, 'mixed cheese')
+    .replace(/(?<![\d/.]\s?)\b(?:3|three|4|four) bean\b/g, 'mixed bean')
     // "/" and "." belong to numbers only ("1/2", "1.5"): "lb." and "salt/pepper" lose them.
     .replace(/(?<![\d½¼¾⅓⅔⅛])[/.]|[/.](?![\d½¼¾⅓⅔⅛])/g, ' ')
     .split(/\s+/)
@@ -404,7 +407,9 @@ export function itemKeys(item: { displayName: string; canonicalKey?: string }): 
   add(own)
   // The vegetable's parser key is the same bare "pepper" as the jar's: its name decides.
   if (item.canonicalKey && own !== 'peppers') {
-    add(item.canonicalKey.trim().toLowerCase())
+    const raw = item.canonicalKey.trim().toLowerCase()
+    // A leftover like "1" (a key from before decimal commas were read) meets nothing.
+    if (raw.length >= 2 && /[a-z]/.test(raw)) add(raw)
     add(matchKey(item.canonicalKey))
   }
   return out

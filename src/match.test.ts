@@ -393,6 +393,27 @@ test('"whole" is a word of the name, not a measure', () => {
   apart('1 whole nutmeg', 'nutmeg')
 })
 
+test('"whole" before an everyday item is the item', () => {
+  same('2 whole eggs', 'eggs')
+  same('1 whole lemon', 'lemon')
+  same('1 whole bay leaf', 'bay leaf')
+  same('1 whole star anise', 'star anise')
+  // Whole cloves are a different jar from ground ones, so no alias folds them.
+  apart('2 whole cloves', 'ground cloves')
+})
+
+test('a count or a range is not a blend', () => {
+  same('4 cheese slices', 'cheese slices')
+  same('2-3 cheese slices', 'cheese slices')
+  same('1/4 cheese', 'cheese')
+  apart('3 cheese blend', 'cheese blend')
+})
+
+test('a junk stored key meets nothing', () => {
+  assert.ok(!sameIngredient({ displayName: '1,5 kg flour', canonicalKey: '1' }, { displayName: '1,5 kg rice', canonicalKey: '1' }))
+  assert.ok(sameIngredient({ displayName: 'flour', canonicalKey: 'flour' }, { displayName: '1,5 kg flour', canonicalKey: '1' }))
+})
+
 test('a lone word with one qualifier in brackets is a qualifier', () => {
   same('sugar (brown)', 'brown sugar')
   same('milk (whole)', 'whole milk')
