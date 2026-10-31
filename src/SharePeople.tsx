@@ -35,6 +35,10 @@ export function SharePeople({
   onToast: (s: string) => void
 }) {
   const ref = useDialog(onClose)
+  // A seeded list has the same uid in every account, so the platform cannot
+  // tell your copy from theirs and refuses to keep one in step (#682). Not
+  // offered, rather than offered and refused.
+  const inStep = !!listUid && !listUid.startsWith('default:')
   const [friends, setFriends] = useState<people.Person[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -54,11 +58,12 @@ export function SharePeople({
   const keep = async (p: people.Person) => {
     if (!listUid) return
     setBusy(p.id)
-    const ok = await people.subscribe(listUid, p.id)
+    const r = await people.subscribe(listUid, p.id)
     setBusy(null)
+    const ok = 'ok' in r
     onToast(ok
       ? `${p.name || p.email} is on “${listName}” now`
-      : 'Could not share that list.')
+      : r.error ?? 'Could not share that list.')
     if (ok) onClose()
   }
 
@@ -85,19 +90,25 @@ export function SharePeople({
             <span className="person-name">{p.name || p.email}</span>
             <button className="mini ghost" disabled={busy === p.id}
                     onClick={() => void send(p)}>Send a copy</button>
-            {listUid && (
+            {inStep && (
               <button className="mini" disabled={busy === p.id}
                       onClick={() => void keep(p)}>Keep in step</button>
             )}
           </div>
         ))}
 
-        {!!friends?.length && (
+        {!!friends?.length && (inStep ? (
           <p className="hint">
             <strong>Send a copy</strong> gives them the list as it is now, to keep.{' '}
             <strong>Keep in step</strong> is one list you both edit.
           </p>
-        )}
+        ) : (
+          <p className="hint">
+            <strong>Send a copy</strong> gives them the list as it is now, to keep.{' '}
+            Everyone has their own “{listName}”, so it cannot be kept in step: make a
+            new list for that.
+          </p>
+        ))}
       </div>
     </div>
   )

@@ -332,6 +332,11 @@
   flex: 0 0 auto;
   color: var(--fav);
 }
+.row-always {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--accent);
+}
 
 /* ---- Bottom navigation ---- */
 .bottomnav {
@@ -1194,25 +1199,6 @@
 .add-btn:disabled {
   opacity: 0.45;
 }
-.staple-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
-}
-.staple-chip {
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1.5px solid var(--line);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-.empty-staples {
-  color: var(--muted);
-  margin: 16px 2px;
-}
 .endpoint-note {
   margin-top: 18px;
   font-size: 0.75rem;
@@ -1781,6 +1767,74 @@
   font-weight: 700;
   color: var(--accent);
   text-align: right;
+}
+/* Refine's store: a chip that opens the place panel, and the panel. */
+.store-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  margin-bottom: 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent-deep);
+  font-weight: 600;
+}
+.store-chip > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.place-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.place-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.place-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.place-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.place-row .field {
+  flex: 1 1 12ch;
+  min-width: 0;
+}
+.refine-aisle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.refine-aisle select {
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
 }
 .refine-opts {
   display: flex;
@@ -2820,25 +2874,6 @@
 }
 .handoff .grow { flex: 1 1 auto; min-width: 0; }
 .list-shared { color: var(--accent-deep); }
-
-/* The way back to the hub, in Settings. It had no styles at all: a 21px bare
-   link with an empty dot span. A full-height row, like the settings around it. */
-.home-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  color: var(--accent-deep);
-  font-weight: 600;
-  text-decoration: none;
-}
-.home-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex: 0 0 auto;
-}
 
 /* ---- Display face (see the note on Fredoka near the top) ---------------- */
 .brand,

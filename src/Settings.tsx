@@ -1,62 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, canonicalize, readAllWithTimeout, type Section } from './db'
-import { ensurePantryList } from './lists'
-import { PARSE_URL } from './parse'
+import { readAllWithTimeout } from './db'
 import { estimateStorePrices, priceableKeys } from './catalog'
 import { downloadBackup, importAll } from './backup'
-import { SECTION_META } from './sections'
-import {
-  AISLE_EVENT,
-  getAisleOrder,
-  hasCustomOrder,
-  resetAisleOrder,
-  setAisleOrder,
-} from './aisles'
 import { Icon } from './Icon'
 import { EDITION, useAiEnabled } from './edition'
-import { setSetting } from './prefs'
+import { readSetting } from './prefs'
 import {
   lastSyncedAt, setSyncEnabled, sync, syncAvailable, syncEnabled,
   type Availability, type SyncResult,
 } from './sync'
 
-function describeLayout(): string {
-  const w = window.innerWidth
-  const mode = w >= 900 ? 'rail' : w >= 700 ? 'wide tabs' : 'phone'
-  return `${location.host} · ${w}px · ${mode}`
-}
-
 export function SettingsView() {
   const aiOn = useAiEnabled()
-  // A view of the pantry, not a store of its own. These ARE pantry items —
-  // the ones flagged "always have" — so this section and the Pantry list can
-  // never disagree about what you always keep in.
-  const staples =
-    useLiveQuery(async () => {
-      const all = await db.items.filter((i) => i.alwaysHave === true).toArray()
-      return all.sort((a, b) => a.displayName.localeCompare(b.displayName))
-    }, []) ?? []
   // What a re-price would actually send: distinct items on your grocery lists,
   // not the whole history. Live so the count is honest before you tap.
   const priceCount =
     useLiveQuery(async () => (await priceableKeys()).size, []) ?? 0
-  const [name, setName] = useState('')
-  const [store, setStore] = useState(() => localStorage.getItem('mise.store') ?? '')
-
-  // Which layout is actually in force, next to the build stamp.
-  //
-  // "It still looks like a phone app" has two completely different causes — an
-  // old bundle, or a window under 900px — and from the outside they are
-  // indistinguishable, which cost an evening of telling Devon to reload
-  // something that was already current. One line answers both: the stamp says
-  // which build, the width says which layout it chose and why.
-  const [layout, setLayout] = useState(describeLayout)
-  useEffect(() => {
-    const onResize = () => setLayout(describeLayout())
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
+  // Read-only here: the store and area are picked in Refine, where their effect
+  // shows. Settings only says what pricing will use.
+  const store = (readSetting('mise.store') ?? '').trim()
+  const area = (readSetting('mise.area') ?? '').trim()
 
   // Sync. Undefined until the health check answers, so the section can say
   // "checking" instead of flickering through "not available".
@@ -67,28 +31,6 @@ export function SettingsView() {
   const [syncedAt, setSyncedAt] = useState<number | null>(lastSyncedAt)
   const [busy, setBusy] = useState(false)
   const [priceMsg, setPriceMsg] = useState('')
-
-  // Per-store aisle order — reseeds when you switch stores. Saving dispatches
-  // AISLE_EVENT so the list regroups live (see aisles.ts / App.tsx).
-  const [aisles, setAisles] = useState<Section[]>(() => getAisleOrder(store))
-  useEffect(() => setAisles(getAisleOrder(store)), [store])
-  const moveAisle = (from: number, dir: -1 | 1) => {
-    const to = from + dir
-    if (to < 0 || to >= aisles.length) return
-    const next = aisles.slice()
-    ;[next[from], next[to]] = [next[to], next[from]]
-    setAisles(next)
-    setAisleOrder(store, next)
-  }
-  const resetAisles = () => {
-    resetAisleOrder(store)
-    setAisles(getAisleOrder(store))
-  }
-  /** Persist the active store so pricing, refine, and grouping all agree on it. */
-  const commitStore = () => {
-    void setSetting('mise.store', store.trim())
-    window.dispatchEvent(new CustomEvent(AISLE_EVENT))
-  }
 
   // "What's actually stored" readout — the no-console way to see whether data
   // is present. Loaded explicitly (not useLiveQuery) so a read error is shown
@@ -125,10 +67,6 @@ export function SettingsView() {
   }
   useEffect(() => {
     loadCounts()
-  }, [])
-  const [persisted, setPersisted] = useState<boolean | null>(null)
-  useEffect(() => {
-    navigator.storage?.persisted?.().then(setPersisted).catch(() => setPersisted(null))
   }, [])
   const [dataMsg, setDataMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -174,21 +112,6 @@ export function SettingsView() {
     if (on) await runSync()
   }
 
-  const [protectMsg, setProtectMsg] = useState('')
-  const onProtect = async () => {
-    try {
-      const ok = await navigator.storage?.persist?.()
-      setPersisted(ok ?? null)
-      setProtectMsg(
-        ok
-          ? 'Done — this browser will keep the data unless you clear it yourself.'
-          : 'The browser said no. A backup file is the reliable answer; so is turning on sync.',
-      )
-    } catch {
-      setProtectMsg('This browser doesn’t offer that.')
-    }
-  }
-
   const onExport = async () => {
     try {
       await downloadBackup()
@@ -211,56 +134,14 @@ export function SettingsView() {
     }
   }
 
-  /**
-   * Adding here adds to the pantry with the flag set, so the two places stay
-   * one place. If the thing is already in the pantry it is flagged rather than
-   * duplicated — typing "salt" when salt is already tracked should not leave
-   * you with two salts.
-   */
-  const add = async () => {
-    const trimmed = name.trim()
-    if (!trimmed) return
-    const canonicalKey = canonicalize(trimmed)
-    const listId = await ensurePantryList()
-
-    const existing = await db.items
-      .filter((i) => i.canonicalKey === canonicalKey && i.listId === listId)
-      .first()
-    if (existing?.id != null) {
-      await db.items.update(existing.id, { alwaysHave: true })
-    } else {
-      await db.items.add({
-        listId,
-        displayName: trimmed,
-        canonicalKey,
-        section: 'pantry',
-        checked: false,
-        backlog: false,
-        alwaysHave: true,
-        createdAt: Date.now(),
-      })
-    }
-    setName('')
-  }
-
-  /**
-   * Removing the flag, not the item. Someone who says "stop skipping olive oil"
-   * has not said "forget I keep olive oil" — deleting the pantry row would
-   * throw away stock tracking they never asked to lose.
-   */
-  const unflag = async (id: number) => {
-    await db.items.update(id, { alwaysHave: false })
-  }
-
   const estimate = async (mode: 'missing' | 'all') => {
-    void setSetting('mise.store', store.trim())
     setBusy(true)
     setPriceMsg('Estimating…')
     try {
-      const n = await estimateStorePrices(store.trim(), mode)
+      const n = await estimateStorePrices(store, mode, area)
       setPriceMsg(
         n
-          ? `Priced ${n} item${n === 1 ? '' : 's'} for ${store.trim() || 'a typical store'}.`
+          ? `Priced ${n} item${n === 1 ? '' : 's'} for ${store || 'a typical store'}.`
           : 'Nothing to price.',
       )
     } catch (e) {
@@ -304,41 +185,15 @@ export function SettingsView() {
         )}
         <p className="group-hint">
           {syncOn
-            ? 'Synced to your account, and kept on this device too. A backup is still the only copy you hold yourself.'
-            : 'Everything lives on this device only. Keep a backup so a browser reset can never lose it.'}{' '}
-          {persisted === true && ' ✓ This browser has been told not to clear it automatically.'}
+            ? 'Your account keeps a copy, and so does this device. A backup file is a copy only you hold.'
+            : 'Everything is on this device only, so keep a backup file in case the browser clears it.'}
         </p>
-        {/*
-          Only offered when it would actually change an outcome.
-
-          The app used to ask for persistent storage on every load, back when
-          IndexedDB was the only copy and an eviction lost the lists outright.
-          With sync on, the device holds a cache of something the account also
-          has, so an eviction costs a re-download. Firefox answers this with a
-          permission prompt, so asking anyway meant prompting people whose data
-          was already safe, before they had any, with no explanation — which is
-          how a permission ends up denied for good.
-        */}
-        {persisted === false && !syncOn && (
-          <>
-            <p className="group-hint">
-              This browser may clear the app’s data on its own if the device runs
-              short of space. Nothing here is synced, so that would lose it.
-            </p>
-            <div className="two-btn">
-              <button className="ghost" onClick={onProtect}>
-                <Icon name="save" size={18} /> Ask to keep this data
-              </button>
-            </div>
-            {protectMsg && <p className="group-hint">{protectMsg}</p>}
-          </>
-        )}
         <div className="two-btn">
           <button className="ghost" onClick={onExport}>
-            <Icon name="save" size={18} /> Back up to a file
+            <Icon name="save" size={18} /> Back Up to a File
           </button>
           <button className="ghost" onClick={() => fileRef.current?.click()}>
-            <Icon name="folder" size={18} /> Restore from a file
+            <Icon name="folder" size={18} /> Restore From a File
           </button>
         </div>
         <input
@@ -388,7 +243,7 @@ export function SettingsView() {
                 <>
                   <div className="two-btn">
                     <button className="ghost" disabled={syncBusy} onClick={() => void runSync()}>
-                      <Icon name="save" size={18} /> {syncBusy ? 'Syncing…' : 'Sync now'}
+                      <Icon name="save" size={18} /> {syncBusy ? 'Syncing…' : 'Sync Now'}
                     </button>
                   </div>
                   <p className="group-hint">
@@ -411,7 +266,7 @@ export function SettingsView() {
               Not available here. Sync needs the copy of Mise at{' '}
               <a href="https://mise.devondoes.dev">mise.devondoes.dev</a> — a browser will
               only hand the session to that address. This copy stays fully local, and “Back
-              up to a file” above moves data between the two.
+              Up to a File” above moves data between the two.
             </p>
           )}
         </section>
@@ -424,19 +279,16 @@ export function SettingsView() {
             Estimated prices for the {priceCount} item{priceCount === 1 ? '' : 's'} on your grocery
             lists — only those, never anything you've removed. Prices you set yourself stay put.
           </p>
-          <input
-            className="field"
-            placeholder="Your store (e.g. Walmart, Aldi)"
-            value={store}
-            onChange={(e) => setStore(e.target.value)}
-            onBlur={commitStore}
-          />
+          <p className="group-hint">
+            <b>Your store:</b> {store || 'a typical store'}
+            {area ? ` · ${area}` : ''}. Change it in Refine.
+          </p>
           <div className="two-btn">
             <button className="ghost" onClick={() => estimate('missing')} disabled={busy || !priceCount}>
-              Price missing
+              Price Missing
             </button>
             <button className="ghost" onClick={() => estimate('all')} disabled={busy || !priceCount}>
-              Re-price {priceCount || 'all'}
+              Re-Price {priceCount || 'All'}
             </button>
           </div>
           {priceMsg && (
@@ -448,106 +300,7 @@ export function SettingsView() {
         </section>
       )}
 
-      <section className="settings-group">
-        <h3 className="group-title">Aisle Order</h3>
-        <p className="group-hint">
-          The order your list groups sections while you shop. Arrange it to match{' '}
-          {store.trim() ? store.trim() : 'your store'}’s layout.
-        </p>
-        <ul className="aisle-editor">
-          {aisles.map((s, i) => (
-            <li key={s} className="aisle-row">
-              <span className="aisle-name">{SECTION_META[s].label}</span>
-              <div className="aisle-moves">
-                <button
-                  className="aisle-move"
-                  aria-label={`Move ${SECTION_META[s].label} up`}
-                  disabled={i === 0}
-                  onClick={() => moveAisle(i, -1)}
-                >
-                  <Icon name="chevronUp" size={18} />
-                </button>
-                <button
-                  className="aisle-move"
-                  aria-label={`Move ${SECTION_META[s].label} down`}
-                  disabled={i === aisles.length - 1}
-                  onClick={() => moveAisle(i, 1)}
-                >
-                  <Icon name="chevronDown" size={18} />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-        <button className="ghost" onClick={resetAisles} disabled={!hasCustomOrder(store)}>
-          Reset to Store-Walk Default
-        </button>
-      </section>
-
-      <section className="settings-group">
-        <h3 className="group-title">Never Add These</h3>
-        <p className="group-hint">
-          Things you always have, so a recipe asking for them shouldn’t put them on
-          your shopping list. Salt, oil, pepper. Nothing is filtered out of a list
-          you typed yourself.
-        </p>
-        <p className="group-hint">
-          Not the same as a <b>Pantry</b> list, which tracks what you’ve run out of
-          so you can add it back. These are the opposite: things you never want
-          added.
-        </p>
-        <div className="two-btn">
-          <input
-            className="field"
-            placeholder="e.g. salt, olive oil, garlic"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && add()}
-          />
-          <button className="add-btn" onClick={add} disabled={!name.trim()}>
-            Add
-          </button>
-        </div>
-        {staples.length === 0 ? (
-          <p className="group-hint">No staples yet.</p>
-        ) : (
-          <div className="staple-chips">
-            {staples.map((s) => (
-              <button
-                key={s.id}
-                className="staple-chip"
-                onClick={() => unflag(s.id!)}
-                title="Stop skipping this"
-              >
-                {s.displayName} ✕
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* The way back. Mise is reached from devondoes.dev and, once installed,
-          runs with no browser chrome at all — so without this there is no route
-          out of it on the device where it is most used. Settings rather than the
-          bottom bar: leaving is rare, and the bottom bar is for the three things
-          that are not. */}
-      <section className="settings-group">
-        <h3 className="group-title">Elsewhere</h3>
-        <a className="home-link" href="https://devondoes.dev/">
-          <span className="home-dot" aria-hidden="true" />
-          All apps on devondoes.dev
-        </a>
-      </section>
-
-      <p className="endpoint-note">
-        Build {__BUILD__} · {layout}
-        {aiOn && (
-          <>
-            <br />
-            Parse endpoint: {PARSE_URL || 'same origin'}
-          </>
-        )}
-      </p>
+      <p className="endpoint-note">Build {__BUILD__}</p>
     </div>
   )
 }

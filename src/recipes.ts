@@ -86,7 +86,7 @@ export type Skipped = NewItem
 /**
  * Add a recipe's ingredients to a grocery list, scaled by `factor` (default 1).
  *
- * Skipped, in this order: Never Add These staples (silently, always); optional
+ * Skipped, in this order: always-on-hand pantry items (silently, always); optional
  * ingredients, unless their index is in `includeOptional` (that's how the detail
  * view opts specific ones in); and anything an in-stock pantry item matches
  * (getInStockKeys). Only the last is reported, in `skipped`, because it is the
