@@ -316,6 +316,9 @@ export async function applyRemote(
 
   applyingRemote = true
   try {
+    // Before this merge can un-fold anything: a device updating from the build
+    // that folded holds the marker but no record of it yet (#684).
+    rememberFolded((await db.lists.toArray()) as List[])
     // Tombstones first, so a row that was deleted elsewhere does not briefly
     // reappear and then vanish.
     const tombByKind = new Map<Kind, Map<string, number>>()
@@ -348,9 +351,10 @@ export async function applyRemote(
           if (forwarding) {
             // A folded list is a forwarding address and must outlive any delete
             // (fold.ts rule 3): an older build can still send one. Keep it, one
-            // past the delete, so the next push puts it back on the server.
+            // past the delete, so the next push puts it back on the server, and
+            // no further: an edit made after the delete still wins (rule 2).
             // Also when a rename has un-folded it since (#684): it is folded again.
-            await table.put({ ...forwarding, updatedAt: Math.max(Date.now(), deletedAt + 1) } as AnyRow)
+            await table.put({ ...forwarding, updatedAt: deletedAt + 1 } as AnyRow)
             restored = true
             continue
           }

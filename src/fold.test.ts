@@ -746,3 +746,81 @@ test('#684: a list this device never held folded is still deleted as usual', asy
   await sync.applyRemote({ records: [], tombstones: [{ kind: 'list', uid, deletedAt: Date.now() }] })
   assert.equal(await db.lists.get(id), undefined)
 })
+
+test("#684: this build's own dedupe after a sync re-hides the un-folded list instead of deleting it", async () => {
+  // As App runs it after every ok sync: ensureDefaultLists, then dedupe.
+  const { keep, old } = await legacyAccount()
+  const stale = await snapshot()
+  const offline = await snapshot()
+  await sync.sync()
+  await sync.sync()
+  const folder = await snapshot()
+  await become(stale)
+  shared = null
+  await tick()
+  await lists.renameList(old, 'Groceries')
+  await sync.sync()
+  shared = []
+  fold.forgetShares()
+
+  await become(folder)
+  await sync.sync() // the un-fold arrives: live, empty, app-made name
+  await lists.ensureDefaultLists()
+  await lists.dedupeDefaultLists()
+  assert.ok(!(await db.tombstones.toArray()).some((t) => t.uid === LEGACY), 'no delete written')
+  assert.equal((await db.lists.get(old))?.foldedInto, 'default:list', 'hidden again')
+  await sync.sync()
+  const after = await snapshot()
+
+  await become(offline) // the late add still finds its list
+  await tick()
+  await db.items.add({ listId: old, displayName: 'bread', canonicalKey: 'bread', section: 'other',
+    checked: false, backlog: false, createdAt: Date.now() })
+  await sync.sync()
+  await become(after)
+  await sync.sync()
+  await sync.sync()
+  assert.ok((await onList(keep)).includes('bread'))
+})
+
+test('#684: a folded list renamed back to an app-made name is put back out of them', async () => {
+  // An older build's rename keeps the marker, so the row is folded AND called
+  // "My list"; its dedupe deletes it; the restore must not hand it straight back.
+  const { old } = await legacyAccount()
+  await sync.sync()
+  await sync.sync()
+  await tick()
+  postState({ records: [{ ...serverList(LEGACY)!, updatedAt: Date.now(),
+    body: { ...serverList(LEGACY)!.body, name: 'My list' } }], tombstones: [] })
+  await sync.sync()
+  assert.equal((await db.lists.get(old))?.name, 'My list')
+  await tick()
+  postState({ records: [], tombstones: [{ kind: 'list', uid: LEGACY, deletedAt: Date.now() }] })
+  await sync.sync()
+  assert.equal((await db.lists.get(old))?.name, 'My list (moved)')
+})
+
+test('#684: a device that folded on the #680 build (no record yet) still refuses after an un-fold', async () => {
+  const { old } = await legacyAccount()
+  await sync.sync()
+  await sync.sync()
+  store.delete('mise.sync.folded') // as the #680 build left it
+  await tick()
+  const body = { ...serverList(LEGACY)!.body, name: 'Groceries' }
+  delete body.foldedInto
+  await sync.applyRemote({ records: [{ kind: 'list', uid: LEGACY, updatedAt: Date.now(), body }], tombstones: [] })
+  await tick()
+  await sync.applyRemote({ records: [], tombstones: [{ kind: 'list', uid: LEGACY, deletedAt: Date.now() }] })
+  assert.equal((await db.lists.get(old))?.foldedInto, 'default:list')
+})
+
+test('#684: the restore is stamped one past the delete, so a later real edit still wins', async () => {
+  const { old } = await legacyAccount()
+  await sync.sync()
+  await sync.sync()
+  await tick()
+  const deletedAt = Date.now()
+  await tick() // the clock is now well past the delete
+  await sync.applyRemote({ records: [], tombstones: [{ kind: 'list', uid: LEGACY, deletedAt }] })
+  assert.equal((await db.lists.get(old))?.updatedAt, deletedAt + 1)
+})

@@ -1,4 +1,5 @@
 import { db, isLive, type Item, type List, type ListKind } from './db'
+import { asForwarding } from './fold'
 import { lastSyncedAt, resolveSyncDefault, syncEnabled } from './sync'
 import { addItem } from './list'
 import { sharedListUids } from './people'
@@ -338,6 +339,15 @@ export async function dedupeDefaultLists(): Promise<{
       const count = await db.items.where('listId').equals(dup.id).count()
       if (count > 0) {
         leftAlone.push(dup.name)
+        continue
+      }
+      // A list this device has held folded, un-folded since by a rename on a
+      // stale copy (#684): a delete would strand a late add that still names
+      // it. Hidden again as the forwarding address instead, which looks the same.
+      const forwarding = asForwarding(dup)
+      if (forwarding) {
+        await db.lists.put(forwarding)
+        removed.push(dup.name)
         continue
       }
       // The delete hook writes a tombstone, so the removal reaches the other

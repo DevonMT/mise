@@ -107,12 +107,14 @@ export function rememberFolded(lists: List[]): void {
 /**
  * The row to put back when a delete arrives for a list this device has held
  * folded, or null when it never has. Folded again if a rename un-folded it,
- * and out of the app-made names, so an older build's repair leaves it be.
+ * and out of the app-made names, so an older build's repair leaves it be
+ * instead of deleting it again on every sync.
  */
 export function asForwarding(l: List): List | null {
   const into = l.foldedInto ?? (l.uid ? readFolded()[l.uid] : undefined)
   if (!into) return null
-  if (l.foldedInto) return l
+  // An older build's rename keeps the marker, so a folded row can carry an
+  // app-made name too ("My list (moved)" renamed back to "My list").
   return { ...l, foldedInto: into, name: APP_MADE_NAMES.has(norm(l.name)) ? movedName(l.name) : l.name }
 }
 
