@@ -38,9 +38,9 @@
  * There used to be a dark green rim along the top of .app as well. It was
  * --accent-deep where the nav is --accent, and it stopped short of the edges
  * whenever .app was capped. The estate bar draws the full-bleed accent line
- * itself (ds/chrome.css), so the rim is gone. From 900px .app has no cap at
- * all (2026-10-30, #707), so this cloth runs edge to edge and the gingham
- * starts at the screen's corner; only phones and tablets below that keep one.
+ * itself (ds/chrome.css), so the rim is gone. .app is full width at every size
+ * (2026-10-30, #707; the content column is capped by its padding, `--col`), so
+ * this cloth runs edge to edge and the gingham starts at the screen's corner.
  *
  * Painted on .app, which never scrolls (.scroll is the pane that does), so it
  * stays put behind a transparent top bar. The gingham is a pseudo-element
@@ -82,8 +82,12 @@
 #root > .ds-bar { flex: 0 0 auto; }
 
 .app {
-  max-width: 640px;
-  margin: 0 auto;
+  /* The content column is capped by padding, not max-width: .app itself stays
+     full width so the cloth (background and gingham) is full-bleed at every
+     width and the gingham starts at the screen's corner. Padding resolves
+     against #root's width. */
+  --col: 640px;
+  padding-inline: max(0px, calc((100% - var(--col)) / 2));
   /* width, because #root is a COLUMN flex container and an auto margin on the
      cross axis cancels the stretch that would otherwise size this. Without it
      .app is shrink-to-fit at every width: on a phone that happens to look
@@ -2376,7 +2380,7 @@
    container past the two-column threshold. */
 @media (min-width: 700px) and (max-width: 899px) {
   .app {
-    max-width: 880px;
+    --col: 880px;
   }
   .bottomnav {
     max-width: 880px;
@@ -2444,11 +2448,10 @@
 /* ---- ROOM: how the page is arranged -------------------------------------- */
 @media (min-width: 900px) {
   .app {
-    /* No cap: the cloth (background and gingham) is painted on .app, so any
-       max-width here stops it partway across a wide screen and starts the
-       gingham from .app's corner, not the screen's. The list fills the glass
-       through the aisle columns below; prose keeps its own reading widths. */
-    max-width: none;
+    /* No column cap: the rail and content fill the screen (the cloth is painted
+       on .app, so it must reach the edges). The list fills the glass through the
+       aisle columns below; prose keeps its own reading widths. */
+    padding-inline: 0;
     display: grid;
     grid-template-columns: var(--rail) minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
