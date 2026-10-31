@@ -110,7 +110,7 @@ export interface NewItem {
  * Nothing is written; the stored keys are never touched.
  */
 export async function findMergeTarget(
-  input: Pick<NewItem, 'listId' | 'displayName' | 'unit' | 'backlog'> & { canonicalKey?: string },
+  input: Pick<NewItem, 'listId' | 'displayName' | 'unit' | 'backlog' | 'quantity'> & { canonicalKey?: string },
 ): Promise<Item | undefined> {
   const canonicalKey = input.canonicalKey?.trim() || canonicalize(input.displayName)
   const backlog = input.backlog ?? false
@@ -122,7 +122,7 @@ export async function findMergeTarget(
 
   const list = await db.lists.get(input.listId)
   if (!list || !KINDS[list.kind]?.sections) return undefined
-  const mine = itemKeys({ displayName: input.displayName, canonicalKey })
+  const mine = itemKeys({ displayName: input.displayName, canonicalKey, quantity: input.quantity, unit: input.unit })
   return db.items
     .where('listId')
     .equals(input.listId)

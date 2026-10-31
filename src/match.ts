@@ -67,6 +67,19 @@
  *     whole milk" is whole milk; "1 whole chicken" stays "whole chicken").
  *     A number inside a name stays ("5 spice", "7 up", "00 flour", "3 cheese").
  *   - A key with no letters, or one character, is '' (matches nothing).
+ *   - Bare "coriander" is the fresh herb (UK), so only "ground coriander" and
+ *     "coriander powder" take the jar's key. "Plain" and "pure" are not filler
+ *     (plain chocolate, pure pumpkin): only plain flour/yogurt and pure vanilla
+ *     extract/maple syrup are aliases. "Mashed" and "seeded" are not filler.
+ *   - "Basil leaves" (a dried jar) is not "fresh basil": a herb's leaf/stem is
+ *     dropped only after "fresh". Only "pink himalayan" counts as plain salt.
+ *   - Deli cuts ("sliced turkey/ham/chicken/beef/salami") are not the whole cut.
+ *   - A counted bare pepper ("1 large pepper", or a row "Pepper" with a count)
+ *     is the vegetable ("peppers"), not the jar; "1 tsp pepper" is the jar.
+ *   - A piece of a whole spice ("stick of cinnamon", "1 inch cinnamon") is ''
+ *     rather than the ground jar's key.
+ *   - After a comma or in brackets, a lone "fresh/sliced/shredded/minced" stays
+ *     where it makes another product ("almonds, sliced"); other prep drops.
  *
  * KNOWN LIMITS (a missed match, or a merge the unit check usually stops):
  *   "sliced cheese" and "cheese" share a key unless the cheese is named; "salt
@@ -98,14 +111,13 @@ const SIZE = new Set(['large', 'medium', 'small', 'big', 'jumbo'])
 const FILLER = new Set([
   'fresh', 'freshly', 'chopped', 'diced', 'minced', 'sliced', 'grated', 'shredded',
   'peeled', 'cubed', 'halved', 'quartered', 'trimmed', 'crumbled', 'melted', 'softened', 'divided',
-  'seeded', 'cored', 'pitted', 'stemmed', 'deveined', 'shucked', 'rinsed', 'drained', 'washed',
+  'cored', 'pitted', 'stemmed', 'deveined', 'shucked', 'rinsed', 'drained', 'washed',
   'scrubbed', 'cleaned', 'patted', 'juiced', 'zested', 'beaten', 'whisked', 'thawed', 'sifted',
-  'torn', 'smashed', 'mashed', 'separated', 'warmed', 'chilled', 'cooled', 'removed',
+  'torn', 'smashed', 'separated', 'warmed', 'chilled', 'cooled', 'removed',
   'room', 'temperature', 'lightly', 'well',
   'packed', 'heaping', 'level', 'large', 'medium', 'small', 'big', 'jumbo', 'ripe', 'finely',
   'coarsely', 'roughly', 'thinly', 'thickly', 'optional', 'taste', 'to', 'about',
   'approximately', 'a', 'an', 'the', 'of', 'for', 'garnish', 'serving',
-  'plain', 'pure',
 ])
 /** A tail after the comma that starts like this is a note about the dish. */
 const NOTE_START = new Set([
@@ -126,10 +138,18 @@ const CHEESES = [
 const KEEP: Record<string, Set<string>> = {
   diced: new Set(['tomato']),
   chopped: new Set(['tomato']),
-  sliced: new Set(['almond', 'cheese', 'bread', 'olive', 'pickle', 'jalapeno', 'pepperoni', 'peach', ...CHEESES]),
+  sliced: new Set([
+    'almond', 'cheese', 'bread', 'olive', 'pickle', 'jalapeno', 'pepperoni', 'peach', ...CHEESES,
+    'turkey', 'ham', 'chicken', 'beef', 'salami', 'bologna',
+  ]),
   shredded: new Set(['coconut', 'wheat']),
   fresh: new Set(['mozzarella', 'pasta', 'turmeric', 'coriander', 'yeast', 'tuna']),
   minced: new Set(['beef', 'pork', 'lamb', 'turkey', 'chicken']),
+  // Pasta shells come in sizes you cannot swap ("jumbo shells" are for stuffing).
+  jumbo: new Set(['shell']),
+  large: new Set(['shell']),
+  medium: new Set(['shell']),
+  small: new Set(['shell']),
 }
 
 /** Dry spices, where "ground" / "powder" is a form of the same jar. An
@@ -165,9 +185,8 @@ const REDUNDANT: Record<string, Set<string>> = {
   rib: new Set(['celery']),
   bulb: new Set(['garlic']),
   head: new Set(['garlic', 'cauliflower', 'broccoli', 'cabbage', 'lettuce', 'romaine']),
-  leaf: new Set(HERBS),
   sprig: new Set(HERBS),
-  stem: new Set(HERBS),
+  // "leaf" and "stem" are dropped only after "fresh" (a jar of "basil leaves" is dried): see matchKey.
 }
 const WATER_TEMP = new Set(['cold', 'warm', 'hot', 'boiling', 'lukewarm', 'tepid', 'ice', 'iced', 'filtered', 'tap', 'cool'])
 
@@ -225,6 +244,9 @@ const ALIASES: Record<string, string> = {
   'all purpose flour': 'flour', 'ap flour': 'flour', 'wholemeal flour': 'whole wheat flour',
   'bicarbonate soda': 'baking soda', 'bicarb soda': 'baking soda', 'sodium bicarbonate': 'baking soda',
   'dry yeast': 'active dry yeast',
+  // "plain" and "pure" are not filler ("plain chocolate", "pure pumpkin" are other products).
+  'plain flour': 'flour', 'plain yogurt': 'yogurt', 'plain greek yogurt': 'greek yogurt',
+  'pure vanilla extract': 'vanilla extract', 'pure maple syrup': 'maple syrup',
   'extra virgin olive oil': 'olive oil', 'virgin olive oil': 'olive oil', evoo: 'olive oil',
   'distilled white vinegar': 'white vinegar', 'distilled vinegar': 'white vinegar',
   'cider vinegar': 'apple cider vinegar', 'rice wine vinegar': 'rice vinegar',
@@ -253,7 +275,8 @@ const ALIASES: Record<string, string> = {
 // A bare word that means the usual thing ("bell pepper" has its own words).
 const BARE: Record<string, string> = { pepper: 'black pepper', vanilla: 'vanilla extract' }
 
-const SALT = /^(?:(?:kosher|sea|table|fine|coarse|flaky|flake|iodized|pink|himalayan|rock|maldon|diamond|crystal|morton|mortons|celtic|gray|grey)\s+)+salt(?:\s+flake)?$/
+// No bare "pink" (Prague powder) or "rock" (ice-cream salt): only "pink himalayan".
+const SALT = /^(?:(?:kosher|sea|table|fine|coarse|flaky|flake|iodized|pink\s+himalayan|himalayan|maldon|diamond|crystal|morton|mortons|celtic|gray|grey)\s+)+salt(?:\s+flake)?$/
 
 function singular(w: string): string {
   if (w.length <= 3 || NOT_PLURAL.has(w)) return w
@@ -293,76 +316,104 @@ function alias(p: string): string | undefined {
   return ALIASES[p] ?? BARE[p]
 }
 
-/**
- * What follows the first comma, as words to put in front of the name. A single
- * word ("rice, brown") is a qualifier. Prep ("onion, chopped"), a note ("oil,
- * for frying", "butter, room temperature", "carrots, cut into rings") or an
- * amount or alternative ("butter, 1 stick", "butter, or margarine") is not.
- * An unknown single word is kept: a missed match is the safe error.
- */
-function tailQualifiers(tail: string): string[] {
-  if (!tail.trim() || /\d(?!%)|\b(?:or|and|plus)\b/.test(tail)) return []
-  const t = tokens(tail)
-  if (t.length === 0 || t.length > 3 || NOTE_START.has(t[0])) return []
-  // "finely chopped", "stems removed": prep with company is all prep.
-  if (t.length > 1 && t.some((w) => FILLER.has(w))) return []
-  return t.filter((w) => !FILLER.has(w))
+/** Count words: a counted bare "pepper" is the vegetable. Kept in step with COUNT_UNITS in list.ts. */
+const COUNT_UNITS = new Set(['', 'whole', 'each', 'ct', 'count', 'pc', 'pcs', 'piece', 'pieces'])
+/** Prep words that stay beside the name after a comma where they make another product ("almonds, sliced"). */
+const TAIL_KEEP = new Set(['fresh', 'sliced', 'shredded', 'minced'])
+/** A piece of a whole spice ("stick of cinnamon") is not the jar of ground. */
+const WHOLE_SPICE_MEASURE = new Set(['stick', 'inch', 'piece'])
+const PACKET = new Set(['packet', 'envelope', 'sachet'])
+
+interface Tail {
+  words: string[]
+  /** A lone prep word ("almonds, sliced"): dropped unless it makes another product. */
+  prep?: string
 }
 
 /**
- * The key two names are compared by. '' when nothing is left to compare (an
- * empty name, or only an amount), which callers must treat as "matches
- * nothing", not as "matches every other empty name".
+ * What follows the first comma (or sits in brackets), as words to put in front
+ * of the name. A word ("rice, brown") is a qualifier. Prep ("onion, chopped"), a
+ * note ("oil, for frying", "butter, room temperature", "carrots, cut into
+ * rings") or an amount or alternative ("butter, 1 stick", "butter, or
+ * margarine") is not. An unknown word is kept: a missed match is the safe error.
  */
-export function matchKey(name: string): string {
+function tailQualifiers(tail: string): Tail {
+  if (!tail.trim() || /\d(?!%)|\b(?:or|and|plus)\b/.test(tail)) return { words: [] }
+  const t = tokens(tail)
+  if (t.length === 0 || t.length > 3 || NOTE_START.has(t[0])) return { words: [] }
+  // "finely chopped", "stems removed": prep with company is all prep.
+  if (t.length > 1 && t.some((w) => FILLER.has(w))) return { words: [] }
+  if (t.length === 1 && FILLER.has(t[0])) return { words: [], prep: t[0] }
+  return { words: t }
+}
+
+/** The phrase fixes that apply to a name and to a qualifier alike. */
+function fixPhrase(p: string): string {
+  return p
+    .replace(/\bextra large\b/g, 'large')
+    .replace(/\b(?:reduced|less|lower) sodium\b/g, 'low sodium')
+    .replace(/\bskinless boneless\b/g, 'boneless skinless')
+    .replace(/\bbread crumbs?\b/g, 'breadcrumbs')
+}
+
+/** Is the text before `at` a digit, "/" or "." (with at most one space)? Stands in for a lookbehind. */
+function afterNumber(s: string, at: number): boolean {
+  return /[\d/.]\s?$/.test(s.slice(0, at))
+}
+
+const DIGIT = /[\d½¼¾⅓⅔⅛]/
+
+function computeKey(name: string): string {
   // A name is a line of a list, not an essay: the cap keeps a pasted wall of text cheap.
   // "1,5 kg" is a European decimal, not a comma tail.
-  let text = fold(name.slice(0, 500)).replace(/(?<=\d),(?=\d)/g, '.')
-  // "sugar (brown)" is "sugar, brown": a lone word with one qualifier in brackets.
-  const bracket = text.match(/^([^(,]*)\(([^)]*)\)\s*$/)
-  if (bracket && tokens(bracket[1]).length === 1 && tailQualifiers(bracket[2]).length) text = `${bracket[1]},${bracket[2]}`
-  const [head, tail = ''] = text.replace(/\([^)]*\)/g, ' ').split(',')
-  const qualifiers = tailQualifiers(tail)
+  const text = fold(name.slice(0, 500)).replace(/(\d),(?=\d)/g, '$1.')
+  const bracket = /\(([^)]*)\)/.exec(text)
+  const [head, commaTail = ''] = text.replace(/\([^)]*\)/g, ' ').split(',')
+  // "sugar (brown)" reads like "sugar, brown": a comma tail wins, else the bracket.
+  const tail = tailQualifiers(commaTail.trim() ? commaTail : (bracket?.[1] ?? ''))
   let words = head
     .replace(/['’`]/g, '')
     .replace(/&/g, ' and ')
     .replace(/[^a-z0-9%\s/.½¼¾⅓⅔⅛]/g, ' ')
-    // A number that is part of the name, not an amount ("5 spice", "7 up").
+    // A number that is part of the name, not an amount ("5 spice", "7 up", "80/20").
     .replace(/\b(?:5|five) ?spice\b/g, 'fivespice')
     .replace(/\b7 ?up\b/g, '7up')
     .replace(/\b1000 island\b/g, 'thousand island')
     .replace(/\b(?:tipo )?00 flour\b/g, 'tipo00 flour')
+    .replace(/\b([6-9]\d)\/([0-4]\d)\b/g, 'ratio$1$2')
     // (not inside a range or fraction, and not a count: "2-3 cheese slices", "1/4 cheese")
-    .replace(/(?<![\d/.]\s?)\b(?:3|three|4|four) cheese\b(?! (?:slice|stick|piece))/g, 'mixed cheese')
-    .replace(/(?<![\d/.]\s?)\b(?:3|three|4|four) bean\b/g, 'mixed bean')
+    .replace(/\b(?:3|three|4|four) cheese\b(?! (?:slice|stick|piece))/g, (m, at: number, s: string) =>
+      afterNumber(s, at) ? m : 'mixed cheese')
+    .replace(/\b(?:3|three|4|four) bean\b/g, (m, at: number, s: string) => (afterNumber(s, at) ? m : 'mixed bean'))
     // "/" and "." belong to numbers only ("1/2", "1.5"): "lb." and "salt/pepper" lose them.
-    .replace(/(?<![\d½¼¾⅓⅔⅛])[/.]|[/.](?![\d½¼¾⅓⅔⅛])/g, ' ')
+    .replace(/[/.]/g, (c, at: number, s: string) => (DIGIT.test(s[at - 1] ?? '') && DIGIT.test(s[at + 1] ?? '') ? c : ' '))
     .split(/\s+/)
     .filter(Boolean)
 
   // The amount: numbers, ranges ("1 to 2"), then measure words, "a", "of".
   let hadQty = false
+  let measured = false
+  let lastMeasure = ''
   for (let guard = 0; guard < 10 && words.length > 1; guard++) {
     const w = words[0].replace(/\.$/, '')
     const next = words[1]
-    if (NUM.test(w) || NUM_WORD.has(w) || NUM_UNIT.test(w) || (w === 'half' && next !== 'and')) hadQty = true
+    if (NUM.test(w) || NUM_WORD.has(w) || (w === 'half' && next !== 'and')) hadQty = true
+    else if (NUM_UNIT.test(w)) { hadQty = true; measured = true }
     else if (w === 'to' && hadQty && NUM.test(next)) { /* "1 to 2" */ }
-    else if (w === 'a' || w === 'an' || w === 'of' || SIZE.has(w)) { /* article or size */ }
+    else if (w === 'a' || w === 'an' || w === 'of') { /* article */ }
+    else if (SIZE.has(w) && !/^shells?$/.test(next)) { /* "large" ("jumbo shells" keep it) */ }
     else if (hadQty && MEASURE_MOD.has(w)) { /* "2 heaping tablespoons" */ }
-    else if (isUnit(w) && (hadQty || LOOSE_UNITS.has(w) || next === 'of')) { /* a measure */ }
+    else if (isUnit(w) && (hadQty || LOOSE_UNITS.has(w) || next === 'of')) { measured = true; lastMeasure = singular(w) }
     else break
     words.shift()
   }
   // Nothing but an amount ("2 cups") is not a name.
   if (hadQty && words.length === 1 && isUnit(words[0])) return ''
 
-  let phrase = words.join(' ')
-    .replace(/\bextra large\b/g, 'large')
-    .replace(/\b(?:reduced|less|lower) sodium\b/g, 'low sodium')
-    .replace(/\bskinless boneless\b/g, 'boneless skinless')
-    .replace(/\bbread crumbs?\b/g, 'breadcrumbs')
+  words = fixPhrase(words.join(' '))
     .replace(/^(juice|zest|peel) of (?:(?:about|approximately) )?(?:half (?:an? )?|an? |[\d½¼¾⅓⅔⅛/. ]+ )?(.+)$/, '$2 $1')
-  words = phrase.split(/\s+/).filter(Boolean)
+    .split(/\s+/)
+    .filter(Boolean)
   // "olive oil for frying", "water as needed", "butter plus more".
   const cut = words.findIndex((w, i) => i > 0 && (w === 'for' || w === 'as' || w === 'plus'))
   if (cut > 0) words = words.slice(0, cut)
@@ -370,7 +421,13 @@ export function matchKey(name: string): string {
   // "peppers" are not the jar of black pepper.
   const plural = words.includes('peppers')
   const head1 = words.map((w) => SPELLING[w] ?? singular(w)).map((w) => SPELLING[w] ?? w)
-  const quals = qualifiers.map((w) => SPELLING[w] ?? singular(w)).map((w) => SPELLING[w] ?? w)
+
+  // "almonds, sliced" and "mozzarella (fresh)" keep the word that makes another product.
+  let qualWords = tail.words
+  const noun = head1[head1.length - 1]
+  if (tail.prep && TAIL_KEEP.has(tail.prep) && noun && KEEP[tail.prep]?.has(noun)) qualWords = [tail.prep]
+  const quals = fixPhrase(qualWords.join(' ')).split(/\s+/).filter(Boolean).map((w) => SPELLING[w] ?? singular(w)).map((w) => SPELLING[w] ?? w)
+  const fresh = head1.includes('fresh') || tail.prep === 'fresh'
 
   const keep = new Set<string>()
   for (const [filler, bases] of Object.entries(KEEP)) if (head1.some((w) => bases.has(w))) keep.add(filler)
@@ -382,28 +439,76 @@ export function matchKey(name: string): string {
 
   // "hot water", "ice water" are water.
   if (out.length > 1 && out[out.length - 1] === 'water' && out.slice(0, -1).every((w) => WATER_TEMP.has(w))) out = ['water']
-  // "cheddar cheese", "penne pasta", "thyme sprig", "salmon fillet".
-  if (out.length > 1 && REDUNDANT[out[out.length - 1]]?.has(out[out.length - 2])) out.pop()
+  // "cheddar cheese", "penne pasta", "thyme sprig", "salmon fillet"; "fresh basil leaves" (not a jar of "basil leaves").
+  if (out.length > 1) {
+    const last = out[out.length - 1]
+    const prev = out[out.length - 2]
+    if (last === 'leaf' || last === 'stem') {
+      if (fresh && HERBS.includes(prev)) out.pop()
+    } else if (REDUNDANT[last]?.has(prev)) out.pop()
+  }
 
   const p1 = out.join(' ')
-  // "peppers" are the vegetable, with a key of their own: never the black pepper jar.
-  if (plural && p1 === 'pepper') return 'peppers'
+  // A bare "pepper" that is plural or counted ("peppers", "1 large pepper") is the vegetable, with
+  // a key of its own: never the black pepper jar.
+  if (p1 === 'pepper' && (plural || (hadQty && !measured))) return 'peppers'
+  // "1 stick of cinnamon", "1 inch cinnamon": a whole spice, not the ground jar.
+  if (WHOLE_SPICE_MEASURE.has(lastMeasure) && SPICES.has(p1)) return ''
+  // A packet of ranch is the seasoning, not the dressing.
+  if (PACKET.has(lastMeasure) && p1 === 'ranch') return 'ranch seasoning'
   const a1 = alias(p1)
   if (a1) return a1
 
-  // "ground cumin" / "cumin powder": only when what is left is a dry spice.
+  // "ground cumin" / "cumin powder": only when what is left is a dry spice. Bare "coriander"
+  // is the fresh herb in the UK, so only the ground form takes the jar's key.
   const base = out.filter((w) => w !== 'ground' && w !== 'powder' && w !== 'powdered').join(' ')
-  if (base !== p1 && SPICES.has(base)) return alias(base) ?? base
+  if (base !== p1 && SPICES.has(base)) {
+    const k = alias(base) ?? base
+    return k === 'coriander' ? 'ground coriander' : k
+  }
   // A key with no letters or a single character is a leftover, not a name.
   return p1.length < 2 || !/[a-z]/.test(p1) ? '' : p1
 }
 
+const memo = new Map<string, string>()
+
+/**
+ * The key two names are compared by. '' when nothing is left to compare (an
+ * empty name, or only an amount), which callers must treat as "matches
+ * nothing", not as "matches every other empty name". Memoized (bounded): a
+ * list is matched against itself many times per render.
+ */
+export function matchKey(name: string): string {
+  const hit = memo.get(name)
+  if (hit !== undefined) return hit
+  const key = computeKey(name)
+  if (memo.size >= 2000) memo.clear()
+  memo.set(name, key)
+  return key
+}
+
+interface Keyed {
+  displayName: string
+  canonicalKey?: string
+  /** With the unit, tells a counted "pepper" (a vegetable) from the jar. */
+  quantity?: number
+  unit?: string
+}
+
 /** Every key a stored row answers to: its parsed key as it was, plus the two
  *  matchKeys. The raw key stays so anything that merged before still merges. */
-export function itemKeys(item: { displayName: string; canonicalKey?: string }): Set<string> {
+export function itemKeys(item: Keyed): Set<string> {
   const out = new Set<string>()
   const add = (k: string) => k && out.add(k)
-  const own = matchKey(item.displayName)
+  let own = matchKey(item.displayName)
+  // "Pepper", 2 (a count) is the vegetable, as "2 peppers" is.
+  if (
+    own === 'black pepper' &&
+    item.quantity != null &&
+    item.quantity > 0 &&
+    COUNT_UNITS.has((item.unit ?? '').trim().toLowerCase()) &&
+    /^(?:(?:large|medium|small|big)\s+)*peppers?$/.test(fold(item.displayName).trim())
+  ) own = 'peppers'
   add(own)
   // The vegetable's parser key is the same bare "pepper" as the jar's: its name decides.
   if (item.canonicalKey && own !== 'peppers') {
@@ -416,10 +521,7 @@ export function itemKeys(item: { displayName: string; canonicalKey?: string }): 
 }
 
 /** Are these two lines the same thing to buy or stock? */
-export function sameIngredient(
-  a: { displayName: string; canonicalKey?: string },
-  b: { displayName: string; canonicalKey?: string },
-): boolean {
+export function sameIngredient(a: Keyed, b: Keyed): boolean {
   const ka = itemKeys(a)
   for (const k of itemKeys(b)) if (ka.has(k)) return true
   return false

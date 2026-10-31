@@ -3,6 +3,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { matchKey, sameIngredient, itemKeys } from './match'
 
 const same = (a: string, b: string) =>
@@ -205,7 +206,7 @@ test('a note after the comma never becomes part of the name', () => {
     ['olive oil, for frying', 'olive oil'], ['olive oil, plus more for drizzling', 'olive oil'],
     ['flour, for dusting', 'flour'], ['water, as needed', 'water'], ['onion, cut into rings', 'onion'],
     ['carrots, cut into 1-inch pieces', 'carrot'], ['potatoes, scrubbed', 'potato'],
-    ['parsley, stems removed', 'parsley'], ['tomatoes, seeded', 'tomato'], ['tomatoes, diced', 'tomato'],
+    ['parsley, stems removed', 'parsley'], ['tomatoes, diced', 'tomato'],
     ['spinach, washed and dried', 'spinach'], ['2 eggs, beaten', 'egg'], ['1 lemon, juiced', 'lemon'],
     ['black beans, drained and rinsed', 'black bean'], ['black beans, rinsed', 'black bean'],
     ['parmesan, freshly grated', 'parmesan'], ['black pepper, freshly cracked', 'black pepper'],
@@ -393,6 +394,134 @@ test('"whole" is a word of the name, not a measure', () => {
   same('2 whole wheat tortillas', 'whole wheat tortillas')
   same('2 cups whole wheat flour', 'whole wheat flour')
   apart('1 whole nutmeg', 'nutmeg')
+})
+
+/**
+ * Apart both by key and as stored rows: a row also answers to its parser's
+ * canonicalKey (the same bare lowercase name, singularized), so a false merge
+ * could hide in that trace even when the display keys differ.
+ */
+function apartRows(a: string, b: string, qa?: { quantity?: number; unit?: string }, qb?: { quantity?: number; unit?: string }) {
+  apart(a, b)
+  const ra = { displayName: a, canonicalKey: legacy(a.replace(/^\d+\s+/, '')), ...qa }
+  const rb = { displayName: b, canonicalKey: legacy(b.replace(/^\d+\s+/, '')), ...qb }
+  assert.ok(!sameIngredient(ra, rb), `${a} / ${b} meet as stored rows`)
+}
+
+test('architect pass: bare coriander is the fresh herb, not the ground jar', () => {
+  assert.equal(matchKey('coriander'), 'coriander')
+  assert.equal(matchKey('ground coriander'), 'ground coriander')
+  same('coriander powder', 'ground coriander')
+  apartRows('coriander', 'ground coriander')
+  apartRows('coriander', 'coriander powder')
+  apartRows('coriander', 'coriander seeds')
+  apart('coriander', 'cilantro')
+})
+
+test('architect pass: mashed, seeded, plain and pure are not filler', () => {
+  apartRows('mashed potatoes', 'potatoes')
+  apartRows('seeded rye bread', 'rye bread')
+  apartRows('plain chocolate', 'chocolate')
+  apartRows('pure pumpkin', 'pumpkin')
+  apartRows('tomatoes, seeded', 'tomatoes')
+  // The exact plain/pure spellings that are the usual product still fold.
+  same('plain flour', 'flour')
+  same('plain yogurt', 'yogurt')
+  same('plain greek yogurt', 'greek yogurt')
+  same('pure vanilla extract', 'vanilla extract')
+  same('pure maple syrup', 'maple syrup')
+})
+
+test('architect pass: herb leaves drop only after fresh', () => {
+  apartRows('basil leaves', 'fresh basil')
+  apartRows('basil leaves', 'basil')
+  apartRows('oregano leaves', 'oregano')
+  same('fresh basil leaves', 'basil')
+  same('basil leaves, fresh', 'basil')
+  same('fresh parsley stems', 'parsley')
+  same('thyme sprigs', 'thyme')
+})
+
+test('architect pass: only plain salts are salt', () => {
+  apartRows('pink salt', 'salt')
+  apartRows('rock salt', 'salt')
+  apartRows('pink salt', 'sea salt')
+  for (const n of ['pink himalayan salt', 'himalayan salt', 'sea salt', 'kosher salt']) assert.equal(matchKey(n), 'salt', n)
+})
+
+test('architect pass: deli cuts are not the whole cut', () => {
+  for (const w of ['turkey', 'ham', 'chicken', 'beef', 'salami', 'bologna']) apartRows(`sliced ${w}`, w)
+  apartRows('sliced turkey breast', 'turkey breast')
+  // A cut sliced at home is still the cut.
+  same('chicken breast, sliced', 'chicken breast')
+  same('1 lb steak, sliced thin', 'steak')
+})
+
+test('architect pass: a counted pepper is the vegetable', () => {
+  const count = { quantity: 1, unit: '' }
+  assert.equal(matchKey('1 pepper'), 'peppers')
+  assert.equal(matchKey('1 large pepper'), 'peppers')
+  assert.equal(matchKey('2 medium peppers'), 'peppers')
+  assert.equal(matchKey('1 tsp pepper'), 'black pepper')
+  assert.equal(matchKey('pepper'), 'black pepper')
+  apartRows('1 pepper', 'pepper')
+  apartRows('1 large pepper', 'black pepper')
+  // The same by quantity: a row named just "Pepper" with a count is the vegetable.
+  assert.ok(!sameIngredient({ displayName: 'Pepper', canonicalKey: 'pepper', ...count }, { displayName: 'Black pepper', canonicalKey: 'black pepper' }))
+  assert.ok(!sameIngredient({ displayName: 'Pepper', canonicalKey: 'pepper', quantity: 2, unit: 'each' }, { displayName: 'pepper', canonicalKey: 'pepper' }))
+  assert.ok(sameIngredient({ displayName: 'Pepper', canonicalKey: 'pepper', quantity: 1, unit: 'tsp' }, { displayName: 'black pepper', canonicalKey: 'black pepper' }))
+  assert.ok(sameIngredient({ displayName: 'Pepper', canonicalKey: 'pepper' }, { displayName: 'black pepper', canonicalKey: 'black pepper' }))
+  assert.ok(sameIngredient({ displayName: 'red peppers', canonicalKey: 'red pepper', quantity: 2 }, { displayName: 'red pepper', canonicalKey: 'red pepper' }))
+})
+
+test('architect pass: comma and bracket tails keep a word that makes another product', () => {
+  for (const [a, b] of [
+    ['mozzarella (fresh)', 'mozzarella'], ['Mozzarella, fresh', 'mozzarella'], ['turmeric (fresh)', 'ground turmeric'],
+    ['almonds, sliced', 'almonds'], ['coconut, shredded', 'coconut'], ['beef, minced', 'beef'],
+    ['soy sauce (low sodium)', 'soy sauce'], ['yeast, fresh', 'yeast'],
+  ] as const) apartRows(a, b)
+  same('mozzarella (fresh)', 'fresh mozzarella')
+  same('almonds, sliced', 'sliced almonds')
+  same('soy sauce (low sodium)', 'low sodium soy sauce')
+  same('soy sauce (reduced sodium)', 'low sodium soy sauce')
+  same('turmeric (fresh)', 'fresh turmeric')
+  // Prep after the comma stays prep, and so do notes in brackets.
+  same('tomatoes, diced', 'tomatoes')
+  same('onion, chopped', 'onion')
+  same('chicken breast, sliced', 'chicken breast')
+  same('olive oil (extra virgin)', 'olive oil')
+  same('flour (for dusting)', 'flour')
+  same('salt (optional)', 'salt')
+  same('1 (14 oz) can chickpeas', 'chickpeas')
+})
+
+test('architect pass: a piece of a whole spice is not the ground jar', () => {
+  for (const n of ['stick of cinnamon', '1 inch cinnamon', '2 sticks cinnamon', '1 inch piece cinnamon']) {
+    assert.equal(matchKey(n), '', n)
+  }
+  apartRows('cinnamon stick', 'cinnamon')
+  apartRows('2 sticks cinnamon', 'cinnamon')
+  same('1 stick butter', 'butter')
+  same('1 inch piece ginger', 'ginger')
+})
+
+test('architect pass: odd cases', () => {
+  apartRows('80/20 ground beef', 'ground beef')
+  same('1 lb 80/20 ground beef', '80/20 ground beef')
+  apart('jumbo shells', 'small shells')
+  apart('jumbo shells', 'shells')
+  apart('1 packet ranch', 'ranch dressing')
+  same('ranch dressing', 'ranch')
+})
+
+test('the matcher is memoized and works without regex lookbehind', () => {
+  assert.equal(matchKey('2 lb. ground beef'), matchKey('2 lb. ground beef'))
+  for (let i = 0; i < 5000; i++) matchKey(`item ${i}`)
+  assert.equal(matchKey('1,5 kg flour'), 'flour')
+  assert.equal(matchKey('1/4 cheese'), 'cheese')
+  assert.equal(matchKey('2-3 cheese slices'), 'cheese slice')
+  // iOS Safari before 16.4 throws on a lookbehind when the file loads.
+  assert.ok(!/\(\?<[=!]/.test(readFileSync(new URL('./match.ts', import.meta.url), 'utf8')))
 })
 
 test('"whole" before an everyday item is the item', () => {
