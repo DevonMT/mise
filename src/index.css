@@ -2807,25 +2807,6 @@
 .handoff .grow { flex: 1 1 auto; min-width: 0; }
 .list-shared { color: var(--accent-deep); }
 
-/* The way back to the hub, in Settings. It had no styles at all: a 21px bare
-   link with an empty dot span. A full-height row, like the settings around it. */
-.home-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  color: var(--accent-deep);
-  font-weight: 600;
-  text-decoration: none;
-}
-.home-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex: 0 0 auto;
-}
-
 /* ---- Display face (see the note on Fredoka near the top) ---------------- */
 .brand,
 .list-pick-name,
