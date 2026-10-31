@@ -129,8 +129,9 @@ export async function getStapleKeys(): Promise<Set<string>> {
   const items = await db.items.filter((i) => i.alwaysHave === true).toArray()
   // Every key a staple answers to (see match.ts), so the "kosher salt" a recipe
   // asks for is skipped when the pantry's staple is "salt". Test a recipe line
-  // with isStaple(), not with staples.has(canonicalKey), to get that.
-  return new Set(items.flatMap((i) => [i.canonicalKey, ...itemKeys(i)]))
+  // with isStaple(), not with staples.has(canonicalKey), to get that. itemKeys
+  // already carries the raw key, behind its guards (peppers, coriander).
+  return new Set(items.flatMap((i) => [...itemKeys(i)]))
 }
 
 /** Is this recipe/parse line one of the staples from getStapleKeys()? */

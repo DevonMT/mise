@@ -56,6 +56,7 @@ export async function ingredientStatus(ing: IngredientLine, listId?: number): Pr
       listId,
       displayName: ing.displayName,
       canonicalKey: ing.canonicalKey,
+      quantity: ing.quantity,
       unit: ing.unit,
     })
   }

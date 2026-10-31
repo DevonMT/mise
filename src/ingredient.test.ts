@@ -235,6 +235,47 @@ test('the meal plan skips pantry stock too and hands back what it skipped', asyn
   assert.deepEqual(await onGroceries(), ['mascarpone', 'vanilla'])
 })
 
+test('an equal stored key still has to pass the guards on a list with aisles (#711)', async () => {
+  // A counted pepper is the vegetable, not the jar keyed 'pepper'.
+  await addItem({ listId: groceries, displayName: 'Pepper', canonicalKey: 'pepper', section: 'pantry' })
+  await addItem({ listId: groceries, displayName: 'pepper', canonicalKey: 'pepper', quantity: 2, unit: '', section: 'produce' })
+  assert.equal(await db.items.filter((i) => i.listId === groceries).count(), 2)
+  // ...and the other way round.
+  await db.items.clear()
+  await addItem({ listId: groceries, displayName: 'pepper', canonicalKey: 'pepper', quantity: 2, unit: '', section: 'produce' })
+  await addItem({ listId: groceries, displayName: 'Pepper', canonicalKey: 'pepper', section: 'pantry' })
+  assert.equal(await db.items.filter((i) => i.listId === groceries).count(), 2)
+  // A jar is still a jar, and a tsp of pepper still merges into it.
+  await db.items.clear()
+  await addItem({ listId: groceries, displayName: 'Pepper', canonicalKey: 'pepper', quantity: 1, unit: 'tsp', section: 'pantry' })
+  await addItem({ listId: groceries, displayName: 'black pepper', canonicalKey: 'pepper', quantity: 1, unit: 'tsp', section: 'pantry' })
+  const rows = await db.items.filter((i) => i.listId === groceries).toArray()
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].quantity, 2)
+  // A ground coriander row keyed 'coriander' is not the fresh herb.
+  await db.items.clear()
+  await addItem({ listId: groceries, displayName: 'ground coriander', canonicalKey: 'coriander', quantity: 1, unit: 'tsp', section: 'pantry' })
+  await addItem({ listId: groceries, displayName: 'coriander', canonicalKey: 'coriander', quantity: 1, unit: 'tsp', section: 'produce' })
+  assert.equal(await db.items.filter((i) => i.listId === groceries).count(), 2)
+  // A tasks list is untouched: an equal key is exact there.
+  const tasks = await db.lists.add({ name: 'Tasks', kind: 'tasks', createdAt: 1 })
+  await addItem({ listId: tasks, displayName: 'Pepper', canonicalKey: 'pepper', section: 'other' })
+  await addItem({ listId: tasks, displayName: 'pepper', canonicalKey: 'pepper', quantity: 2, unit: '', section: 'other' })
+  assert.equal(await db.items.filter((i) => i.listId === tasks).count(), 1)
+})
+
+test('a staple keyed with a raw key does not skip the other thing under it (#711)', async () => {
+  await db.items.add({ listId: pantry, displayName: 'Ground coriander', canonicalKey: 'coriander', section: 'pantry',
+    checked: false, backlog: false, alwaysHave: true, createdAt: 1 })
+  await db.items.add({ listId: pantry, displayName: 'Black pepper', canonicalKey: 'pepper', section: 'pantry',
+    checked: false, backlog: false, alwaysHave: true, createdAt: 1 })
+  const staples = await getStapleKeys()
+  assert.ok(isStaple(staples, { displayName: 'ground coriander', canonicalKey: 'ground coriander' }))
+  assert.ok(!isStaple(staples, { displayName: 'coriander', canonicalKey: 'coriander' }), 'fresh coriander is not the jar')
+  assert.ok(isStaple(staples, { displayName: 'pepper', canonicalKey: 'pepper' }))
+  assert.ok(!isStaple(staples, { displayName: '1 large pepper', canonicalKey: 'pepper' }), 'a counted pepper is a vegetable')
+})
+
 test('buying "cumin powder" restocks a pantry "ground cumin" that ran out', async () => {
   const id = await db.items.add({ listId: pantry, displayName: 'Ground cumin', canonicalKey: 'ground cumin',
     section: 'pantry', checked: true, backlog: false, createdAt: 1 })

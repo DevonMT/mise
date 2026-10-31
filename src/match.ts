@@ -8,14 +8,23 @@
  *
  * DETERMINISTIC, no model. The steps, in order:
  *
- *   1. Tidy: lowercase, drop accents, drop (parentheses), keep what is before
- *      the first comma ("onion, chopped" is an onion), drop a leading amount
- *      and unit ("2 cups"), and split into words.
- *   2. Singularize each word ("tomatoes" is "tomato").
- *   3. Aliases, exact phrase ("scallion" is "green onion"), tried before and
- *      after each strip so a protected phrase is never stripped first.
- *   4. Strip filler: prep words ("chopped", "fresh"), sizes ("large").
- *   5. Strip "ground" / "powder" / "powdered", but ONLY from a dry spice
+ *   1. Tidy: lowercase, drop accents, drop (parentheses). What follows the first
+ *      comma is a qualifier ("rice, brown" is brown rice) or a note ("onion,
+ *      chopped"; "olive oil, for frying"), see tailQualifiers().
+ *   2. Drop the leading amount: numbers ("1 1/2", "1-2", "1 to 2", "15oz",
+ *      "two"), then measure words ("cups", "lb.", "stalks", "head of") and
+ *      "a"/"an"/"of". Measure words only go after a number or before "of", so
+ *      "whole milk" and "head cheese" keep their first word.
+ *   3. Cut a trailing note ("... for frying", "... as needed", "juice of 1
+ *      lemon" is turned round into "lemon juice").
+ *   4. Singularize each word ("tomatoes" is "tomato").
+ *   5. Strip filler: prep words ("chopped", "fresh"), sizes ("large"), except
+ *      where the word changes what you buy (KEEP below).
+ *   6. Drop a redundant last word ("cheddar cheese" is "cheddar", "penne
+ *      pasta" is "penne", "thyme sprigs" is "thyme", "salmon fillet" is
+ *      "salmon").
+ *   7. Aliases, exact phrase ("scallion" is "green onion").
+ *   8. Strip "ground" / "powder" / "powdered", but ONLY from a dry spice
  *      ("ground cumin" is "cumin"). Never from anything else, which is what
  *      keeps "chili powder" apart from "chili", "garlic powder" apart from
  *      "garlic", "ground beef" apart from "beef" and "powdered sugar" apart
@@ -23,54 +32,125 @@
  *
  * WHEN IN DOUBT, DO NOT MERGE. A missed match leaves two lines you can combine
  * by hand; a false match silently loses a line from somebody's shopping list.
- * So the strip lists are short and the spice list is an allow-list.
+ * So the strip lists are short, the spice list is an allow-list, and every
+ * alias below is something a shopper would put in the same basket.
  *
  * DECISIONS (also pinned by match.test.ts):
  *   - Plain salts are one thing: "kosher salt", "sea salt", "table salt",
- *     "flaky sea salt" all match "salt". Stocking a pantry is about not buying
- *     it again, and nobody re-buys salt for a recipe that names another kind.
- *     Seasoned salts (garlic salt, celery salt) are different products and stay
- *     apart.
- *   - Fresh vs ground ginger are different products: "ginger" and "fresh
- *     ginger" match; "ground ginger" does not.
+ *     "flaky sea salt", "Maldon", "Diamond Crystal" all match "salt". Stocking a
+ *     pantry is about not buying it again, and nobody re-buys salt for a recipe
+ *     that names another kind. Seasoned salts (garlic salt, celery salt) are
+ *     different products and stay apart.
+ *   - Fresh vs ground: "ginger" and "fresh ginger" match; "ground ginger" does
+ *     not. "Fresh turmeric" is a root and stays apart from ground turmeric;
+ *     "fresh coriander" is cilantro (UK), not the ground jar.
  *   - Dried herbs are NOT folded into fresh ones ("dried basil" vs "basil")
  *     except oregano and bay leaf, which are practically always dried.
- *   - Colours and cuts are kept ("red onion" is not "onion"; "chicken thigh" is
- *     not "chicken breast"). The parser's own canonicalKey is matched too, so
- *     "Yellow onion" with key "onion" still meets "onion".
+ *   - Colours, cuts and varieties are kept ("red onion" is not "onion"; "chicken
+ *     thigh" is not "chicken breast"; "bread flour" is not "flour"). The
+ *     parser's own canonicalKey is matched too, so "Yellow onion" with key
+ *     "onion" still meets "onion".
+ *   - Bare words mean the default: "pepper" is black pepper, "sugar" is
+ *     granulated ("white sugar", "granulated sugar"), "brown sugar" is light
+ *     brown, "vanilla" is extract, "hamburger" is ground beef, "fennel" is the
+ *     bulb (fennel seeds are their own thing). "Peppers" (plural) are not the jar.
+ *   - A form you buy separately stays apart even if the prep word is usually
+ *     filler: "sliced almonds", "shredded coconut", "fresh mozzarella", "diced
+ *     tomatoes" are not "almonds", "coconut", "mozzarella", "tomatoes".
  *   - Cumin seed (whole) is not ground cumin. Cilantro is not coriander.
- *   - A word after a comma is a qualifier unless it is prep: "rice, brown" is
- *     "brown rice", "pepper, red" is "red pepper", "onion, chopped" is "onion".
+ *   - "Low sodium" and "reduced sodium" are one; both stay apart from the plain
+ *     product (it is a different thing on the shelf).
+ *   - A word after a comma is a qualifier unless it is prep or a note. A lone
+ *     word with one qualifier in brackets is the same ("sugar (brown)"); longer
+ *     names keep brackets as a note ("olive oil (extra virgin)").
+ *   - "1,5 kg" is a decimal, not a comma. "Whole" is never a measure ("2 cups
+ *     whole milk" is whole milk; "1 whole chicken" stays "whole chicken").
+ *     A number inside a name stays ("5 spice", "7 up", "00 flour", "3 cheese").
+ *   - A key with no letters, or one character, is '' (matches nothing).
+ *   - Bare "coriander" is the fresh herb (UK), so only "ground coriander" and
+ *     "coriander powder" take the jar's key. "Plain" and "pure" are not filler
+ *     (plain chocolate, pure pumpkin): only plain flour/yogurt and pure vanilla
+ *     extract/maple syrup are aliases. "Mashed" and "seeded" are not filler.
+ *   - "Basil leaves" (a dried jar) is not "fresh basil": a herb's leaf/stem is
+ *     dropped only after "fresh". Only "pink himalayan" counts as plain salt.
+ *   - Deli cuts ("sliced turkey/ham/chicken/beef/salami") are not the whole cut.
+ *   - A counted bare pepper ("1 large pepper", or a row "Pepper" with a count)
+ *     is the vegetable ("peppers"), not the jar; "1 tsp pepper" is the jar.
+ *   - A piece of a whole spice ("stick of cinnamon", "1 inch cinnamon") is ''
+ *     rather than the ground jar's key.
+ *   - After a comma or in brackets, a lone "fresh/sliced/shredded/minced" stays
+ *     where it makes another product ("almonds, sliced"); other prep drops.
  *
  * KNOWN LIMITS (a missed match, or a merge the unit check usually stops):
- *   "1 can tomatoes" and "tomatoes" share a key, as do "sliced cheese" and
- *   "cheese"; the line's unit keeps the can apart from fresh when merging.
+ *   "sliced cheese" and "cheese" share a key unless the cheese is named; "salt
+ *   and pepper" is one key (it is two things); "butter or margarine" keeps both
+ *   words; the line's unit keeps a can apart from fresh when merging.
  */
 
-const QTY = /^[\d½¼¾⅓⅔⅛][\d\s/.½¼¾⅓⅔⅛]*(?!%)/
+const NUM = /^[\d½¼¾⅓⅔⅛][\d/.½¼¾⅓⅔⅛]*$/
+const NUM_UNIT = /^\d+(?:\.\d+)?(?:oz|ounce|g|gram|kg|ml|l|lb|lbs|cl|fl)$/
+const NUM_WORD = new Set(['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'])
+
+/** Measures, singular. A leading one is dropped after a number or before "of". */
 const UNITS = new Set([
-  'cup', 'c', 'tbsp', 'tbs', 'tablespoon', 'tsp', 'teaspoon', 'oz', 'ounce', 'fl',
-  'lb', 'lbs', 'pound', 'g', 'gram', 'kg', 'kilogram', 'ml', 'l', 'liter', 'litre',
-  'quart', 'qt', 'pint', 'pt', 'gal', 'gallon', 'clove', 'can', 'bunch', 'pkg',
-  'package', 'stick', 'dozen', 'pinch', 'dash', 'slice', 'sprig', 'handful',
-  'head', 'jar', 'bag', 'box', 'bottle', 'piece', 'pc', 'pcs', 'whole',
+  'cup', 'c', 't', 'tb', 'tbsp', 'tbs', 'tablespoon', 'tsp', 'teaspoon', 'oz', 'ounce', 'fl',
+  'lb', 'lbs', 'pound', 'g', 'gram', 'kg', 'kilogram', 'ml', 'l', 'liter', 'litre', 'cl',
+  'quart', 'qt', 'pint', 'pt', 'gal', 'gallon', 'clove', 'can', 'tin', 'bunch', 'pkg',
+  'package', 'packet', 'sachet', 'envelope', 'stick', 'dozen', 'pinch', 'dash', 'slice', 'sprig',
+  'handful', 'head', 'bulb', 'stalk', 'rib', 'knob', 'inch', 'link', 'strip', 'rasher',
+  'wedge', 'fillet', 'filet', 'sheet', 'loaf', 'tub', 'carton', 'container', 'scoop',
+  'jar', 'bag', 'box', 'bottle', 'piece', 'pc', 'pcs', 'splash', 'drizzle',
 ])
-/** Measures that mean an amount even with no number in front ("pinch of salt").
- *  Every other unit word is only dropped after a number, so "whole milk" and
- *  "head cheese" keep their first word. */
-const SIZE = new Set(['large', 'medium', 'small', 'big'])
-const LOOSE_UNITS = new Set(['pinch', 'dash', 'handful', 'sprig', 'splash'])
-// Plurals of the above, which are checked before the words are singularized.
-const UNIT_PLURAL = /^(cups|tbsps|tablespoons|tsps|teaspoons|ounces|pounds|grams|kilograms|liters|litres|quarts|pints|gallons|cloves|cans|bunches|packages|sticks|pinches|dashes|slices|sprigs|handfuls|heads|jars|bags|boxes|bottles|pieces)$/
+/** Measures that mean an amount even with no number in front ("pinch of salt"). */
+const LOOSE_UNITS = new Set(['pinch', 'dash', 'handful', 'sprig', 'splash', 'drizzle'])
+/** Between a number and the name: "2 heaping tablespoons sugar". */
+const MEASURE_MOD = new Set(['heaping', 'heaped', 'level', 'scant', 'rounded', 'generous', 'packed'])
+const SIZE = new Set(['large', 'medium', 'small', 'big', 'jumbo'])
 
 /** Prep and size words that do not change what you buy. */
 const FILLER = new Set([
   'fresh', 'freshly', 'chopped', 'diced', 'minced', 'sliced', 'grated', 'shredded',
-  'peeled', 'cubed', 'halved', 'trimmed', 'crumbled', 'melted', 'softened', 'divided',
-  'packed', 'heaping', 'level', 'large', 'medium', 'small', 'big', 'ripe', 'finely',
+  'peeled', 'cubed', 'halved', 'quartered', 'trimmed', 'crumbled', 'melted', 'softened', 'divided',
+  'cored', 'pitted', 'stemmed', 'deveined', 'shucked', 'rinsed', 'drained', 'washed',
+  'scrubbed', 'cleaned', 'patted', 'juiced', 'zested', 'beaten', 'whisked', 'thawed', 'sifted',
+  'torn', 'smashed', 'separated', 'warmed', 'chilled', 'cooled', 'removed',
+  'room', 'temperature', 'lightly', 'well',
+  'packed', 'heaping', 'level', 'large', 'medium', 'small', 'big', 'jumbo', 'ripe', 'finely',
   'coarsely', 'roughly', 'thinly', 'thickly', 'optional', 'taste', 'to', 'about',
   'approximately', 'a', 'an', 'the', 'of', 'for', 'garnish', 'serving',
 ])
+/** A tail after the comma that starts like this is a note about the dish. */
+const NOTE_START = new Set([
+  'for', 'as', 'to', 'if', 'plus', 'at', 'about', 'more', 'cut', 'into', 'from', 'with', 'without',
+  'on', 'such', 'preferably', 'divided', 'cold', 'warm', 'lukewarm',
+])
+
+/**
+ * A prep word that is NOT filler next to these: it is a separate product.
+ * "sliced almonds" is not "almonds" and "shredded coconut" is not "coconut";
+ * "diced tomatoes" is the can. A prep word after a comma is always prep.
+ */
+const CHEESES = [
+  'cheddar', 'mozzarella', 'ricotta', 'parmesan', 'provolone', 'feta', 'gouda', 'brie', 'gruyere',
+  'havarti', 'colby', 'asiago', 'romano', 'pecorino', 'mascarpone', 'muenster', 'fontina',
+  'manchego', 'swiss', 'gorgonzola', 'halloumi', 'camembert', 'emmental', 'edam',
+]
+const KEEP: Record<string, Set<string>> = {
+  diced: new Set(['tomato']),
+  chopped: new Set(['tomato']),
+  sliced: new Set([
+    'almond', 'cheese', 'bread', 'olive', 'pickle', 'jalapeno', 'pepperoni', 'peach', ...CHEESES,
+    'turkey', 'ham', 'chicken', 'beef', 'salami', 'bologna',
+  ]),
+  shredded: new Set(['coconut', 'wheat']),
+  fresh: new Set(['mozzarella', 'pasta', 'turmeric', 'coriander', 'yeast', 'tuna']),
+  minced: new Set(['beef', 'pork', 'lamb', 'turkey', 'chicken']),
+  // Pasta shells come in sizes you cannot swap ("jumbo shells" are for stuffing).
+  jumbo: new Set(['shell']),
+  large: new Set(['shell']),
+  medium: new Set(['shell']),
+  small: new Set(['shell']),
+}
 
 /** Dry spices, where "ground" / "powder" is a form of the same jar. An
  *  allow-list on purpose: see the file header. */
@@ -80,6 +160,36 @@ const SPICES = new Set([
   'anise', 'sumac', 'fenugreek', 'celery seed',
 ])
 
+/** A last word that adds nothing after one of these: "cheddar cheese", "penne
+ *  pasta", "thyme sprigs", "salmon fillet", "2 celery stalks". */
+const HERBS = ['thyme', 'basil', 'mint', 'parsley', 'rosemary', 'sage', 'oregano', 'dill', 'cilantro', 'tarragon', 'chive', 'marjoram']
+const FISH = [
+  'salmon', 'cod', 'tilapia', 'haddock', 'halibut', 'trout', 'sole', 'snapper', 'bass', 'catfish',
+  'anchovy', 'flounder', 'mahi', 'fish',
+]
+const SHAPES = [
+  'spaghetti', 'penne', 'rigatoni', 'fusilli', 'linguine', 'fettuccine', 'macaroni', 'rotini',
+  'farfalle', 'orecchiette', 'ziti', 'tagliatelle', 'pappardelle', 'bucatini', 'orzo', 'shell', 'hair',
+]
+const REDUNDANT: Record<string, Set<string>> = {
+  cheese: new Set(CHEESES),
+  pasta: new Set(SHAPES),
+  sauce: new Set(['worcestershire', 'hoisin', 'sriracha', 'tabasco', 'marinara']),
+  mustard: new Set(['dijon']),
+  paste: new Set(['miso']),
+  dressing: new Set(['ranch']),
+  lettuce: new Set(['romaine', 'iceberg']),
+  fillet: new Set(FISH),
+  filet: new Set(FISH),
+  stalk: new Set(['celery', 'lemongrass', 'rhubarb']),
+  rib: new Set(['celery']),
+  bulb: new Set(['garlic']),
+  head: new Set(['garlic', 'cauliflower', 'broccoli', 'cabbage', 'lettuce', 'romaine']),
+  sprig: new Set(HERBS),
+  // "leaf" and "stem" are dropped only after "fresh" (a jar of "basil leaves" is dried): see matchKey.
+}
+const WATER_TEMP = new Set(['cold', 'warm', 'hot', 'boiling', 'lukewarm', 'tepid', 'ice', 'iced', 'filtered', 'tap', 'cool'])
+
 /** Words that end in s and are not plurals (or that a rule would mangle). */
 const NOT_PLURAL = new Set([
   'molasses', 'hummus', 'couscous', 'asparagus', 'swiss', 'grits', 'citrus',
@@ -88,39 +198,85 @@ const NOT_PLURAL = new Set([
 const IE_PLURAL = new Set(['cookies', 'brownies', 'pies', 'veggies', 'smoothies', 'calories'])
 const SPELLING: Record<string, string> = {
   chile: 'chili', chilli: 'chili', chilies: 'chili', chiles: 'chili', chillies: 'chili',
-  yoghurt: 'yogurt',
+  yoghurt: 'yogurt', veggie: 'vegetable', raising: 'rising',
 }
 
 /** Exact-phrase aliases, keyed on the singularized, filler-stripped phrase.
  *  An entry that maps to itself pins a phrase against later stripping. */
 const ALIASES: Record<string, string> = {
+  // produce
   scallion: 'green onion', 'spring onion': 'green onion',
-  garbanzo: 'chickpea', 'garbanzo bean': 'chickpea', 'chick pea': 'chickpea',
-  'coriander leaf': 'cilantro', 'cilantro leaf': 'cilantro',
-  'confectioner sugar': 'powdered sugar', 'icing sugar': 'powdered sugar',
-  'granulated sugar': 'sugar', 'white sugar': 'sugar', 'granulated white sugar': 'sugar',
-  'white granulated sugar': 'sugar',
-  'all purpose flour': 'flour', 'plain flour': 'flour', 'ap flour': 'flour',
-  'bicarbonate soda': 'baking soda', 'bicarb soda': 'baking soda', 'sodium bicarbonate': 'baking soda',
-  'extra virgin olive oil': 'olive oil', 'virgin olive oil': 'olive oil', evoo: 'olive oil',
-  'heavy whipping cream': 'heavy cream', 'whipping cream': 'heavy cream',
   capsicum: 'bell pepper', aubergine: 'eggplant', courgette: 'zucchini', rocket: 'arugula',
+  'plum tomato': 'roma tomato', beetroot: 'beet', 'swiss chard': 'chard', 'pak choi': 'bok choy',
+  mangetout: 'snow pea', 'sugar snap pea': 'snap pea', 'green pea': 'pea', 'string bean': 'green bean',
+  'red kidney bean': 'kidney bean', garbanzo: 'chickpea', 'garbanzo bean': 'chickpea', 'chick pea': 'chickpea',
+  'white mushroom': 'mushroom', 'button mushroom': 'mushroom', 'baby bella mushroom': 'cremini mushroom',
+  'canned pumpkin': 'pumpkin puree', 'jalapeno pepper': 'jalapeno', 'fennel bulb': 'fennel',
+  'ear corn': 'corn on the cob', 'corn on cob': 'corn on the cob',
+  'lemon peel': 'lemon zest', 'lime peel': 'lime zest', 'orange peel': 'orange zest',
+  'garlic clove': 'garlic', 'ginger root': 'ginger',
+  'dried onion': 'dried onion', 'dried minced onion': 'dried onion', 'onion flake': 'dried onion',
+  'dehydrated onion': 'dried onion',
+  // herbs and spices
+  'coriander leaf': 'cilantro', 'cilantro leaf': 'cilantro',
+  'fresh coriander': 'cilantro', 'fresh coriander leaf': 'cilantro',
+  'italian parsley': 'flat leaf parsley',
+  'whole egg': 'egg', 'whole lemon': 'lemon', 'whole star anise': 'star anise',
+  'whole bay leaf': 'bay leaf',
+  fivespice: 'five spice', 'chinese fivespice': 'five spice', 'fivespice powder': 'five spice',
+  'chinese fivespice powder': 'five spice',
+  'turmeric root': 'fresh turmeric', haldi: 'turmeric', jeera: 'cumin seed', 'whole cumin': 'cumin seed',
   'crushed red pepper': 'red pepper flake', 'chili flake': 'red pepper flake',
   'crushed red pepper flake': 'red pepper flake', 'chili pepper flake': 'red pepper flake',
   'ground red pepper': 'cayenne', 'cayenne pepper': 'cayenne',
-  'ginger powder': 'ground ginger',
+  'ginger powder': 'ground ginger', 'sweet paprika': 'paprika',
   'mustard powder': 'dry mustard', 'ground mustard': 'dry mustard',
   'dried oregano': 'oregano', 'dried bay leaf': 'bay leaf',
-  'unsweetened cocoa': 'cocoa powder', 'unsweetened cocoa powder': 'cocoa powder', cocoa: 'cocoa powder',
-  'garlic clove': 'garlic', 'parmesan cheese': 'parmesan', parmigiano: 'parmesan',
-  'parmigiano reggiano': 'parmesan',
+  'granulated garlic': 'garlic powder', 'garlic granule': 'garlic powder',
+  'cracked black pepper': 'black pepper', 'cracked pepper': 'black pepper',
+  'coarse black pepper': 'black pepper', 'coarse ground black pepper': 'black pepper',
+  'black peppercorn': 'peppercorn', 'whole peppercorn': 'peppercorn', 'whole black peppercorn': 'peppercorn',
+  'fleur de sel': 'salt', 'seasoning salt': 'seasoned salt',
+  // pantry
+  'confectioner sugar': 'powdered sugar', 'icing sugar': 'powdered sugar',
+  'granulated sugar': 'sugar', 'white sugar': 'sugar', 'granulated white sugar': 'sugar',
+  'white granulated sugar': 'sugar', 'light brown sugar': 'brown sugar', 'caster sugar': 'superfine sugar',
+  'all purpose flour': 'flour', 'ap flour': 'flour', 'wholemeal flour': 'whole wheat flour',
+  'bicarbonate soda': 'baking soda', 'bicarb soda': 'baking soda', 'sodium bicarbonate': 'baking soda',
+  'dry yeast': 'active dry yeast',
+  // "plain" and "pure" are not filler ("plain chocolate", "pure pumpkin" are other products).
+  'plain flour': 'flour', 'plain yogurt': 'yogurt', 'plain greek yogurt': 'greek yogurt',
+  'pure vanilla extract': 'vanilla extract', 'pure maple syrup': 'maple syrup',
+  'extra virgin olive oil': 'olive oil', 'virgin olive oil': 'olive oil', evoo: 'olive oil',
+  'distilled white vinegar': 'white vinegar', 'distilled vinegar': 'white vinegar',
+  'cider vinegar': 'apple cider vinegar', 'rice wine vinegar': 'rice vinegar',
+  shoyu: 'soy sauce', 'stock cube': 'bouillon cube',
   'chicken stock': 'chicken broth', 'beef stock': 'beef broth', 'vegetable stock': 'vegetable broth',
-  'jalapeno pepper': 'jalapeno', 'corn starch': 'cornstarch',
+  'unsweetened cocoa': 'cocoa powder', 'unsweetened cocoa powder': 'cocoa powder', cocoa: 'cocoa powder',
+  'semi sweet chocolate chip': 'chocolate chip',
+  'creamy peanut butter': 'peanut butter', 'smooth peanut butter': 'peanut butter',
+  'agave nectar': 'agave', 'corn starch': 'cornstarch',
+  'long grain white rice': 'long grain rice', 'old fashioned oat': 'rolled oat',
+  'elbow macaroni': 'macaroni', 'elbow pasta': 'macaroni',
+  'lasagne sheet': 'lasagna noodle', 'lasagna sheet': 'lasagna noodle', 'lasagne noodle': 'lasagna noodle',
+  'panko breadcrumb': 'panko',
+  'flax seed': 'flaxseed', pepita: 'pumpkin seed', sultana: 'golden raisin',
+  // dairy, meat, fish, sauces
+  'heavy whipping cream': 'heavy cream', 'whipping cream': 'heavy cream',
+  'parmesan cheese': 'parmesan', parmigiano: 'parmesan', 'parmigiano reggiano': 'parmesan',
+  hamburger: 'ground beef', 'hamburger meat': 'ground beef', 'minced beef': 'ground beef',
+  'beef mince': 'ground beef', 'minced pork': 'ground pork', 'pork mince': 'ground pork',
+  'minced lamb': 'ground lamb', 'lamb mince': 'ground lamb', 'minced turkey': 'ground turkey',
+  'turkey mince': 'ground turkey', 'minced chicken': 'ground chicken', 'chicken mince': 'ground chicken',
+  prawn: 'shrimp', drumstick: 'chicken drumstick', 'stew meat': 'beef stew meat',
+  mayo: 'mayonnaise', catsup: 'ketchup', 'bbq sauce': 'barbecue sauce', 'spaghetti sauce': 'pasta sauce',
+  'ice cube': 'ice',
 }
-// Bare "pepper" in a recipe is black pepper ("bell pepper" has its own words).
-const BARE: Record<string, string> = { pepper: 'black pepper' }
+// A bare word that means the usual thing ("bell pepper" has its own words).
+const BARE: Record<string, string> = { pepper: 'black pepper', vanilla: 'vanilla extract' }
 
-const SALT = /^(?:(?:kosher|sea|table|fine|coarse|flaky|iodized|pink|himalayan|rock)\s+)+salt$/
+// No bare "pink" (Prague powder) or "rock" (ice-cream salt): only "pink himalayan".
+const SALT = /^(?:(?:kosher|sea|table|fine|coarse|flaky|flake|iodized|pink\s+himalayan|himalayan|maldon|diamond|crystal|morton|mortons|celtic|gray|grey)\s+)+salt(?:\s+flake)?$/
 
 function singular(w: string): string {
   if (w.length <= 3 || NOT_PLURAL.has(w)) return w
@@ -135,14 +291,24 @@ function singular(w: string): string {
   return w
 }
 
-function tokens(t: string): string[] {
+/** Letters NFD does not take apart; left alone they would vanish and leave one-letter keys. */
+const LETTERS: Record<string, string> = { ø: 'o', æ: 'ae', œ: 'oe', ł: 'l', ß: 'ss', đ: 'd' }
+
+function fold(t: string): string {
   return t
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9%\s]/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
+    .replace(/[øæœłßđ]/g, (c) => LETTERS[c])
+}
+
+function tokens(t: string): string[] {
+  return fold(t).replace(/[^a-z0-9%\s]/g, ' ').split(/\s+/).filter(Boolean)
+}
+
+function isUnit(w: string): boolean {
+  const u = w.replace(/\.$/, '')
+  return UNITS.has(u) || UNITS.has(singular(u))
 }
 
 function alias(p: string): string | undefined {
@@ -150,80 +316,214 @@ function alias(p: string): string | undefined {
   return ALIASES[p] ?? BARE[p]
 }
 
-/**
- * The key two names are compared by. '' when nothing is left to compare (an
- * empty name, or only an amount), which callers must treat as "matches
- * nothing", not as "matches every other empty name".
- */
-export function matchKey(name: string): string {
-  let s = name
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, ' ')
-  // "onion, chopped" is an onion, but "rice, brown" is brown rice: what follows
-  // the first comma becomes a leading qualifier, and the prep words in it are
-  // dropped below like any others. A tail with an amount or an "or" is a note.
-  const [head, tail = ''] = s.split(',')
-  s = head
-  const tailWords = /\d(?!%)|\b(?:or|and|plus)\b/.test(tail) ? [] : tokens(tail)
-  s = s.replace(/['’`]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9%\s/.½¼¾⅓⅔⅛]/g, ' ')
-  s = s.trim()
-  const hadQty = QTY.test(s)
-  s = s.replace(QTY, '').trim()
+/** Count words: a counted bare "pepper" is the vegetable. Kept in step with COUNT_UNITS in list.ts. */
+const COUNT_UNITS = new Set(['', 'whole', 'each', 'ct', 'count', 'pc', 'pcs', 'piece', 'pieces'])
+/** Prep words that stay beside the name after a comma where they make another product ("almonds, sliced"). */
+const TAIL_KEEP = new Set(['fresh', 'sliced', 'shredded', 'minced'])
+/** A piece of a whole spice ("stick of cinnamon") is not the jar of ground. */
+const WHOLE_SPICE_MEASURE = new Set(['stick', 'inch', 'piece'])
+const PACKET = new Set(['packet', 'envelope', 'sachet'])
 
-  let words = s.split(/\s+/).filter(Boolean)
-  // Leading unit words ("cups", "can", "large can", "a pinch of"), then "of".
-  for (let i = 0; i < 3 && words.length > 1; i++) {
-    const w = words[0]
-    const unit = UNITS.has(w) || UNIT_PLURAL.test(w)
-    if (w === 'of' || w === 'a' || w === 'an' || SIZE.has(w) || (unit && hadQty) || LOOSE_UNITS.has(w)) {
-      words = words.slice(1)
-    }
+interface Tail {
+  words: string[]
+  /** A lone prep word ("almonds, sliced"): dropped unless it makes another product. */
+  prep?: string
+}
+
+/**
+ * What follows the first comma (or sits in brackets), as words to put in front
+ * of the name. A word ("rice, brown") is a qualifier. Prep ("onion, chopped"), a
+ * note ("oil, for frying", "butter, room temperature", "carrots, cut into
+ * rings") or an amount or alternative ("butter, 1 stick", "butter, or
+ * margarine") is not. An unknown word is kept: a missed match is the safe error.
+ */
+function tailQualifiers(tail: string): Tail {
+  if (!tail.trim() || /\d(?!%)|\b(?:or|and|plus)\b/.test(tail)) return { words: [] }
+  const t = tokens(tail)
+  if (t.length === 0 || t.length > 3 || NOTE_START.has(t[0])) return { words: [] }
+  // "finely chopped", "stems removed": prep with company is all prep.
+  if (t.length > 1 && t.some((w) => FILLER.has(w))) return { words: [] }
+  if (t.length === 1 && FILLER.has(t[0])) return { words: [], prep: t[0] }
+  return { words: t }
+}
+
+/** The phrase fixes that apply to a name and to a qualifier alike. */
+function fixPhrase(p: string): string {
+  return p
+    .replace(/\bextra large\b/g, 'large')
+    .replace(/\b(?:reduced|less|lower) sodium\b/g, 'low sodium')
+    .replace(/\bskinless boneless\b/g, 'boneless skinless')
+    .replace(/\bbread crumbs?\b/g, 'breadcrumbs')
+}
+
+/** Is the text before `at` a digit, "/" or "." (with at most one space)? Stands in for a lookbehind. */
+function afterNumber(s: string, at: number): boolean {
+  return /[\d/.]\s?$/.test(s.slice(0, at))
+}
+
+const DIGIT = /[\d½¼¾⅓⅔⅛]/
+
+function computeKey(name: string): string {
+  // A name is a line of a list, not an essay: the cap keeps a pasted wall of text cheap.
+  // "1,5 kg" is a European decimal, not a comma tail.
+  const text = fold(name.slice(0, 500)).replace(/(\d),(?=\d)/g, '$1.')
+  const bracket = /\(([^)]*)\)/.exec(text)
+  const [head, commaTail = ''] = text.replace(/\([^)]*\)/g, ' ').split(',')
+  // "sugar (brown)" reads like "sugar, brown": a comma tail wins, else the bracket.
+  const tail = tailQualifiers(commaTail.trim() ? commaTail : (bracket?.[1] ?? ''))
+  let words = head
+    .replace(/['’`]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9%\s/.½¼¾⅓⅔⅛]/g, ' ')
+    // A number that is part of the name, not an amount ("5 spice", "7 up", "80/20").
+    .replace(/\b(?:5|five) ?spice\b/g, 'fivespice')
+    .replace(/\b7 ?up\b/g, '7up')
+    .replace(/\b1000 island\b/g, 'thousand island')
+    .replace(/\b(?:tipo )?00 flour\b/g, 'tipo00 flour')
+    .replace(/\b([6-9]\d)\/(\d{1,2})\b/g, 'ratio$1$2')
+    // (not inside a range or fraction, and not a count: "2-3 cheese slices", "1/4 cheese")
+    .replace(/\b(?:3|three|4|four) cheese\b(?! (?:slice|stick|piece))/g, (m, at: number, s: string) =>
+      afterNumber(s, at) ? m : 'mixed cheese')
+    .replace(/\b(?:3|three|4|four) bean\b/g, (m, at: number, s: string) => (afterNumber(s, at) ? m : 'mixed bean'))
+    // "/" and "." belong to numbers only ("1/2", "1.5"): "lb." and "salt/pepper" lose them.
+    .replace(/[/.]/g, (c, at: number, s: string) => (DIGIT.test(s[at - 1] ?? '') && DIGIT.test(s[at + 1] ?? '') ? c : ' '))
+    .split(/\s+/)
+    .filter(Boolean)
+
+  // The amount: numbers, ranges ("1 to 2"), then measure words, "a", "of".
+  let hadQty = false
+  let measured = false
+  let lastMeasure = ''
+  for (let guard = 0; guard < 10 && words.length > 1; guard++) {
+    const w = words[0].replace(/\.$/, '')
+    const next = words[1]
+    if (NUM.test(w) || NUM_WORD.has(w) || (w === 'half' && next !== 'and')) hadQty = true
+    else if (NUM_UNIT.test(w)) { hadQty = true; measured = true }
+    else if (w === 'to' && hadQty && NUM.test(next)) { /* "1 to 2" */ }
+    else if (w === 'a' || w === 'an' || w === 'of') { /* article */ }
+    else if (SIZE.has(w) && !/^shells?$/.test(next)) { /* "large" ("jumbo shells" keep it) */ }
+    else if (hadQty && MEASURE_MOD.has(w)) { /* "2 heaping tablespoons" */ }
+    else if (isUnit(w) && (hadQty || LOOSE_UNITS.has(w) || next === 'of')) { measured = true; lastMeasure = singular(w) }
     else break
+    words.shift()
+  }
+  // Nothing but an amount ("2 cups") is not a name.
+  if (hadQty && words.length === 1 && isUnit(words[0])) return ''
+
+  words = fixPhrase(words.join(' '))
+    .replace(/^(juice|zest|peel) of (?:(?:about|approximately) )?(?:half (?:an? )?|an? |[\d½¼¾⅓⅔⅛/. ]+ )?(.+)$/, '$2 $1')
+    .split(/\s+/)
+    .filter(Boolean)
+  // "olive oil for frying", "water as needed", "butter plus more".
+  const cut = words.findIndex((w, i) => i > 0 && (w === 'for' || w === 'as' || w === 'plus'))
+  if (cut > 0) words = words.slice(0, cut)
+
+  // "peppers" are not the jar of black pepper.
+  const plural = words.includes('peppers')
+  const head1 = words.map((w) => SPELLING[w] ?? singular(w)).map((w) => SPELLING[w] ?? w)
+
+  // "almonds, sliced" and "mozzarella (fresh)" keep the word that makes another product.
+  let qualWords = tail.words
+  const noun = head1[head1.length - 1]
+  if (tail.prep && TAIL_KEEP.has(tail.prep) && noun && KEEP[tail.prep]?.has(noun)) qualWords = [tail.prep]
+  const quals = fixPhrase(qualWords.join(' ')).split(/\s+/).filter(Boolean).map((w) => SPELLING[w] ?? singular(w)).map((w) => SPELLING[w] ?? w)
+  const fresh = head1.includes('fresh') || tail.prep === 'fresh'
+
+  const keep = new Set<string>()
+  for (const [filler, bases] of Object.entries(KEEP)) if (head1.some((w) => bases.has(w))) keep.add(filler)
+  let out = [...quals, ...head1.filter((w) => keep.has(w) || !FILLER.has(w))]
+  // "peeled and deveined shrimp" leaves "and shrimp".
+  while (out.length > 1 && (out[0] === 'and' || out[0] === 'or')) out.shift()
+  while (out.length > 1 && (out[out.length - 1] === 'and' || out[out.length - 1] === 'or')) out.pop()
+  if (out.length === 0) return ''
+
+  // "hot water", "ice water" are water.
+  if (out.length > 1 && out[out.length - 1] === 'water' && out.slice(0, -1).every((w) => WATER_TEMP.has(w))) out = ['water']
+  // "cheddar cheese", "penne pasta", "thyme sprig", "salmon fillet"; "fresh basil leaves" (not a jar of "basil leaves").
+  if (out.length > 1) {
+    const last = out[out.length - 1]
+    const prev = out[out.length - 2]
+    if (last === 'leaf' || last === 'stem') {
+      if (fresh && HERBS.includes(prev)) out.pop()
+    } else if (REDUNDANT[last]?.has(prev)) out.pop()
   }
 
-  // Nothing but an amount ("2 cups") is not a name.
-  if (hadQty && words.length === 1 && (UNITS.has(words[0]) || UNIT_PLURAL.test(words[0]))) return ''
-
-  words = [...tailWords, ...words]
-  const plural = words.includes('peppers')
-
-  words = words.map((w) => SPELLING[w] ?? singular(w)).map((w) => SPELLING[w] ?? w)
-
-  // A can of diced tomatoes is not a fresh tomato: "diced" stays beside it.
-  const keep = words.includes('tomato') ? 'diced' : ''
-  const p1 = words.filter((w) => w === keep || !FILLER.has(w)).join(' ')
-  if (!p1) return ''
-  // "peppers" are not the jar of black pepper.
-  if (plural && p1 === 'pepper') return p1
+  const p1 = out.join(' ')
+  // A bare "pepper" that is plural or counted ("peppers", "1 large pepper") is the vegetable, with
+  // a key of its own: never the black pepper jar.
+  if (p1 === 'pepper' && (plural || (hadQty && !measured))) return 'peppers'
+  // "1 stick of cinnamon", "1 inch cinnamon": a whole spice, not the ground jar.
+  if (WHOLE_SPICE_MEASURE.has(lastMeasure) && SPICES.has(p1)) return ''
+  // A packet of ranch is the seasoning, not the dressing.
+  if (PACKET.has(lastMeasure) && p1 === 'ranch') return 'ranch seasoning'
   const a1 = alias(p1)
   if (a1) return a1
 
-  // "ground cumin" / "cumin powder": only when what is left is a dry spice.
-  const base = p1.split(' ').filter((w) => w !== 'ground' && w !== 'powder' && w !== 'powdered').join(' ')
-  if (base !== p1 && SPICES.has(base)) return alias(base) ?? base
-  return p1
+  // "ground cumin" / "cumin powder": only when what is left is a dry spice. Bare "coriander"
+  // is the fresh herb in the UK, so only the ground form takes the jar's key.
+  const base = out.filter((w) => w !== 'ground' && w !== 'powder' && w !== 'powdered').join(' ')
+  if (base !== p1 && SPICES.has(base)) {
+    const k = alias(base) ?? base
+    return k === 'coriander' ? 'ground coriander' : k
+  }
+  // A key with no letters or a single character is a leftover, not a name.
+  return p1.length < 2 || !/[a-z]/.test(p1) ? '' : p1
+}
+
+const memo = new Map<string, string>()
+
+/**
+ * The key two names are compared by. '' when nothing is left to compare (an
+ * empty name, or only an amount), which callers must treat as "matches
+ * nothing", not as "matches every other empty name". Memoized (bounded): a
+ * list is matched against itself many times per render.
+ */
+export function matchKey(name: string): string {
+  const hit = memo.get(name)
+  if (hit !== undefined) return hit
+  const key = computeKey(name)
+  if (memo.size >= 2000) memo.clear()
+  memo.set(name, key)
+  return key
+}
+
+interface Keyed {
+  displayName: string
+  canonicalKey?: string
+  /** With the unit, tells a counted "pepper" (a vegetable) from the jar. */
+  quantity?: number
+  unit?: string
 }
 
 /** Every key a stored row answers to: its parsed key as it was, plus the two
  *  matchKeys. The raw key stays so anything that merged before still merges. */
-export function itemKeys(item: { displayName: string; canonicalKey?: string }): Set<string> {
+export function itemKeys(item: Keyed): Set<string> {
   const out = new Set<string>()
   const add = (k: string) => k && out.add(k)
-  add(matchKey(item.displayName))
-  if (item.canonicalKey) {
-    add(item.canonicalKey.trim().toLowerCase())
+  let own = matchKey(item.displayName)
+  // "Pepper", 2 (a count) is the vegetable, as "2 peppers" is.
+  if (
+    own === 'black pepper' &&
+    item.quantity != null &&
+    item.quantity > 0 &&
+    COUNT_UNITS.has((item.unit ?? '').trim().toLowerCase()) &&
+    /^(?:(?:large|medium|small|big)\s+)*peppers?$/.test(fold(item.displayName).trim())
+  ) own = 'peppers'
+  add(own)
+  // The vegetable's parser key is the same bare "pepper" as the jar's: its name decides.
+  // Likewise a ground-coriander row keyed plain "coriander" is not the fresh herb's key.
+  const rawKey = item.canonicalKey?.trim().toLowerCase()
+  if (item.canonicalKey && own !== 'peppers' && !(rawKey === 'coriander' && own === 'ground coriander')) {
+    const raw = item.canonicalKey.trim().toLowerCase()
+    // A leftover like "1" (a key from before decimal commas were read) meets nothing.
+    if (raw.length >= 2 && /[a-z]/.test(raw)) add(raw)
     add(matchKey(item.canonicalKey))
   }
   return out
 }
 
 /** Are these two lines the same thing to buy or stock? */
-export function sameIngredient(
-  a: { displayName: string; canonicalKey?: string },
-  b: { displayName: string; canonicalKey?: string },
-): boolean {
+export function sameIngredient(a: Keyed, b: Keyed): boolean {
   const ka = itemKeys(a)
   for (const k of itemKeys(b)) if (ka.has(k)) return true
   return false
