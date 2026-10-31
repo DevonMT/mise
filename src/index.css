@@ -332,6 +332,11 @@
   flex: 0 0 auto;
   color: var(--fav);
 }
+.row-always {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--accent);
+}
 
 /* ---- Bottom navigation ---- */
 .bottomnav {
@@ -1181,25 +1186,6 @@
 }
 .add-btn:disabled {
   opacity: 0.45;
-}
-.staple-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
-}
-.staple-chip {
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1.5px solid var(--line);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-.empty-staples {
-  color: var(--muted);
-  margin: 16px 2px;
 }
 .endpoint-note {
   margin-top: 18px;

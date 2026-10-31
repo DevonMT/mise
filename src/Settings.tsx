@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, canonicalize, readAllWithTimeout, type Section } from './db'
-import { ensurePantryList } from './lists'
+import { readAllWithTimeout, type Section } from './db'
 import { estimateStorePrices, priceableKeys } from './catalog'
 import { downloadBackup, importAll } from './backup'
 import { SECTION_META } from './sections'
@@ -22,19 +21,10 @@ import {
 
 export function SettingsView() {
   const aiOn = useAiEnabled()
-  // A view of the pantry, not a store of its own. These ARE pantry items —
-  // the ones flagged "always have" — so this section and the Pantry list can
-  // never disagree about what you always keep in.
-  const staples =
-    useLiveQuery(async () => {
-      const all = await db.items.filter((i) => i.alwaysHave === true).toArray()
-      return all.sort((a, b) => a.displayName.localeCompare(b.displayName))
-    }, []) ?? []
   // What a re-price would actually send: distinct items on your grocery lists,
   // not the whole history. Live so the count is honest before you tap.
   const priceCount =
     useLiveQuery(async () => (await priceableKeys()).size, []) ?? 0
-  const [name, setName] = useState('')
   const [store, setStore] = useState(() => localStorage.getItem('mise.store') ?? '')
 
   // Sync. Undefined until the health check answers, so the section can say
@@ -169,47 +159,6 @@ export function SettingsView() {
     } finally {
       if (fileRef.current) fileRef.current.value = ''
     }
-  }
-
-  /**
-   * Adding here adds to the pantry with the flag set, so the two places stay
-   * one place. If the thing is already in the pantry it is flagged rather than
-   * duplicated — typing "salt" when salt is already tracked should not leave
-   * you with two salts.
-   */
-  const add = async () => {
-    const trimmed = name.trim()
-    if (!trimmed) return
-    const canonicalKey = canonicalize(trimmed)
-    const listId = await ensurePantryList()
-
-    const existing = await db.items
-      .filter((i) => i.canonicalKey === canonicalKey && i.listId === listId)
-      .first()
-    if (existing?.id != null) {
-      await db.items.update(existing.id, { alwaysHave: true })
-    } else {
-      await db.items.add({
-        listId,
-        displayName: trimmed,
-        canonicalKey,
-        section: 'pantry',
-        checked: false,
-        backlog: false,
-        alwaysHave: true,
-        createdAt: Date.now(),
-      })
-    }
-    setName('')
-  }
-
-  /**
-   * Removing the flag, not the item. Someone who says "stop skipping olive oil"
-   * has not said "forget I keep olive oil" — deleting the pantry row would
-   * throw away stock tracking they never asked to lose.
-   */
-  const unflag = async (id: number) => {
-    await db.items.update(id, { alwaysHave: false })
   }
 
   const estimate = async (mode: 'missing' | 'all') => {
@@ -416,48 +365,6 @@ export function SettingsView() {
         <button className="ghost" onClick={resetAisles} disabled={!hasCustomOrder(store)}>
           Reset to Store-Walk Default
         </button>
-      </section>
-
-      <section className="settings-group">
-        <h3 className="group-title">Never Add These</h3>
-        <p className="group-hint">
-          Things you always have, so a recipe asking for them shouldn’t put them on
-          your shopping list. Salt, oil, pepper. Nothing is filtered out of a list
-          you typed yourself.
-        </p>
-        <p className="group-hint">
-          Not the same as a <b>Pantry</b> list, which tracks what you’ve run out of
-          so you can add it back. These are the opposite: things you never want
-          added.
-        </p>
-        <div className="two-btn">
-          <input
-            className="field"
-            placeholder="e.g. salt, olive oil, garlic"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && add()}
-          />
-          <button className="add-btn" onClick={add} disabled={!name.trim()}>
-            Add
-          </button>
-        </div>
-        {staples.length === 0 ? (
-          <p className="group-hint">No staples yet.</p>
-        ) : (
-          <div className="staple-chips">
-            {staples.map((s) => (
-              <button
-                key={s.id}
-                className="staple-chip"
-                onClick={() => unflag(s.id!)}
-                title="Stop skipping this"
-              >
-                {s.displayName} ✕
-              </button>
-            ))}
-          </div>
-        )}
       </section>
 
       <p className="endpoint-note">Build {__BUILD__}</p>

@@ -29,6 +29,7 @@ import {
   resolveActiveId,
   restockFromPurchase,
   restoreList,
+  setAlwaysHave,
   undoRestock,
   writeActiveId,
 } from './lists'
@@ -689,6 +690,16 @@ export default function App() {
                               {isFav && kind.kind !== 'tasks' && (
                                 <Icon name="star" size={13} className="row-fav" />
                               )}
+                              {kind.kind === 'pantry' && item.alwaysHave && (
+                                <span
+                                  className="row-always"
+                                  role="img"
+                                  aria-label="Always on hand"
+                                  title="Always on hand"
+                                >
+                                  <Icon name="home" size={13} />
+                                </span>
+                              )}
                               <span className="row-text">
                                 <span className="name">{item.displayName}</span>
                                 {kind.due && item.notes && (
@@ -1110,6 +1121,8 @@ function ItemSheet({
   const [section, setSection] = useState<Section>(initial?.section ?? 'other')
   const [priceStr, setPriceStr] = useState(catalogPrice != null ? String(catalogPrice) : '')
   const [fav, setFav] = useState(Boolean(catalogFavorite))
+  // Pantry only: never put this on a list from a recipe, and don't say so.
+  const [alwaysHave, setAlways] = useState(initial?.alwaysHave === true)
   const [dueStr, setDueStr] = useState(initial?.dueAt != null ? toDateInput(initial.dueAt) : '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
   // Two shapes, one control. `days` is a weekly pattern; `interval` is a
@@ -1194,8 +1207,11 @@ function ItemSheet({
         )
       }
       await syncCatalogName(initial!.canonicalKey, trimmed, unit.trim() || undefined)
+      if (kindKey === 'pantry' && alwaysHave !== (initial!.alwaysHave === true)) {
+        await setAlwaysHave(initial!.id!, alwaysHave)
+      }
     } else {
-      await addItem({
+      const id = await addItem({
         listId,
         displayName: trimmed,
         quantity,
@@ -1207,6 +1223,7 @@ function ItemSheet({
         schedule: kind.schedule ? schedule : undefined,
         ...buy,
       })
+      if (kindKey === 'pantry' && alwaysHave) await setAlwaysHave(id, true)
     }
     onClose()
   }
@@ -1414,6 +1431,23 @@ function ItemSheet({
             </button>
           ))}
         </div>
+      )}
+
+      {kindKey === 'pantry' && (
+        <>
+          <label className="row-toggle">
+            <input
+              type="checkbox"
+              checked={alwaysHave}
+              onChange={(e) => setAlways(e.target.checked)}
+            />
+            <span>Always on hand</span>
+          </label>
+          <p className="group-hint">
+            Recipes won’t add this to a shopping list, and won’t mention it. Salt, oil,
+            pepper. Leave it off to be told when a recipe skips something you have.
+          </p>
+        </>
       )}
 
       {editing && kind.prices && (
