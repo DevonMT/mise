@@ -677,9 +677,15 @@ const mismatch = (account: string): SyncResult => ({
  * "Keep them as this account's": the one way lists cross accounts, and only
  * because somebody chose it (account.ts). Binds, then syncs, which merges them.
  */
-export function keepForAccount(account: string): Promise<SyncResult> {
+export async function keepForAccount(account: string): Promise<SyncResult> {
+  const prev = boundAccount()
   bindAccount(account)
-  return sync()
+  const r = await sync()
+  // Bound only once the lists have gone: otherwise a failed push (offline,
+  // signed out meanwhile) leaves the device claiming an account whose copy
+  // never got them, and the sheet is gone, so nobody is asked again.
+  if (!r.ok) bindAccount(prev)
+  return r
 }
 
 /**

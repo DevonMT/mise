@@ -114,6 +114,9 @@ export default function App() {
   // (#278): who is signed in, and whether the choice is on screen.
   const [otherAccount, setOtherAccount] = useState<string | null>(null)
   const [accountOpen, setAccountOpen] = useState(false)
+  // Whether a sync has confirmed these lists are the signed-in account's. Until
+  // then a syncing device does not know, so its inbox waits too.
+  const [accountOk, setAccountOk] = useState(false)
   const [showHint, setShowHint] = useState(() => !localStorage.getItem('mise.swipeHint'))
 
   // A Pantry on every install, not only new ones: "things I always have" lives
@@ -144,6 +147,8 @@ export default function App() {
       startAutoSync((r) => {
         if (r.ok) setSignedOut(false)
         else if (r.reason === 'signin') setSignedOut(true)
+        if (r.ok) setAccountOk(true)
+        else if (r.reason === 'account') setAccountOk(false)
         // Asked once per account per session; after "Decide later" a banner
         // keeps saying it is not syncing. Signed out or back to the right
         // account (an ok sync) clears it.
@@ -552,7 +557,11 @@ export default function App() {
   return (
     // The estate bar is outside App altogether (main.tsx): see EstateBar.tsx.
     <>
-      <Handoffs onTake={(p) => setPending(p)} onToast={showToast} />
+      {/* Another account's inbox, over the last account's lists: not until
+          someone chooses, nor before a sync has said whose they are (#278). */}
+      {!otherAccount && (accountOk || !syncEnabled()) && (
+        <Handoffs onTake={(p) => setPending(p)} onToast={showToast} />
+      )}
       <div className="app">
       <header className="topbar">
         {tab === 'list' ? (
@@ -898,6 +907,7 @@ export default function App() {
           onClose={() => setAccountOpen(false)}
           onKept={() => {
             setOtherAccount(null)
+            setAccountOk(true)
             setAccountOpen(false)
           }}
         />

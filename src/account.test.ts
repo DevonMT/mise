@@ -50,6 +50,17 @@ let platformNamesAccount = true
     if (platformNamesAccount && body.account != null && body.account !== signedIn) {
       return new Response(JSON.stringify({ error: 'account mismatch', account: signedIn }), { status: 409 })
     }
+    // Naming none: refused when it carries another account's list, item or
+    // recipe (platform/src/mise.ts; no shares in this world).
+    if (platformNamesAccount && body.account == null) {
+      const mine = acct(signedIn).records
+      const theirs = body.records.some((r) =>
+        ['list', 'item', 'recipe'].includes(r.kind) && !r.uid.startsWith('default:') && !mine.has(key(r)) &&
+        [...accounts].some(([id, a]) => id !== signedIn && a.records.has(key(r))))
+      if (theirs) {
+        return new Response(JSON.stringify({ error: 'account mismatch', account: signedIn }), { status: 409 })
+      }
+    }
     const a = acct(signedIn)
     for (const r of body.records) {
       const cur = a.records.get(key(r))
@@ -222,4 +233,35 @@ test('#278: clearing also drops the old theme pick, so it never becomes a row in
   store.set('mise.theme', 'dark')
   await account.clearThisDevice('bob')
   assert.equal(store.get('mise.theme'), undefined)
+})
+
+test('#278: a device with no binding (synced before #278, or cleared localStorage) holding Alice’s lists is asked too', async () => {
+  await reset()
+  const listId = (await db.lists.add({ name: 'Costco', kind: 'grocery', createdAt: Date.now() })) as number
+  await addItem(listId, 'tampons')
+  signedIn = 'alice'
+  assert.equal((await sync.sync()).ok, true)
+  store.delete('mise.sync.account') // as a build from before #278 left it
+  signedIn = 'bob'
+  const r = await sync.sync()
+  assert.equal(!r.ok && r.reason, 'account', 'refused for carrying Alice’s rows')
+  assert.equal(account.boundAccount(), null, 'and not bound to Bob')
+  assert.ok(!names('bob').includes('tampons'))
+  assert.equal((await sync.keepForAccount('bob')).ok, true, 'a choice still can')
+  assert.ok(names('bob').includes('tampons'))
+})
+
+test('#278: Keep only binds once its push has gone', async () => {
+  await aliceThenBob()
+  signedIn = null // signed out before the push
+  const r = await sync.keepForAccount('bob')
+  assert.equal(r.ok, false)
+  assert.equal(account.boundAccount(), 'alice', 'still Alice’s, so the next sync as Bob asks again')
+})
+
+test('#278: clearing drops every synced key, the area too', async () => {
+  await aliceThenBob()
+  for (const k of ['mise.store', 'mise.area', 'mise.aisles', 'mise.refineAsked']) store.set(k, 'alice’s')
+  await account.clearThisDevice('bob')
+  for (const k of ['mise.store', 'mise.area', 'mise.aisles', 'mise.refineAsked']) assert.equal(store.get(k), undefined, k)
 })

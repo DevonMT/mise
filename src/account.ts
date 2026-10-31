@@ -24,6 +24,7 @@
  * device does once on the first sync after this ships.
  */
 import { db } from './db'
+import { SYNCED_KEYS } from './prefs'
 import { keepingStamps, withoutSync } from './sync'
 
 const ACCOUNT_KEY = 'mise.sync.account'
@@ -36,17 +37,19 @@ export function boundAccount(): string | null {
   }
 }
 
-export function bindAccount(id: string): void {
-  localStorage.setItem(ACCOUNT_KEY, id)
+/** null unbinds. */
+export function bindAccount(id: string | null): void {
+  if (id == null) localStorage.removeItem(ACCOUNT_KEY)
+  else localStorage.setItem(ACCOUNT_KEY, id)
 }
 
 /** Per-device keys that describe the lists, not the device: they go with them.
- *  The switch and the device id stay. `mise.theme` goes too: it is only a
- *  migration source now (the cookie is the theme), and left here it would
- *  become a settings row in the new account at the next launch. */
+ *  The switch and the device id stay. Every synced key goes, the store and the
+ *  area (where the last person lives) included: left here, migrateSettings
+ *  turns each into a row in the new account at the next launch. */
 const DATA_KEYS = [
-  'mise.activeList', 'mise.aisleOrder', 'mise.aisles', 'mise.store', 'mise.swipeHint',
-  'mise.theme', 'mise.sync.folded', 'mise.sync.last',
+  ...SYNCED_KEYS, 'mise.activeList', 'mise.aisleOrder', 'mise.sync.folded', 'mise.sync.last',
+  'mise.refineAsked',
 ]
 
 /**
