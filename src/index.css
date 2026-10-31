@@ -35,10 +35,12 @@
  * kitchen cloth without a band across the page. Picked on the real app over
  * the board's towel band (2026-09-13), which cost 28px of list on a phone.
  *
- * There used to be a dark green rim along the top of .app as well. .app is
- * capped at 1320px, so on a wide screen the rim stopped short of both edges,
- * and it was --accent-deep where the nav is --accent. The estate bar draws the
- * full-bleed accent line itself (ds/chrome.css), so the rim is gone.
+ * There used to be a dark green rim along the top of .app as well. It was
+ * --accent-deep where the nav is --accent, and it stopped short of the edges
+ * whenever .app was capped. The estate bar draws the full-bleed accent line
+ * itself (ds/chrome.css), so the rim is gone. From 900px .app has no cap at
+ * all (2026-10-30, #707), so this cloth runs edge to edge and the gingham
+ * starts at the screen's corner; only phones and tablets below that keep one.
  *
  * Painted on .app, which never scrolls (.scroll is the pane that does), so it
  * stays put behind a transparent top bar. The gingham is a pseudo-element
@@ -2206,15 +2208,22 @@
 }
 /* Each column keeps at least ~350px beside its pills (the old thresholds, 980
    and 1250, made them 290px and a long name was clipped to four letters). Three
-   columns from 1100, four from 1680, where each is still 400px. */
+   columns from 1100, four from 1480, five from 1900: each is still 355px+. */
 @container content (min-width: 1100px) {
   .groups {
     columns: 3;
   }
 }
-@container content (min-width: 1680px) {
+@container content (min-width: 1480px) {
   .groups {
     columns: 4;
+  }
+}
+/* A 1920 screen leaves ~1630px (four columns of ~390px), a 2560 one ~2270px
+   (five of ~435px). */
+@container content (min-width: 1900px) {
+  .groups {
+    columns: 5;
   }
 }
 
@@ -2435,7 +2444,11 @@
 /* ---- ROOM: how the page is arranged -------------------------------------- */
 @media (min-width: 900px) {
   .app {
-    max-width: 1320px;
+    /* No cap: the cloth (background and gingham) is painted on .app, so any
+       max-width here stops it partway across a wide screen and starts the
+       gingham from .app's corner, not the screen's. The list fills the glass
+       through the aisle columns below; prose keeps its own reading widths. */
+    max-width: none;
     display: grid;
     grid-template-columns: var(--rail) minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -2505,13 +2518,6 @@
   .bottom-space { height: 24px; }
 }
 
-@media (min-width: 1500px) {
-  .app { max-width: 1560px; }
-}
-/* A 1920 screen left 180px of nothing either side of the list. */
-@media (min-width: 1800px) {
-  .app { max-width: 1760px; }
-}
 
 /* ---- POINTER: how the page is operated ----------------------------------
    `hover: hover and pointer: fine` is a mouse or trackpad. Nothing here is
