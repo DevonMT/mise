@@ -63,6 +63,59 @@ import { sharedListUids } from './people'
  *  2026-09-06; the slack covers devices that took weeks to update. */
 export const LEGACY_BEFORE = Date.UTC(2026, 8, 30)
 
+/**
+ * Every list this device has ever held folded, uid → the list it folded into.
+ *
+ * The marker on the row is not enough to refuse a delete with (rule 3): a
+ * rename on a stale copy un-folds the list, a rename to another app-made name
+ * ("Groceries") puts it back in an older build's repair, and that build then
+ * deletes it as an empty duplicate. Without this, the delete lands, and a late
+ * add from an offline phone that still names the list strands. With it, this
+ * device refuses the delete and puts the list back as the forwarding address
+ * it was (#684). In localStorage, not a row: device-local, and no record an
+ * older build reads changes shape.
+ */
+const FOLDED_KEY = 'mise.sync.folded'
+
+function readFolded(): Record<string, string> {
+  try {
+    const v = JSON.parse(localStorage.getItem(FOLDED_KEY) ?? '{}') as unknown
+    return v && typeof v === 'object' ? (v as Record<string, string>) : {}
+  } catch {
+    return {}
+  }
+}
+
+/** Note every folded list among `lists`. Cheap when there is nothing new. */
+export function rememberFolded(lists: List[]): void {
+  const known = readFolded()
+  let changed = false
+  for (const l of lists) {
+    if (l.uid && l.foldedInto && known[l.uid] !== l.foldedInto) {
+      known[l.uid] = l.foldedInto
+      changed = true
+    }
+  }
+  if (!changed) return
+  try {
+    localStorage.setItem(FOLDED_KEY, JSON.stringify(known))
+  } catch {
+    /* storage blocked: the marker on the row still refuses most deletes */
+  }
+}
+
+/**
+ * The row to put back when a delete arrives for a list this device has held
+ * folded, or null when it never has. Folded again if a rename un-folded it,
+ * and out of the app-made names, so an older build's repair leaves it be.
+ */
+export function asForwarding(l: List): List | null {
+  const into = l.foldedInto ?? (l.uid ? readFolded()[l.uid] : undefined)
+  if (!into) return null
+  if (l.foldedInto) return l
+  return { ...l, foldedInto: into, name: APP_MADE_NAMES.has(norm(l.name)) ? movedName(l.name) : l.name }
+}
+
 /** The shared list each kind folds into. A kind without one never folds.
  *  A function, not a table: lists.ts imports sync.ts, which imports this, so
  *  its constants are not initialised yet while this module loads. */
@@ -176,6 +229,7 @@ export async function foldLegacyLists(): Promise<FoldResult> {
           updatedAt: (l.updatedAt ?? 0) + 1,
         })
         out.folded.push(l.name)
+        rememberFolded([{ ...l, foldedInto: k.uid }])
       }
       if (to?.id == null) continue
       moveActive.push([l.id, to.id])

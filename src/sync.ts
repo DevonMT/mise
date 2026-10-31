@@ -40,7 +40,7 @@ import { db, newUid, type SyncKind, type Item, type List } from './db'
 import { EDITION, grantedEdition, setGrantedVariant, tierActuallyChanged } from './edition'
 import { hydrateSettings } from './prefs'
 import { filePending } from './list'
-import { foldLegacyLists } from './fold'
+import { asForwarding, foldLegacyLists, rememberFolded } from './fold'
 
 /**
  * Sync is a devondoes.dev feature: it needs the platform session cookie, which
@@ -340,11 +340,13 @@ export async function applyRemote(
         // Same rule the server applies: a delete beats an edit it is at least
         // as new as, and loses to one that came after it.
         if (deletedAt != null && deletedAt >= (row.updatedAt ?? 0)) {
-          if (kind === 'list' && (row as unknown as List).foldedInto) {
+          const forwarding = kind === 'list' ? asForwarding(row as unknown as List) : null
+          if (forwarding) {
             // A folded list is a forwarding address and must outlive any delete
             // (fold.ts rule 3): an older build can still send one. Keep it, one
             // past the delete, so the next push puts it back on the server.
-            await table.put({ ...row, updatedAt: Math.max(Date.now(), deletedAt + 1) })
+            // Also when a rename has un-folded it since (#684): it is folded again.
+            await table.put({ ...forwarding, updatedAt: Math.max(Date.now(), deletedAt + 1) } as AnyRow)
             restored = true
             continue
           }
@@ -386,6 +388,9 @@ export async function applyRemote(
         }
       }
     }
+
+    // Before anything can un-fold one of them, a later merge included.
+    rememberFolded(await db.lists.toArray())
 
     // Local tombstones the server has now taken responsibility for. Pruned on
     // the same window the server uses, so both sides forget together.

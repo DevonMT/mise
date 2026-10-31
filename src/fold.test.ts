@@ -83,11 +83,12 @@ const tick = () => new Promise((r) => setTimeout(r, 5))
 
 // ---- Devices -----------------------------------------------------------------
 
-type Device = { lists: unknown[]; items: unknown[]; tombstones: unknown[]; active?: string }
+type Device = { lists: unknown[]; items: unknown[]; tombstones: unknown[]; active?: string; folded?: string }
 async function snapshot(): Promise<Device> {
   return structuredClone({
     lists: await db.lists.toArray(), items: await db.items.toArray(),
     tombstones: await db.tombstones.toArray(), active: store.get('mise.activeList'),
+    folded: store.get('mise.sync.folded'),
   })
 }
 /** Become another device: its rows exactly as they were, stamps and all. */
@@ -102,6 +103,9 @@ async function become(d: Device) {
   })
   if (d.active) store.set('mise.activeList', d.active)
   else store.delete('mise.activeList')
+  // Device-local too: which lists this device has held folded (#684).
+  if (d.folded) store.set('mise.sync.folded', d.folded)
+  else store.delete('mise.sync.folded')
 }
 
 async function reset() {
@@ -664,4 +668,81 @@ test("#685: neither build's dedupeDefaultLists deletes a folded list", async () 
   assert.ok(await db.lists.get(old), 'still there, as a forwarding address')
   assert.equal((await db.tombstones.toArray()).length, 0)
   assert.deepEqual(await onList(keep), [...KEYS].sort())
+})
+
+// ---- #684: a device refuses a delete for any list it has held folded ---------
+
+test('#684: un-folded by a rename to another app-made name, deleted as a duplicate: refused, and a late add lands', async () => {
+  const { keep, old } = await legacyAccount()
+  const stale = await snapshot() // a laptop that misses the fold
+  const offline = await snapshot() // a phone, offline for the week
+  await sync.sync()
+  await sync.sync() // folded and pushed
+  const folder = await snapshot()
+
+  // The laptop, on an older build, renames its stale copy to "Groceries": newer
+  // than the marker, so it un-folds the list everywhere.
+  await become(stale)
+  shared = null
+  await tick()
+  await lists.renameList(old, 'Groceries')
+  await sync.sync()
+  shared = []
+  fold.forgetShares()
+  await become(folder)
+  await sync.sync()
+  assert.equal((await db.lists.get(old))?.foldedInto, undefined, 'un-folded here too')
+
+  // That older build's repair then deletes it: empty, app-made name, not default.
+  await tick()
+  postState({ records: [], tombstones: [{ kind: 'list', uid: LEGACY, deletedAt: Date.now() }] })
+  await sync.sync()
+  await sync.sync()
+  const l = await db.lists.get(old)
+  assert.ok(l, 'the delete is refused: this device folded that list')
+  assert.equal(l?.foldedInto, 'default:list', 'and it is a forwarding address again')
+  assert.equal(l?.name, 'Groceries (moved)', "out of the older build's repair")
+  assert.equal(serverList(LEGACY)?.body.foldedInto, 'default:list')
+  const after = await snapshot()
+
+  // The phone comes back with a line on the old list.
+  await become(offline)
+  await tick()
+  await db.items.add({ listId: old, displayName: 'bread', canonicalKey: 'bread', section: 'other',
+    checked: false, backlog: false, createdAt: Date.now() })
+  await sync.sync()
+
+  await become(after)
+  await sync.sync()
+  await sync.sync()
+  assert.ok((await onList(keep)).includes('bread'), 'not stranded: moved on to default:list')
+  assert.equal(serverItems().find((r) => r.body.canonicalKey === 'bread')?.body.listUid, 'default:list')
+})
+
+test('#684: a device that only received the fold remembers it too', async () => {
+  const { old } = await legacyAccount()
+  const other = await snapshot()
+  await sync.sync()
+  await sync.sync()
+  await become(other)
+  await sync.sync() // takes the marker
+  assert.match(store.get('mise.sync.folded') ?? '', /legacy-3fc04e98/)
+  // Un-folded by a newer rename, then deleted: refused here as well.
+  await tick()
+  const body = { ...serverList(LEGACY)!.body, name: 'Groceries' }
+  delete body.foldedInto
+  await sync.applyRemote({ records: [{ kind: 'list', uid: LEGACY, updatedAt: Date.now(), body }], tombstones: [] })
+  await tick()
+  await sync.applyRemote({ records: [], tombstones: [{ kind: 'list', uid: LEGACY, deletedAt: Date.now() }] })
+  assert.equal((await db.lists.get(old))?.foldedInto, 'default:list')
+})
+
+test('#684: a list this device never held folded is still deleted as usual', async () => {
+  await reset()
+  await lists.ensureSeed()
+  const id = (await db.lists.add({ name: 'Costco', kind: 'grocery', createdAt: Date.now() })) as number
+  const uid = (await db.lists.get(id))!.uid!
+  await tick()
+  await sync.applyRemote({ records: [], tombstones: [{ kind: 'list', uid, deletedAt: Date.now() }] })
+  assert.equal(await db.lists.get(id), undefined)
 })
