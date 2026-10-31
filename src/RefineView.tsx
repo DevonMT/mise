@@ -1,12 +1,26 @@
 import { useEffect, useState } from 'react'
 import { useDialog } from './ds/useDialog'
-import { db, type Item } from './db'
-import { applyRefinement } from './catalog'
+import { db, type Item, type Section } from './db'
+import { applyRefinement, setAisle } from './catalog'
 import { refineItems, type RefineOption } from './parse'
 import { fitOptions } from './fit'
 import { Icon } from './Icon'
+import { PlacePanel } from './PlacePanel'
+import { SECTIONS } from './sections'
+import { AISLE_EVENT } from './aisles'
+import { readSetting, setSetting } from './prefs'
 
-type Stage = 'loading' | 'ready' | 'empty' | 'error'
+type Stage = 'ask' | 'loading' | 'ready' | 'empty' | 'error'
+
+/** Refine asks where you shop once per device; after that it is a chip. */
+const ASKED_KEY = 'mise.refineAsked'
+const hasAsked = () => {
+  try {
+    return localStorage.getItem(ASKED_KEY) === '1'
+  } catch {
+    return true
+  }
+}
 
 /** A clean item name from a refine option: the full label minus its trailing
  *  size, so "Store brand salsa, 16 oz jar" (unit "16 oz jar") → "Store brand
@@ -21,15 +35,21 @@ export function conciseName(label: string, unit?: string): string {
 }
 
 export function RefineSheet({ listId, onClose }: { listId: number; onClose: () => void }) {
-  const store = localStorage.getItem('mise.store') ?? ''
-  const [stage, setStage] = useState<Stage>('loading')
+  const [store, setStore] = useState(() => readSetting('mise.store') ?? '')
+  const [area, setArea] = useState(() => readSetting('mise.area') ?? '')
+  // The question comes first only when there is nothing to go on yet.
+  const [asking, setAsking] = useState(() => !store && !area && !hasAsked())
+  const [panel, setPanel] = useState(false)
+  const [stage, setStage] = useState<Stage>(asking ? 'ask' : 'loading')
   const [error, setError] = useState('')
   const [items, setItems] = useState<Item[]>([])
   const [options, setOptions] = useState<Map<string, RefineOption[]>>(new Map())
   const [applied, setApplied] = useState<Record<string, string>>({})
 
   useEffect(() => {
+    if (asking) return
     let cancelled = false
+    setStage('loading')
     ;(async () => {
       const active = (await db.items.toArray()).filter(
         (i) => i.listId === listId && !i.backlog,
@@ -44,6 +64,7 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
         const res = await refineItems(
           store,
           active.map((i) => ({ canonicalKey: i.canonicalKey, displayName: i.displayName, unit: i.unit })),
+          area,
         )
         if (cancelled) return
         setOptions(new Map(res.map((r) => [r.canonicalKey, r.options])))
@@ -57,7 +78,35 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
     return () => {
       cancelled = true
     }
-  }, [store, listId])
+  }, [store, area, listId, asking])
+
+  const applyPlace = (s: string, a: string) => {
+    try {
+      localStorage.setItem(ASKED_KEY, '1')
+    } catch {
+      /* asked again next time, which is harmless */
+    }
+    setPanel(false)
+    setAsking(false)
+    if (s === store && a === area) return
+    void setSetting('mise.store', s)
+    void setSetting('mise.area', a)
+    // The aisle order is kept per store, so the list regroups for the new one.
+    window.dispatchEvent(new CustomEvent(AISLE_EVENT))
+    setApplied({})
+    setStore(s)
+    setArea(a)
+  }
+
+  /** File an item in a different aisle by hand: the row and the catalog. */
+  const moveToAisle = async (item: Item, section: Section) => {
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, section } : i)))
+    try {
+      await setAisle(item.id!, item.canonicalKey, section)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   const apply = async (item: Item, opt: RefineOption) => {
     // Optimistic: show the choice immediately, before the DB round-trip, so a
@@ -85,6 +134,7 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
         sizeUnit: opt.sizeUnit ?? undefined,
         packaging: opt.packaging ?? undefined,
       }
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, section } : i)))
       await db.items.update(item.id!, { displayName: name, detail: opt.label, section, ...buy })
       await applyRefinement(item.canonicalKey, {
         displayName: name,
@@ -117,10 +167,38 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
       </div>
 
       <div className="fullview-body">
+        {stage === 'ask' ? (
+          <PlacePanel store={store} area={area} first onApply={applyPlace} onCancel={() => {}} />
+        ) : (
+          <>
+            <button
+              className="store-chip"
+              type="button"
+              aria-expanded={panel}
+              onClick={() => setPanel((p) => !p)}
+            >
+              <span>
+                {store || 'A typical store'}
+                {area ? ` · ${area}` : ''}
+              </span>
+              <Icon name="chevronDown" size={16} />
+            </button>
+            {panel && (
+              <PlacePanel
+                store={store}
+                area={area}
+                first={false}
+                onApply={applyPlace}
+                onCancel={() => setPanel(false)}
+              />
+            )}
+          </>
+        )}
+
         {stage === 'loading' && (
           <div className="loading">
             <div className="spinner" />
-            <p>Finding options{store ? ` at ${store}` : ''}…</p>
+            <p>Finding options{store ? ` at ${store}` : ''}{area ? ` near ${area}` : ''}…</p>
           </div>
         )}
 
@@ -131,7 +209,7 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
           <>
             <p className="review-hint">
               Tap an option to sharpen the name &amp; price
-              {store ? ` at ${store}` : ' (set your store in Settings for better options)'}.
+              {store ? ` at ${store}` : ''}. Prices are estimates.
             </p>
             <div className="refine-list">
               {items.map((item) => {
@@ -148,6 +226,19 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
                         </span>
                       )}
                     </div>
+                    <label className="refine-aisle">
+                      <span>Aisle</span>
+                      <select
+                        value={item.section}
+                        onChange={(e) => void moveToAisle(item, e.target.value as Section)}
+                      >
+                        {SECTIONS.map((s) => (
+                          <option key={s.key} value={s.key}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     {opts.length === 0 ? (
                       <p className="refine-none">No options suggested.</p>
                     ) : (

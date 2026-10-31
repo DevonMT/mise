@@ -182,6 +182,33 @@ export const REFINE_SCHEMA = {
   },
 } as const
 
+/**
+ * A place the shopper typed (a store name, a ZIP or a city), made safe to put in
+ * a prompt: one line, no control characters, capped. It is user text going into
+ * a system prompt, so a pasted paragraph must not become instructions or cost
+ * a page of tokens.
+ */
+export function cleanPlace(v: unknown, max = 60): string {
+  if (typeof v !== 'string') return ''
+  return v.replace(/\p{Cc}+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
+/** What "the store" is in a prompt. Blank stays "a typical US grocery store". */
+export function storeLabel(store: unknown, area: unknown): string {
+  const s = cleanPlace(store)
+  if (s) return s
+  return cleanPlace(area) ? 'a typical grocery store' : 'a typical US grocery store'
+}
+
+/** Appended to a system prompt when the shopper gave an area. Empty otherwise. */
+export function placeLine(area: unknown): string {
+  const a = cleanPlace(area)
+  if (!a) return ''
+  return `
+
+The shopper is in or near ${a}. Prefer chains, brands and package sizes actually sold there, and price at that region's level rather than a national average.`
+}
+
 export function refineSystem(store: string): string {
   return `You help a shopper turn vague grocery-list items into specific purchase choices at ${store}.
 

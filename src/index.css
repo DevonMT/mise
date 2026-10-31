@@ -1756,6 +1756,74 @@
   color: var(--accent);
   text-align: right;
 }
+/* Refine's store: a chip that opens the place panel, and the panel. */
+.store-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  margin-bottom: 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent-deep);
+  font-weight: 600;
+}
+.store-chip > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.place-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.place-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.place-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.place-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.place-row .field {
+  flex: 1 1 12ch;
+  min-width: 0;
+}
+.refine-aisle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.refine-aisle select {
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+}
 .refine-opts {
   display: flex;
   flex-direction: column;

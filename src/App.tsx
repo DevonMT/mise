@@ -45,6 +45,7 @@ import { BottomNav, type Tab } from './BottomNav'
 import { RecipeForm } from './RecipeForm'
 import { ListSwitcher, ManageLists } from './ListSwitcher'
 import { EditListSheet } from './EditListSheet'
+import { AisleOrderSheet } from './AisleOrderSheet'
 import { ImportSheet, ImportLinkSheet } from './ImportSheet'
 import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayload } from './share'
 import { SharePeople, Handoffs } from './SharePeople'
@@ -98,6 +99,7 @@ export default function App() {
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [editListOpen, setEditListOpen] = useState(false)
+  const [aislesOpen, setAislesOpen] = useState(false)
   const [importLinkOpen, setImportLinkOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -473,6 +475,7 @@ export default function App() {
   useBackLayer(switcherOpen, () => setSwitcherOpen(false))
   useBackLayer(manageOpen, () => setManageOpen(false))
   useBackLayer(editListOpen, () => setEditListOpen(false))
+  useBackLayer(aislesOpen, () => setAislesOpen(false))
   useBackLayer(importLinkOpen, () => setImportLinkOpen(false))
   useBackLayer(recipeMenuOpen, () => setRecipeMenuOpen(false))
   useBackLayer(recipeFormOpen, () => setRecipeFormOpen(false))
@@ -874,6 +877,18 @@ export default function App() {
             <Icon name="edit" size={20} />
             Rename &amp; icon
           </button>
+          {kind.sections && (
+            <button
+              className="menu-item"
+              onClick={() => {
+                setAislesOpen(true)
+                setMenuOpen(false)
+              }}
+            >
+              <Icon name="list" size={20} />
+              Aisle Order
+            </button>
+          )}
           <button className="menu-item" onClick={doShareWithPerson}>
             <Icon name="heart" size={18} />
             Share with someone
@@ -924,6 +939,7 @@ export default function App() {
       )}
 
       {editListOpen && <EditListSheet list={activeList} onClose={() => setEditListOpen(false)} />}
+      {aislesOpen && <AisleOrderSheet onClose={() => setAislesOpen(false)} />}
 
       {switcherOpen && (
         <ListSwitcher

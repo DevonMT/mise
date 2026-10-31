@@ -10,6 +10,8 @@ import {
   SYSTEM_PROMPT,
   PRICES_SCHEMA,
   pricesSystem,
+  placeLine,
+  storeLabel,
   REFINE_SCHEMA,
   refineSystem,
 } from './parseContract.js'
@@ -277,17 +279,17 @@ app.post('/api/parse', async (c) => {
 
 /**
  * POST /api/prices
- * body: { store: string, items: [{canonicalKey, displayName, unit?}] }
+ * body: { store: string, area?: string, items: [{canonicalKey, displayName, unit?}] }
  * -> { prices: [{canonicalKey, price}] }
  */
 app.post('/api/prices', async (c) => {
-  let body: { store?: string; items?: Array<{ canonicalKey: string; displayName: string; unit?: string }> }
+  let body: { store?: string; area?: string; items?: Array<{ canonicalKey: string; displayName: string; unit?: string }> }
   try {
     body = await c.req.json()
   } catch {
     return c.json({ error: 'Invalid JSON body.' }, 400)
   }
-  const store = (body.store ?? '').trim() || 'a typical US grocery store'
+  const store = storeLabel(body.store, body.area)
   const items = (body.items ?? []).slice(0, 300)
   if (items.length === 0) return c.json({ prices: [] })
 
@@ -300,7 +302,7 @@ app.post('/api/prices', async (c) => {
       user: c.get('caller'),
       prompt: `Price these items:\n${list}`,
       schema: PRICES_SCHEMA,
-      system: pricesSystem(store),
+      system: pricesSystem(store) + placeLine(body.area),
     })
     return c.json(data)
   } catch (e) {
@@ -321,17 +323,17 @@ app.post('/api/prices', async (c) => {
 
 /**
  * POST /api/refine
- * body: { store: string, items: [{canonicalKey, displayName, unit?}] }
+ * body: { store: string, area?: string, items: [{canonicalKey, displayName, unit?}] }
  * -> { items: [{canonicalKey, options: [{label, count, sizeAmount, sizeUnit, packaging, price, section}]}] }
  */
 app.post('/api/refine', async (c) => {
-  let body: { store?: string; items?: Array<{ canonicalKey: string; displayName: string; unit?: string }> }
+  let body: { store?: string; area?: string; items?: Array<{ canonicalKey: string; displayName: string; unit?: string }> }
   try {
     body = await c.req.json()
   } catch {
     return c.json({ error: 'Invalid JSON body.' }, 400)
   }
-  const store = (body.store ?? '').trim() || 'a typical US grocery store'
+  const store = storeLabel(body.store, body.area)
   const items = (body.items ?? []).slice(0, 100)
   if (items.length === 0) return c.json({ items: [] })
 
@@ -344,7 +346,7 @@ app.post('/api/refine', async (c) => {
       user: c.get('caller'),
       prompt: `Give options for these items:\n${list}`,
       schema: REFINE_SCHEMA,
-      system: refineSystem(store),
+      system: refineSystem(store) + placeLine(body.area),
     })
     return c.json(data)
   } catch (e) {

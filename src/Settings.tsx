@@ -1,19 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { readAllWithTimeout, type Section } from './db'
+import { readAllWithTimeout } from './db'
 import { estimateStorePrices, priceableKeys } from './catalog'
 import { downloadBackup, importAll } from './backup'
-import { SECTION_META } from './sections'
-import {
-  AISLE_EVENT,
-  getAisleOrder,
-  hasCustomOrder,
-  resetAisleOrder,
-  setAisleOrder,
-} from './aisles'
 import { Icon } from './Icon'
 import { EDITION, useAiEnabled } from './edition'
-import { setSetting } from './prefs'
+import { readSetting } from './prefs'
 import {
   lastSyncedAt, setSyncEnabled, sync, syncAvailable, syncEnabled,
   type Availability, type SyncResult,
@@ -25,7 +17,10 @@ export function SettingsView() {
   // not the whole history. Live so the count is honest before you tap.
   const priceCount =
     useLiveQuery(async () => (await priceableKeys()).size, []) ?? 0
-  const [store, setStore] = useState(() => localStorage.getItem('mise.store') ?? '')
+  // Read-only here: the store and area are picked in Refine, where their effect
+  // shows. Settings only says what pricing will use.
+  const store = (readSetting('mise.store') ?? '').trim()
+  const area = (readSetting('mise.area') ?? '').trim()
 
   // Sync. Undefined until the health check answers, so the section can say
   // "checking" instead of flickering through "not available".
@@ -36,28 +31,6 @@ export function SettingsView() {
   const [syncedAt, setSyncedAt] = useState<number | null>(lastSyncedAt)
   const [busy, setBusy] = useState(false)
   const [priceMsg, setPriceMsg] = useState('')
-
-  // Per-store aisle order — reseeds when you switch stores. Saving dispatches
-  // AISLE_EVENT so the list regroups live (see aisles.ts / App.tsx).
-  const [aisles, setAisles] = useState<Section[]>(() => getAisleOrder(store))
-  useEffect(() => setAisles(getAisleOrder(store)), [store])
-  const moveAisle = (from: number, dir: -1 | 1) => {
-    const to = from + dir
-    if (to < 0 || to >= aisles.length) return
-    const next = aisles.slice()
-    ;[next[from], next[to]] = [next[to], next[from]]
-    setAisles(next)
-    setAisleOrder(store, next)
-  }
-  const resetAisles = () => {
-    resetAisleOrder(store)
-    setAisles(getAisleOrder(store))
-  }
-  /** Persist the active store so pricing, refine, and grouping all agree on it. */
-  const commitStore = () => {
-    void setSetting('mise.store', store.trim())
-    window.dispatchEvent(new CustomEvent(AISLE_EVENT))
-  }
 
   // "What's actually stored" readout — the no-console way to see whether data
   // is present. Loaded explicitly (not useLiveQuery) so a read error is shown
@@ -162,14 +135,13 @@ export function SettingsView() {
   }
 
   const estimate = async (mode: 'missing' | 'all') => {
-    void setSetting('mise.store', store.trim())
     setBusy(true)
     setPriceMsg('Estimating…')
     try {
-      const n = await estimateStorePrices(store.trim(), mode)
+      const n = await estimateStorePrices(store, mode, area)
       setPriceMsg(
         n
-          ? `Priced ${n} item${n === 1 ? '' : 's'} for ${store.trim() || 'a typical store'}.`
+          ? `Priced ${n} item${n === 1 ? '' : 's'} for ${store || 'a typical store'}.`
           : 'Nothing to price.',
       )
     } catch (e) {
@@ -307,13 +279,10 @@ export function SettingsView() {
             Estimated prices for the {priceCount} item{priceCount === 1 ? '' : 's'} on your grocery
             lists — only those, never anything you've removed. Prices you set yourself stay put.
           </p>
-          <input
-            className="field"
-            placeholder="Your store (e.g. Walmart, Aldi)"
-            value={store}
-            onChange={(e) => setStore(e.target.value)}
-            onBlur={commitStore}
-          />
+          <p className="group-hint">
+            <b>Your store:</b> {store || 'a typical store'}
+            {area ? ` · ${area}` : ''}. Change it in Refine.
+          </p>
           <div className="two-btn">
             <button className="ghost" onClick={() => estimate('missing')} disabled={busy || !priceCount}>
               Price Missing
@@ -330,42 +299,6 @@ export function SettingsView() {
           )}
         </section>
       )}
-
-      <section className="settings-group">
-        <h3 className="group-title">Aisle Order</h3>
-        <p className="group-hint">
-          The order your list groups sections while you shop. Arrange it to match{' '}
-          {store.trim() ? store.trim() : 'your store'}’s layout.
-        </p>
-        <ul className="aisle-editor">
-          {aisles.map((s, i) => (
-            <li key={s} className="aisle-row">
-              <span className="aisle-name">{SECTION_META[s].label}</span>
-              <div className="aisle-moves">
-                <button
-                  className="aisle-move"
-                  aria-label={`Move ${SECTION_META[s].label} up`}
-                  disabled={i === 0}
-                  onClick={() => moveAisle(i, -1)}
-                >
-                  <Icon name="chevronUp" size={18} />
-                </button>
-                <button
-                  className="aisle-move"
-                  aria-label={`Move ${SECTION_META[s].label} down`}
-                  disabled={i === aisles.length - 1}
-                  onClick={() => moveAisle(i, 1)}
-                >
-                  <Icon name="chevronDown" size={18} />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-        <button className="ghost" onClick={resetAisles} disabled={!hasCustomOrder(store)}>
-          Reset to Store-Walk Default
-        </button>
-      </section>
 
       <p className="endpoint-note">Build {__BUILD__}</p>
     </div>
