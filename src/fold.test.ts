@@ -528,3 +528,140 @@ test('keepingStamps keeps the stamp it is given; a write outside it is stamped a
   await db.items.update(id, { checked: true })
   assert.ok((await db.items.get(id))!.updatedAt! > 1_000_000)
 })
+
+// ---- #685: the coordinator's follow-ups --------------------------------------
+
+test('#685: a delete of the folded list beside a newer record of it takes the record, not a restore', async () => {
+  // An older build deletes the folded list, and later a device renames it (its
+  // stale copy, so the rename un-folds it). The server keeps both: the record
+  // won. Putting this device's folded copy back with today's stamp would beat
+  // that rename and undo it everywhere.
+  const { old } = await legacyAccount()
+  await sync.sync()
+  await sync.sync() // folded and pushed
+  await tick()
+  const deletedAt = Date.now()
+  await tick()
+  const renamedAt = Date.now()
+  await tick()
+  const body = { ...serverList(LEGACY)!.body, name: 'Costco' }
+  delete body.foldedInto
+  postState({
+    records: [{ kind: 'list', uid: LEGACY, updatedAt: renamedAt, body }],
+    tombstones: [{ kind: 'list', uid: LEGACY, deletedAt }],
+  })
+  assert.equal(serverList(LEGACY)?.body.name, 'Costco', 'the rename is the agreed row')
+
+  await sync.sync()
+  await sync.sync()
+  assert.equal((await db.lists.get(old))?.name, 'Costco', 'this device takes the rename')
+  assert.equal((await db.lists.get(old))?.foldedInto, undefined)
+  assert.equal(serverList(LEGACY)?.body.name, 'Costco', 'and does not push its folded copy over it')
+})
+
+test('#685: a newer record beside a tombstone keeps the local row, it is not deleted and re-added', async () => {
+  const { old } = await legacyAccount()
+  shared = null
+  const now = Date.now()
+  const body = { ...serverList(LEGACY)!.body, name: 'Weekly' }
+  await sync.applyRemote({
+    records: [{ kind: 'list', uid: LEGACY, updatedAt: now, body }],
+    tombstones: [{ kind: 'list', uid: LEGACY, deletedAt: now - 1 }],
+  })
+  assert.equal((await db.lists.get(old))?.name, 'Weekly', 'same local id, so its items still point at it')
+  assert.deepEqual(await onList(old), [...KEYS].sort())
+})
+
+test('#685: a legacy Pantry folds into default:pantry the same way', async () => {
+  await reset()
+  await lists.ensureSeed()
+  const keep = await lists.ensurePantryList()
+  const old = (await db.lists.add({
+    name: 'Pantry', kind: 'pantry', uid: 'legacy-pantry', createdAt: AUGUST,
+  })) as number
+  for (const k of ['flour', 'sugar']) {
+    await db.items.add({ listId: old, displayName: k, canonicalKey: k, section: 'other',
+      checked: false, backlog: false, createdAt: AUGUST })
+  }
+  await sync.sync()
+  await sync.sync()
+  assert.equal((await db.lists.get(keep))?.uid, 'default:pantry')
+  assert.deepEqual(await onList(keep), ['flour', 'sugar'])
+  assert.equal((await db.lists.get(old))?.foldedInto, 'default:pantry')
+  assert.equal((await db.lists.get(old))?.name, 'Pantry (moved)')
+  assert.ok(!(await liveLists()).some((l) => l.id === old))
+  assert.equal(server.tombs.size, 0)
+})
+
+test('#685: a stale device merging the pair by hand after the fold ends with one of each', async () => {
+  const { keep, old } = await legacyAccount()
+  const stale = await snapshot() // still holds the unfolded pair
+  await sync.sync()
+  await sync.sync() // folded and pushed
+  const folder = await snapshot()
+
+  await become(stale)
+  shared = null // so this device does not fold first; it merges by hand
+  await tick()
+  await lists.mergeInto(old, keep) // new rows on default:list, the old ones deleted
+  await tick()
+  await sync.sync()
+  shared = []
+  fold.forgetShares()
+  await sync.sync()
+  assert.deepEqual(await onList(keep), [...KEYS].sort(), 'this device: six, not twelve')
+  assert.deepEqual(serverItems().map((r) => r.body.canonicalKey).sort(), [...KEYS].sort())
+  assert.ok(serverItems().every((r) => r.body.listUid === 'default:list'))
+
+  await become(folder)
+  await sync.sync()
+  await sync.sync()
+  assert.deepEqual(await onList(keep), [...KEYS].sort(), 'the folding device agrees')
+  assert.equal((await db.lists.get(old))?.foldedInto, 'default:list', 'and refused the hand delete')
+  assert.ok(serverList(LEGACY), 'so the server has the forwarding list again')
+})
+
+test('#685: a rename made on a stale copy after the fold un-folds it, and loses nothing', async () => {
+  const { keep, old } = await legacyAccount()
+  const stale = await snapshot()
+  await sync.sync()
+  await sync.sync() // folded and pushed
+  await become(stale)
+  shared = null
+  await tick()
+  await lists.renameList(old, 'Costco') // newer than the fold's marker: a decision
+  await sync.sync()
+  shared = []
+  fold.forgetShares()
+  await sync.sync()
+  await sync.sync()
+  const l = await db.lists.get(old)
+  assert.equal(l?.name, 'Costco')
+  assert.equal(l?.foldedInto, undefined, 'un-folded')
+  assert.ok((await liveLists()).some((x) => x.id === old), 'and showing again')
+  assert.deepEqual(await onList(keep), [...KEYS].sort(), 'the items stay where the fold moved them')
+  assert.equal(server.tombs.size, 0)
+  assert.equal(serverList(LEGACY)?.body.name, 'Costco')
+})
+
+test("#685: neither build's dedupeDefaultLists deletes a folded list", async () => {
+  const { keep, old } = await legacyAccount()
+  await sync.sync()
+  await sync.sync() // folded and pushed
+  // The build on the phone today: after every sync, delete an empty
+  // non-default list with an app-made name, with no notion of foldedInto.
+  const MAIN_APP_MADE_NAMES = new Set(['my list', 'pantry', 'groceries'])
+  for (const l of await db.lists.toArray()) {
+    if (l.uid?.startsWith('default:') || !MAIN_APP_MADE_NAMES.has(l.name.trim().toLowerCase())) continue
+    if (await db.items.where('listId').equals(l.id!).count()) continue
+    await db.lists.delete(l.id!)
+  }
+  // This build, which runs it at mount when sync is off.
+  store.set('mise.sync.enabled', '0')
+  const r = await lists.dedupeDefaultLists()
+  store.set('mise.sync.enabled', '1')
+  assert.deepEqual(r.removed, [])
+  assert.ok(await db.lists.get(old), 'still there, as a forwarding address')
+  assert.equal((await db.tombstones.toArray()).length, 0)
+  assert.deepEqual(await onList(keep), [...KEYS].sort())
+})

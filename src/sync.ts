@@ -320,12 +320,23 @@ export async function applyRemote(
       if (!tombByKind.has(t.kind)) tombByKind.set(t.kind, new Map())
       tombByKind.get(t.kind)!.set(t.uid, t.deletedAt)
     }
+    // The newest version of each row the state carries. The server keeps a
+    // tombstone beside a record that came after it (the record won), and that
+    // record is the agreed row: the tombstone must not touch this device's
+    // older copy, or a folded list would be put back with today's stamp below
+    // and beat it, undoing a rename or a re-fold made elsewhere (#685).
+    const newest = new Map<string, number>()
+    for (const r of state.records) {
+      const k = `${r.kind}|${r.uid}`
+      newest.set(k, Math.max(newest.get(k) ?? 0, r.updatedAt))
+    }
     for (const { kind, table } of TABLES) {
       const tombs = tombByKind.get(kind)
       if (!tombs) continue
       for (const row of await table.toArray()) {
         if (!row.uid || row.id == null) continue
         const deletedAt = tombs.get(row.uid)
+        if (deletedAt != null && (newest.get(`${kind}|${row.uid}`) ?? -1) > deletedAt) continue
         // Same rule the server applies: a delete beats an edit it is at least
         // as new as, and loses to one that came after it.
         if (deletedAt != null && deletedAt >= (row.updatedAt ?? 0)) {
