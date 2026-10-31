@@ -61,7 +61,8 @@ export function AccountSheet({ account, onClose, onKept }: {
         Keep Them as Mine
       </button>
       <p className="account-note">Adds them to this account for good. Only if they’re yours.</p>
-      <button className="ghost" onClick={onClose} disabled={busy}>
+      {/* Never disabled: a stalled request must not trap anyone in the sheet. */}
+      <button className="ghost" onClick={onClose}>
         Decide Later
       </button>
       {err && <p className="account-note account-err" role="alert">{err}</p>}
