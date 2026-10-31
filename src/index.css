@@ -310,13 +310,16 @@
   align-items: center;
   gap: 7px;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 14ch;
 }
 .row-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
+  gap: 4px 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 .row-fav {
   flex: 0 0 auto;
@@ -645,23 +648,39 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  /* The pills (quantity, price, due) used to be fixed-size and the name took
+     whatever was left, which in a 340px aisle column was four letters. Now the
+     name asks for 14ch first and the pills drop to a line of their own under it
+     when they do not fit beside that. */
+  flex-wrap: wrap;
+  gap: 4px 12px;
   min-height: 58px;
   font-size: 1.06rem;
 }
 .name {
   font-weight: 600;
   min-width: 0;
+  line-height: 1.25;
+  /* Two lines before the ellipsis; `anywhere` so a pasted link still breaks
+     rather than stretching the row (see .group). */
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 .row.done .name {
   color: var(--muted);
   text-decoration: line-through;
 }
 .qty {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--accent);
@@ -1094,12 +1113,15 @@
 }
 .rev-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
 }
 .rev-name {
   font-weight: 600;
   font-size: 1.02rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .rev-tag {
   font-size: 0.68rem;
@@ -1331,11 +1353,21 @@
 .ing-row:last-child {
   border-bottom: none;
 }
+.ing-row {
+  flex-wrap: wrap;
+}
 .ing-name {
   font-weight: 500;
+  flex: 1 1 14ch;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .ing-qty {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
+  text-align: right;
   font-weight: 700;
   color: var(--accent);
 }
@@ -1347,11 +1379,6 @@
   align-items: baseline;
   text-align: left;
   background: transparent;
-}
-.ing-tap .ing-name {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
 }
 .ing-tap:hover,
 .ing-tap:active {
@@ -1757,6 +1784,8 @@
 }
 .ropt-label {
   font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .ropt-price {
   flex: 0 0 auto;
@@ -2147,12 +2176,15 @@
     margin-top: 0;
   }
 }
-@container content (min-width: 980px) {
+/* Each column keeps at least ~350px beside its pills (the old thresholds, 980
+   and 1250, made them 290px and a long name was clipped to four letters). Three
+   columns from 1100, four from 1680, where each is still 400px. */
+@container content (min-width: 1100px) {
   .groups {
     columns: 3;
   }
 }
-@container content (min-width: 1250px) {
+@container content (min-width: 1680px) {
   .groups {
     columns: 4;
   }
@@ -2448,6 +2480,10 @@
 
 @media (min-width: 1500px) {
   .app { max-width: 1560px; }
+}
+/* A 1920 screen left 180px of nothing either side of the list. */
+@media (min-width: 1800px) {
+  .app { max-width: 1760px; }
 }
 
 /* ---- POINTER: how the page is operated ----------------------------------
