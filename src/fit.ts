@@ -83,11 +83,40 @@ export interface SizeOption {
   sizeAmount?: number | null
   sizeUnit?: string | null
   packaging?: string | null
+  /** The product label ("Heavy cream, 16 oz carton"), for the liquid check. */
+  label?: string | null
+  /** The aisle this product lives in. */
+  section?: string | null
 }
 
 export interface NeedLine {
   quantity?: number | null
   unit?: string | null
+  /** The line's name ("heavy cream"), for the liquid check. */
+  displayName?: string | null
+}
+
+/** Packaging that only holds liquid, so a bare "oz" on it is fluid ounces. */
+const LIQUID_PACKAGING = new Set([
+  'carton', 'bottle', 'jug', 'pitcher', 'gallon', 'half gallon', 'quart', 'pint',
+])
+/** Packaging that holds solids or tins: a bare "oz" on these stays weight. */
+const SOLID_PACKAGING = new Set(['can', 'jar', 'tub', 'bag', 'box', 'block', 'stick', 'pouch', 'pack', 'package'])
+const LIQUID_NAME = /\b(milk|cream|half[- ]and[- ]half|juice|broth|stock)\b/
+const NOT_LIQUID_NAME = /\b(sour cream|cream cheese)\b/g
+
+/**
+ * Whether a bare "oz" on this option is really fluid ounces. Only asked when the
+ * line wants a volume and the size is a bare oz: liquid packaging says so, and a
+ * dairy or beverage product whose name says milk, cream, juice or stock does too.
+ */
+function readsAsFluid(need: NeedLine, o: SizeOption): boolean {
+  const pk = (o.packaging ?? '').trim().toLowerCase()
+  if (LIQUID_PACKAGING.has(pk)) return true
+  if (SOLID_PACKAGING.has(pk)) return false
+  if (o.section !== 'dairy' && o.section !== 'beverages') return false
+  const name = `${need.displayName ?? ''} ${o.label ?? ''}`.toLowerCase().replace(NOT_LIQUID_NAME, '')
+  return LIQUID_NAME.test(name)
 }
 
 export type FitKind = 'exact' | 'over' | 'short'
@@ -98,8 +127,10 @@ export interface Fit {
   covers: boolean
   /** The closest size that covers it (or the closest of all, if none does). */
   best: boolean
-  /** "+0.5 cup over", "0.5 cup short" or "exact". */
+  /** "+0.5 cup over", "0.5 cup short" or "exact"; "≈ " first when the size is an estimate. */
   text: string
+  /** The size was a bare oz read as fluid ounces, so the gap is approximate. */
+  estimate?: boolean
   /** Set on the best size when no size covers the need alone: how many of it would. */
   packs?: number
   /** "2 × covers it", for the same case. */
@@ -126,6 +157,7 @@ interface Measured {
   /** Packages of this size to reach the need. */
   packs: number
   kind: FitKind
+  estimate: boolean
 }
 
 /**
@@ -135,15 +167,22 @@ interface Measured {
 function measure(need: NeedLine, opt: SizeOption): { m: Measured; needUnit: UnitInfo } | null {
   if (need.quantity == null || !(need.quantity > 0)) return null
   const needUnit = lookup(need.unit)
-  const size = packageSize(opt)
+  let size = packageSize(opt)
+  let estimate = false
+  if (needUnit?.family === 'volume' && size?.info === OZ && readsAsFluid(need, opt)) {
+    size = { amount: size.amount, info: FL_OZ }
+    estimate = true
+  }
   if (!needUnit || !size || needUnit.family !== size.info.family) return null
   const needBase = need.quantity * needUnit.factor
   const sizeBase = size.amount * size.info.factor
   const diff = (sizeBase - needBase) / needUnit.factor
-  const exact = Math.abs(sizeBase - needBase) <= needBase * EXACT_TOLERANCE
+  // Exact within the tolerance, or when the gap would print as zero.
+  const exact =
+    Math.abs(sizeBase - needBase) <= needBase * EXACT_TOLERANCE || Math.round(Math.abs(diff) * 100) === 0
   const kind: FitKind = exact ? 'exact' : diff > 0 ? 'over' : 'short'
   const packs = Math.max(1, Math.ceil(needBase / sizeBase - EXACT_TOLERANCE))
-  return { m: { diff, packs, kind }, needUnit }
+  return { m: { diff, packs, kind, estimate }, needUnit }
 }
 
 /**
@@ -178,7 +217,8 @@ export function fitOptions(need: NeedLine, opts: SizeOption[]): Array<Fit | null
         : m.kind === 'over'
           ? `+${amountText(m.diff, needUnit)} over`
           : `${amountText(-m.diff, needUnit)} short`
-    const fit: Fit = { kind: m.kind, covers, best: i === bestIdx, text }
+    const fit: Fit = { kind: m.kind, covers, best: i === bestIdx, text: m.estimate ? `≈ ${text}` : text }
+    if (m.estimate) fit.estimate = true
     if (fit.best && !covers) {
       fit.packs = m.packs
       fit.packsText = `${m.packs} × covers it`
