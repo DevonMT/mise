@@ -227,6 +227,18 @@ export async function getInStockKeys(): Promise<Set<string>> {
   return new Set(rows.flatMap((i) => [...itemKeys(i)]))
 }
 
+/**
+ * Flag a pantry item as "always on hand", or clear it.
+ *
+ * The flag, not the item: clearing it keeps the pantry row and its stock
+ * tracking, it only stops the recipe skip from being silent (see
+ * `getStapleKeys`, and `Item.alwaysHave` for why it is independent of
+ * `checked`).
+ */
+export async function setAlwaysHave(id: number, on: boolean): Promise<void> {
+  await db.items.update(id, { alwaysHave: on })
+}
+
 export async function undoRestock(flipped: Item[]): Promise<void> {
   for (const f of flipped) await db.items.update(f.id!, { checked: true })
 }
