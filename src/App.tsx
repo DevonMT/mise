@@ -53,7 +53,7 @@ import { startAutoSync, syncEnabled } from './sync'
 import { useBackLayer } from './back'
 import { usePointer } from './ds/usePointer'
 import { RecipePickSheet } from './RecipePick'
-import { shopTheWeek } from './recipes'
+import { addSkipped, shopTheWeek, skippedMessage, type Skipped } from './recipes'
 
 type ListView = 'list' | 'backlog'
 type SheetState = null | 'new' | Item
@@ -100,7 +100,11 @@ export default function App() {
   const [importLinkOpen, setImportLinkOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
-  const [toast, setToast] = useState<{ msg: string; undo?: () => void } | null>(null)
+  const [toast, setToast] = useState<{
+    msg: string
+    undo?: () => void
+    action?: { label: string; run: () => void }
+  } | null>(null)
   const [signedOut, setSignedOut] = useState(false)
   const [showHint, setShowHint] = useState(() => !localStorage.getItem('mise.swipeHint'))
 
@@ -318,17 +322,32 @@ export default function App() {
       r.notThisWeek ? `${r.notThisWeek} not this week` : '',
       r.missing ? `${r.missing} had no recipe` : '',
     ].filter(Boolean)
-    showToast(
+    const msg =
       `Added ${r.meals} ${r.meals === 1 ? 'meal' : 'meals'} to ${target.name}` +
-        (extra.length ? ` · ${extra.join(' · ')}` : ''),
-      () => void r.undo().then(() => showToast(`Took them back off ${target.name}`)),
-    )
+      (extra.length ? ` · ${extra.join(' · ')}` : '')
+    const undo = () => void r.undo().then(() => showToast(`Took them back off ${target.name}`))
+    if (r.skipped.length) skippedToast(r.skipped, msg, undo)
+    else showToast(msg, undo)
   }
 
-  const showToast = (msg: string, undo?: () => void) => {
+  const showToast = (msg: string, undo?: () => void, action?: { label: string; run: () => void }) => {
     if (undoTimer.current) clearTimeout(undoTimer.current)
-    setToast({ msg, undo })
-    undoTimer.current = window.setTimeout(() => setToast(null), 5000)
+    setToast({ msg, undo, action })
+    // A second button is a decision to make, so it stays up a little longer.
+    undoTimer.current = window.setTimeout(() => setToast(null), action ? 9000 : 5000)
+  }
+  /** The "Skipped 2 you have: sugar, vanilla" toast, with the way back. */
+  const skippedToast = (skipped: Skipped[], lead?: string, undo?: () => void) => {
+    const msg = [lead, skippedMessage(skipped)].filter(Boolean).join(' · ')
+    showToast(msg, undo, {
+      label: 'Add anyway',
+      run: () => void addSkipped(skipped).then((n) => showToast(`Added ${n} you have`)),
+    })
+  }
+  const doAction = () => {
+    if (undoTimer.current) clearTimeout(undoTimer.current)
+    setToast(null)
+    toast?.action?.run()
   }
   /** Delete rows but keep them so an Undo can restore them (same ids). */
   const removeWithUndo = async (rows: Item[], msg: string) => {
@@ -750,7 +769,7 @@ export default function App() {
             onAddRecipe={() =>
               aiOn ? setRecipeMenuOpen(true) : setRecipeFormOpen(true)
             }
-            onAdded={(listId) => {
+            onAdded={(listId, skipped) => {
               // A recipe can't go on a pantry or task list, so it may have
               // landed somewhere other than where you were standing — take you
               // there, or it just looks like nothing happened.
@@ -758,7 +777,9 @@ export default function App() {
               const name = lists.find((l) => l.id === listId)?.name ?? 'your list'
               if (moved) switchTo(listId)
               else setTab('list')
-              if (moved) showToast(`Added to “${name}”`)
+              const lead = moved ? `Added to “${name}”` : undefined
+              if (skipped.length) skippedToast(skipped, lead)
+              else if (lead) showToast(lead)
             }}
             onToast={showToast}
           />
@@ -802,6 +823,11 @@ export default function App() {
       {toast && (
         <div className="toast" role="status">
           <span className="toast-msg">{toast.msg}</span>
+          {toast.action && (
+            <button className="toast-action" onClick={doAction}>
+              {toast.action.label}
+            </button>
+          )}
           {toast.undo && (
             <button className="toast-action" onClick={doUndo}>
               Undo

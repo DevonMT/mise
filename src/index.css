@@ -409,6 +409,7 @@
   animation: slideup 0.2s ease;
 }
 .toast-msg {
+  min-width: 0;
   font-size: 0.95rem;
   font-weight: 500;
 }

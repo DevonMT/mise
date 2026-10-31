@@ -30,7 +30,7 @@ const { db } = await import('./db')
 const { addItem } = await import('./list')
 const { ensurePantryList, restockFromPurchase } = await import('./lists')
 const { getStapleKeys, isStaple } = await import('./parse')
-const { addRecipeToList } = await import('./recipes')
+const { addRecipeToList, addSkipped, skippedMessage, shopTheWeek } = await import('./recipes')
 const { ingredientStatus, addIngredientToList, addIngredientToPantry, statusLines } = await import('./ingredient')
 const { IngredientSheetView } = await import('./IngredientSheet')
 
@@ -135,12 +135,104 @@ test('a staple named differently still keeps the ingredient off the list', async
   const staples = await getStapleKeys()
   assert.ok(isStaple(staples, { displayName: 'kosher salt', canonicalKey: 'kosher salt' }))
   assert.ok(!isStaple(staples, { displayName: 'garlic salt', canonicalKey: 'garlic salt' }))
-  const n = await addRecipeToList(
+  const { added, skipped } = await addRecipeToList(
     { title: 'T', servings: 2, createdAt: 1, ingredients: [
       { displayName: 'sea salt', canonicalKey: 'sea salt', section: 'pantry' },
       { displayName: 'ground cumin', canonicalKey: 'ground cumin', section: 'pantry' },
     ] }, 1, groceries)
-  assert.equal(n, 1)
+  assert.equal(added, 1)
+  assert.deepEqual(skipped, [], 'a Never Add These staple is skipped silently, not reported')
+})
+
+// A recipe like the one that started #703: sugar and vanilla are in the pantry.
+const tiramisu = {
+  title: 'Easy Tiramisu', servings: 4, createdAt: 1,
+  ingredients: [
+    { displayName: 'sugar', canonicalKey: 'sugar', quantity: 0.5, unit: 'cup', section: 'baking' as const },
+    { displayName: 'vanilla', canonicalKey: 'vanilla', quantity: 1, unit: 'tsp', section: 'baking' as const },
+    { displayName: 'mascarpone', canonicalKey: 'mascarpone', quantity: 8, unit: 'oz', section: 'dairy' as const },
+  ],
+}
+const stock = (displayName: string, checked = false) =>
+  db.items.add({ listId: pantry, displayName, canonicalKey: displayName.toLowerCase(), section: 'baking',
+    checked, backlog: false, createdAt: 1 })
+const onGroceries = async () =>
+  (await db.items.filter((i) => i.listId === groceries).toArray()).map((i) => i.displayName).sort()
+
+test('a recipe skips what the pantry has, and says what it skipped', async () => {
+  await stock('Sugar')
+  await stock('Vanilla')
+  const { added, skipped } = await addRecipeToList(tiramisu, 2, groceries)
+  assert.equal(added, 1)
+  assert.deepEqual(await onGroceries(), ['mascarpone'])
+  assert.deepEqual(skipped.map((s) => s.displayName), ['sugar', 'vanilla'])
+  assert.equal(skipped[0].quantity, 1, 'the skipped line is already scaled')
+  assert.equal(skippedMessage(skipped), 'Skipped 2 you have: sugar, vanilla')
+})
+
+test('an item marked out in the pantry is not skipped', async () => {
+  await stock('Sugar', true)
+  await stock('Vanilla')
+  const { added, skipped } = await addRecipeToList(tiramisu, 1, groceries)
+  assert.equal(added, 2)
+  assert.deepEqual(await onGroceries(), ['mascarpone', 'sugar'])
+  assert.deepEqual(skipped.map((s) => s.displayName), ['vanilla'])
+})
+
+test('"granulated sugar" in the pantry skips a recipe\'s "sugar", and the other way round', async () => {
+  const id = await stock('Granulated sugar')
+  const first = await addRecipeToList(tiramisu, 1, groceries)
+  assert.deepEqual(first.skipped.map((s) => s.displayName), ['sugar'])
+  await db.items.delete(id)
+  await stock('Sugar')
+  const flipped = await addRecipeToList(
+    { ...tiramisu, ingredients: [{ displayName: 'granulated sugar', canonicalKey: 'granulated sugar', section: 'baking' as const }] },
+    1, groceries)
+  assert.equal(flipped.added, 0)
+  assert.equal(flipped.skipped.length, 1)
+})
+
+test('look-alikes in the pantry do not skip: powdered, brown, and a list that is not a pantry', async () => {
+  await stock('Powdered sugar')
+  await stock('Brown sugar')
+  const other = await db.lists.add({ name: 'Other', kind: 'grocery', createdAt: 2 })
+  await addItem({ listId: other, displayName: 'vanilla', section: 'baking' })
+  const { added, skipped } = await addRecipeToList(tiramisu, 1, groceries)
+  assert.equal(added, 3)
+  assert.deepEqual(skipped, [])
+})
+
+test('Add anyway puts the skipped lines on the list, scaled', async () => {
+  await stock('Sugar')
+  await stock('Vanilla')
+  const { skipped } = await addRecipeToList(tiramisu, 2, groceries)
+  assert.deepEqual(await onGroceries(), ['mascarpone'])
+  assert.equal(await addSkipped(skipped), 2)
+  assert.deepEqual(await onGroceries(), ['mascarpone', 'sugar', 'vanilla'])
+  const sugar = await db.items.filter((i) => i.listId === groceries && i.displayName === 'sugar').first()
+  assert.equal(sugar?.quantity, 1)
+  assert.equal(sugar?.unit, 'cup')
+})
+
+test('the message names at most three, once each', () => {
+  const line = (displayName: string) => ({ listId: 1, displayName, section: 'baking' as const })
+  assert.equal(
+    skippedMessage(['sugar', 'Sugar', 'vanilla', 'flour', 'eggs', 'butter'].map(line)),
+    'Skipped 6 you have: sugar, vanilla, flour +2 more',
+  )
+})
+
+test('the meal plan skips pantry stock too and hands back what it skipped', async () => {
+  await stock('Sugar')
+  const recipeUid = 'r1'
+  await db.recipes.clear()
+  await db.recipes.add({ ...tiramisu, uid: recipeUid })
+  const entry = { id: 1, listId: 1, displayName: 'Easy Tiramisu', section: 'other' as const, checked: false,
+    backlog: false, createdAt: 1, recipeUid }
+  const r = await shopTheWeek([entry], groceries)
+  assert.equal(r.recipes, 1)
+  assert.deepEqual(r.skipped.map((s) => s.displayName), ['sugar'])
+  assert.deepEqual(await onGroceries(), ['mascarpone', 'vanilla'])
 })
 
 test('buying "cumin powder" restocks a pantry "ground cumin" that ran out', async () => {
