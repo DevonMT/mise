@@ -150,8 +150,9 @@ export interface PriceEstimate {
 export async function estimatePrices(
   store: string,
   items: Array<{ canonicalKey: string; displayName: string; unit?: string }>,
+  area = '',
 ): Promise<PriceEstimate[]> {
-  const data = await postJson<{ prices?: PriceEstimate[] }>('/api/prices', { store, items }, 'Pricing')
+  const data = await postJson<{ prices?: PriceEstimate[] }>('/api/prices', { store, area, items }, 'Pricing')
   return data.prices ?? []
 }
 
@@ -179,7 +180,8 @@ export interface RefineItem {
 export async function refineItems(
   store: string,
   items: Array<{ canonicalKey: string; displayName: string; unit?: string }>,
+  area = '',
 ): Promise<RefineItem[]> {
-  const data = await postJson<{ items?: RefineItem[] }>('/api/refine', { store, items }, 'Refine')
+  const data = await postJson<{ items?: RefineItem[] }>('/api/refine', { store, area, items }, 'Refine')
   return data.items ?? []
 }

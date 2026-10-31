@@ -33,7 +33,7 @@ import { db, newUid } from './db'
  * to the first two would make sync impossible to turn off and impossible to
  * attribute.
  */
-export const SYNCED_KEYS = ['mise.store', 'mise.aisles', 'mise.theme', 'mise.swipeHint'] as const
+export const SYNCED_KEYS = ['mise.store', 'mise.area', 'mise.aisles', 'mise.theme', 'mise.swipeHint'] as const
 
 export type SyncedKey = (typeof SYNCED_KEYS)[number]
 

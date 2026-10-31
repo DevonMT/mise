@@ -93,20 +93,36 @@ export async function applyRefinement(
   },
 ): Promise<void> {
   const { displayName, detail, section, price, buyCount, sizeAmount, sizeUnit, packaging } = o
-  const patch = { displayName, detail, price, buyCount, sizeAmount, sizeUnit, packaging }
+  const patch = { displayName, detail, section, price, buyCount, sizeAmount, sizeUnit, packaging }
   const existing = await db.catalog.where('canonicalKey').equals(canonicalKey).first()
   if (existing?.id != null) {
     await db.catalog.update(existing.id, patch)
   } else {
     await db.catalog.add({
       canonicalKey,
-      section,
       count: 0,
       favorite: false,
       lastAdded: Date.now(),
       ...patch,
     })
   }
+}
+
+/**
+ * Re-file one item into an aisle, on its list row AND in the catalog.
+ *
+ * The row is what the list groups by; the catalog is what the next add of the
+ * same thing starts from, so moving only the row would bring the old aisle
+ * back the next time it is added.
+ */
+export async function setAisle(
+  id: number,
+  canonicalKey: string,
+  section: Section,
+): Promise<void> {
+  await db.items.update(id, { section })
+  const existing = await db.catalog.where('canonicalKey').equals(canonicalKey).first()
+  if (existing?.id != null) await db.catalog.update(existing.id, { section })
 }
 
 /** Set a remembered price for one item (upserts a catalog entry if needed). */
@@ -153,6 +169,7 @@ export async function priceableKeys(): Promise<Set<string>> {
 export async function estimateStorePrices(
   store: string,
   mode: 'missing' | 'all',
+  area = '',
 ): Promise<number> {
   const keys = await priceableKeys()
   if (keys.size === 0) return 0
@@ -183,6 +200,7 @@ export async function estimateStorePrices(
   const estimates = await estimatePrices(
     store,
     targets.map((c) => ({ canonicalKey: c.canonicalKey, displayName: c.displayName, unit: c.unit })),
+    area,
   )
   const byKey = new Map(estimates.map((e) => [e.canonicalKey, e.price]))
 

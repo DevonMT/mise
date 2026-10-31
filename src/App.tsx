@@ -29,6 +29,7 @@ import {
   resolveActiveId,
   restockFromPurchase,
   restoreList,
+  setAlwaysHave,
   undoRestock,
   writeActiveId,
 } from './lists'
@@ -44,6 +45,7 @@ import { BottomNav, type Tab } from './BottomNav'
 import { RecipeForm } from './RecipeForm'
 import { ListSwitcher, ManageLists } from './ListSwitcher'
 import { EditListSheet } from './EditListSheet'
+import { AisleOrderSheet } from './AisleOrderSheet'
 import { ImportSheet, ImportLinkSheet } from './ImportSheet'
 import { decodeShare, encodeShare, shareLink, shareListPayload, type SharePayload } from './share'
 import { SharePeople, Handoffs } from './SharePeople'
@@ -97,6 +99,7 @@ export default function App() {
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [editListOpen, setEditListOpen] = useState(false)
+  const [aislesOpen, setAislesOpen] = useState(false)
   const [importLinkOpen, setImportLinkOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -409,8 +412,9 @@ export default function App() {
     setSharing({ uid: activeList.uid ?? null, name: activeList.name, payload })
   }
 
-  /** To anybody at all. Kept because a link reaches people with no account
-   *  here, which is most people. */
+  /** A copy as a link. It opens the app, which sits behind the sign-in wall
+   *  (share.ts, recipePageUrl), so it only works for somebody who already has
+   *  Mise; only a recipe has a page for everyone. Labelled that way in the menu. */
   const doShareList = async () => {
     if (!activeList?.id) return
     setMenuOpen(false)
@@ -471,6 +475,7 @@ export default function App() {
   useBackLayer(switcherOpen, () => setSwitcherOpen(false))
   useBackLayer(manageOpen, () => setManageOpen(false))
   useBackLayer(editListOpen, () => setEditListOpen(false))
+  useBackLayer(aislesOpen, () => setAislesOpen(false))
   useBackLayer(importLinkOpen, () => setImportLinkOpen(false))
   useBackLayer(recipeMenuOpen, () => setRecipeMenuOpen(false))
   useBackLayer(recipeFormOpen, () => setRecipeFormOpen(false))
@@ -689,6 +694,16 @@ export default function App() {
                               {isFav && kind.kind !== 'tasks' && (
                                 <Icon name="star" size={13} className="row-fav" />
                               )}
+                              {kind.kind === 'pantry' && item.alwaysHave && (
+                                <span
+                                  className="row-always"
+                                  role="img"
+                                  aria-label="Always on hand"
+                                  title="Always on hand"
+                                >
+                                  <Icon name="home" size={13} />
+                                </span>
+                              )}
                               <span className="row-text">
                                 <span className="name">{item.displayName}</span>
                                 {kind.due && item.notes && (
@@ -862,13 +877,28 @@ export default function App() {
             <Icon name="edit" size={20} />
             Rename &amp; icon
           </button>
+          {kind.sections && (
+            <button
+              className="menu-item"
+              onClick={() => {
+                setAislesOpen(true)
+                setMenuOpen(false)
+              }}
+            >
+              <Icon name="list" size={20} />
+              Aisle Order
+            </button>
+          )}
           <button className="menu-item" onClick={doShareWithPerson}>
             <Icon name="heart" size={18} />
             Share with someone
           </button>
           <button className="menu-item" onClick={doShareList}>
             <Icon name="share" size={20} />
-            Share this list
+            <span className="menu-item-body">
+              Send a Copy as a Link
+              <span className="menu-item-sub">Needs Mise to open</span>
+            </span>
           </button>
           {kind.fromRecipes && (
             <button className="menu-item" onClick={doPlanToList}>
@@ -909,6 +939,7 @@ export default function App() {
       )}
 
       {editListOpen && <EditListSheet list={activeList} onClose={() => setEditListOpen(false)} />}
+      {aislesOpen && <AisleOrderSheet onClose={() => setAislesOpen(false)} />}
 
       {switcherOpen && (
         <ListSwitcher
@@ -1110,6 +1141,8 @@ function ItemSheet({
   const [section, setSection] = useState<Section>(initial?.section ?? 'other')
   const [priceStr, setPriceStr] = useState(catalogPrice != null ? String(catalogPrice) : '')
   const [fav, setFav] = useState(Boolean(catalogFavorite))
+  // Pantry only: never put this on a list from a recipe, and don't say so.
+  const [alwaysHave, setAlways] = useState(initial?.alwaysHave === true)
   const [dueStr, setDueStr] = useState(initial?.dueAt != null ? toDateInput(initial.dueAt) : '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
   // Two shapes, one control. `days` is a weekly pattern; `interval` is a
@@ -1194,8 +1227,11 @@ function ItemSheet({
         )
       }
       await syncCatalogName(initial!.canonicalKey, trimmed, unit.trim() || undefined)
+      if (kindKey === 'pantry' && alwaysHave !== (initial!.alwaysHave === true)) {
+        await setAlwaysHave(initial!.id!, alwaysHave)
+      }
     } else {
-      await addItem({
+      const id = await addItem({
         listId,
         displayName: trimmed,
         quantity,
@@ -1207,6 +1243,7 @@ function ItemSheet({
         schedule: kind.schedule ? schedule : undefined,
         ...buy,
       })
+      if (kindKey === 'pantry' && alwaysHave) await setAlwaysHave(id, true)
     }
     onClose()
   }
@@ -1414,6 +1451,23 @@ function ItemSheet({
             </button>
           ))}
         </div>
+      )}
+
+      {kindKey === 'pantry' && (
+        <>
+          <label className="row-toggle">
+            <input
+              type="checkbox"
+              checked={alwaysHave}
+              onChange={(e) => setAlways(e.target.checked)}
+            />
+            <span>Always on hand</span>
+          </label>
+          <p className="group-hint">
+            Recipes won’t add this to a shopping list, and won’t mention it. Salt, oil,
+            pepper. Leave it off to be told when a recipe skips something you have.
+          </p>
+        </>
       )}
 
       {editing && kind.prices && (

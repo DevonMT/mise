@@ -32,7 +32,7 @@ const { db } = await import('./db')
 
 test('the settings that follow you are the ones you set once', () => {
   assert.deepEqual([...prefs.SYNCED_KEYS].sort(), [
-    'mise.aisles', 'mise.store', 'mise.swipeHint', 'mise.theme',
+    'mise.aisles', 'mise.area', 'mise.store', 'mise.swipeHint', 'mise.theme',
   ])
 })
 
