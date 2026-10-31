@@ -410,8 +410,9 @@ export default function App() {
     setSharing({ uid: activeList.uid ?? null, name: activeList.name, payload })
   }
 
-  /** To anybody at all. Kept because a link reaches people with no account
-   *  here, which is most people. */
+  /** A copy as a link. It opens the app, which sits behind the sign-in wall
+   *  (share.ts, recipePageUrl), so it only works for somebody who already has
+   *  Mise; only a recipe has a page for everyone. Labelled that way in the menu. */
   const doShareList = async () => {
     if (!activeList?.id) return
     setMenuOpen(false)
@@ -879,7 +880,10 @@ export default function App() {
           </button>
           <button className="menu-item" onClick={doShareList}>
             <Icon name="share" size={20} />
-            Share this list
+            <span className="menu-item-body">
+              Send a Copy as a Link
+              <span className="menu-item-sub">Needs Mise to open</span>
+            </span>
           </button>
           {kind.fromRecipes && (
             <button className="menu-item" onClick={doPlanToList}>
