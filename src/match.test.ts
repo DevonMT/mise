@@ -105,6 +105,8 @@ test('aliases', () => {
   same('garbanzo beans', 'chickpeas')
   same('confectioners’ sugar', 'powdered sugar')
   same('icing sugar', 'powdered sugar')
+  same('granulated sugar', 'sugar')
+  same('white sugar', 'sugar')
   same('all-purpose flour', 'flour')
   same('bicarbonate of soda', 'baking soda')
   same('extra-virgin olive oil', 'olive oil')

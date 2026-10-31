@@ -31,24 +31,28 @@
  */
 
 /*
- * THE CLOTH AND THE RIM. A dark green rim along the very top, like the lip of an
- * enamel bowl, and large, faint gingham fading out from the top-right corner:
- * a kitchen cloth without a band across the page. Picked on the real app over
+ * THE CLOTH. Large, faint gingham fading out from the top-right corner: a
+ * kitchen cloth without a band across the page. Picked on the real app over
  * the board's towel band (2026-09-13), which cost 28px of list on a phone.
  *
- * Painted on .app, which never scrolls (.scroll is the pane that does), so both
- * stay put behind a transparent top bar. The gingham is a pseudo-element
- * because it needs a mask to fade, and a mask cannot apply to one background
- * layer. Dark mode needs it stronger: at the light strength it vanishes on the
- * warm dark ground. Still: nothing for the motion setting to stop.
+ * There used to be a dark green rim along the top of .app as well. It was
+ * --accent-deep where the nav is --accent, and it stopped short of the edges
+ * whenever .app was capped. The estate bar draws the full-bleed accent line
+ * itself (ds/chrome.css), so the rim is gone. .app is full width at every size
+ * (2026-10-30, #707; the content column is capped by its padding, `--col`), so
+ * this cloth runs edge to edge and the gingham starts at the screen's corner.
+ *
+ * Painted on .app, which never scrolls (.scroll is the pane that does), so it
+ * stays put behind a transparent top bar. The gingham is a pseudo-element
+ * because it needs a mask to fade. Dark mode needs it stronger: at the light
+ * strength it vanishes on the warm dark ground. Still: nothing for the motion
+ * setting to stop.
  */
 .app {
   --gingham-mix: 9%;
   position: relative;
   isolation: isolate;
-  background:
-    linear-gradient(var(--accent-deep), var(--accent-deep)) top / 100% 5px no-repeat,
-    var(--bg);
+  background: var(--bg);
 }
 .app::before {
   content: "";
@@ -78,8 +82,12 @@
 #root > .ds-bar { flex: 0 0 auto; }
 
 .app {
-  max-width: 640px;
-  margin: 0 auto;
+  /* The content column is capped by padding, not max-width: .app itself stays
+     full width so the cloth (background and gingham) is full-bleed at every
+     width and the gingham starts at the screen's corner. Padding resolves
+     against #root's width. */
+  --col: 640px;
+  padding-inline: max(0px, calc((100% - var(--col)) / 2));
   /* width, because #root is a COLUMN flex container and an auto margin on the
      cross axis cancels the stretch that would otherwise size this. Without it
      .app is shrink-to-fit at every width: on a phone that happens to look
@@ -102,8 +110,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  /* +4px clears the enamel rim painted on .app behind this bar. */
-  padding-top: calc(max(14px, env(safe-area-inset-top, 0px)) + 4px);
+  padding-top: max(14px, env(safe-area-inset-top, 0px));
   background: transparent;
   border-bottom: 1px solid var(--line);
 }
@@ -310,13 +317,16 @@
   align-items: center;
   gap: 7px;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 14ch;
 }
 .row-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
+  gap: 4px 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 .row-fav {
   flex: 0 0 auto;
@@ -409,6 +419,7 @@
   animation: slideup 0.2s ease;
 }
 .toast-msg {
+  min-width: 0;
   font-size: 0.95rem;
   font-weight: 500;
 }
@@ -645,23 +656,39 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  /* The pills (quantity, price, due) used to be fixed-size and the name took
+     whatever was left, which in a 340px aisle column was four letters. Now the
+     name asks for 14ch first and the pills drop to a line of their own under it
+     when they do not fit beside that. */
+  flex-wrap: wrap;
+  gap: 4px 12px;
   min-height: 58px;
   font-size: 1.06rem;
 }
 .name {
   font-weight: 600;
   min-width: 0;
+  line-height: 1.25;
+  /* Two lines before the ellipsis; `anywhere` so a pasted link still breaks
+     rather than stretching the row (see .group). */
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 .row.done .name {
   color: var(--muted);
   text-decoration: line-through;
 }
 .qty {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--accent);
@@ -1094,12 +1121,15 @@
 }
 .rev-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
 }
 .rev-name {
   font-weight: 600;
   font-size: 1.02rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .rev-tag {
   font-size: 0.68rem;
@@ -1331,11 +1361,21 @@
 .ing-row:last-child {
   border-bottom: none;
 }
+.ing-row {
+  flex-wrap: wrap;
+}
 .ing-name {
   font-weight: 500;
+  flex: 1 1 14ch;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .ing-qty {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
+  text-align: right;
   font-weight: 700;
   color: var(--accent);
 }
@@ -1347,11 +1387,6 @@
   align-items: baseline;
   text-align: left;
   background: transparent;
-}
-.ing-tap .ing-name {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
 }
 .ing-tap:hover,
 .ing-tap:active {
@@ -1755,8 +1790,36 @@
   border-color: var(--accent);
   background: var(--accent-soft);
 }
+.ropt-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
 .ropt-label {
   font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ropt-fit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.ropt-fit.exact {
+  color: var(--accent);
+  font-weight: 600;
+}
+.ropt-best {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 .ropt-price {
   flex: 0 0 auto;
@@ -2147,14 +2210,24 @@
     margin-top: 0;
   }
 }
-@container content (min-width: 980px) {
+/* Each column keeps at least ~350px beside its pills (the old thresholds, 980
+   and 1250, made them 290px and a long name was clipped to four letters). Three
+   columns from 1100, four from 1480, five from 1900: each is still 355px+. */
+@container content (min-width: 1100px) {
   .groups {
     columns: 3;
   }
 }
-@container content (min-width: 1250px) {
+@container content (min-width: 1480px) {
   .groups {
     columns: 4;
+  }
+}
+/* A 1920 screen leaves ~1630px (four columns of ~390px), a 2560 one ~2270px
+   (five of ~435px). */
+@container content (min-width: 1900px) {
+  .groups {
+    columns: 5;
   }
 }
 
@@ -2307,7 +2380,7 @@
    container past the two-column threshold. */
 @media (min-width: 700px) and (max-width: 899px) {
   .app {
-    max-width: 880px;
+    --col: 880px;
   }
   .bottomnav {
     max-width: 880px;
@@ -2375,7 +2448,10 @@
 /* ---- ROOM: how the page is arranged -------------------------------------- */
 @media (min-width: 900px) {
   .app {
-    max-width: 1320px;
+    /* No column cap: the rail and content fill the screen (the cloth is painted
+       on .app, so it must reach the edges). The list fills the glass through the
+       aisle columns below; prose keeps its own reading widths. */
+    padding-inline: 0;
     display: grid;
     grid-template-columns: var(--rail) minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -2389,7 +2465,7 @@
     /* Restated, because the shorthand above resets the safe-area padding set
        on .topbar near the top of this file. A landscape phone wide enough to
        reach this breakpoint still has a status bar to clear. */
-    padding-top: calc(max(18px, env(safe-area-inset-top, 0px)) + 4px);
+    padding-top: max(18px, env(safe-area-inset-top, 0px));
   }
   .scroll { grid-area: main; padding: 16px 28px 0; }
 
@@ -2409,8 +2485,7 @@
        screen where the home indicator is. */
     padding-left: max(12px, env(safe-area-inset-left, 0px));
     padding-bottom: max(18px, env(safe-area-inset-bottom, 0px));
-    /* The enamel rim on .app runs across the rail too; clear it as the top bar does. */
-    padding-top: 22px;
+    padding-top: 18px;
     border-top: none;
     border-right: 1px solid var(--line);
     background: transparent;
@@ -2446,9 +2521,6 @@
   .bottom-space { height: 24px; }
 }
 
-@media (min-width: 1500px) {
-  .app { max-width: 1560px; }
-}
 
 /* ---- POINTER: how the page is operated ----------------------------------
    `hover: hover and pointer: fine` is a mouse or trackpad. Nothing here is

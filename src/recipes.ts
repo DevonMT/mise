@@ -1,5 +1,6 @@
 import { db, canonicalize, type Recipe, type Item } from './db'
-import { addItem, fallsOn, packCount, startOfDay } from './list'
+import { addItem, fallsOn, packCount, startOfDay, type NewItem } from './list'
+import { getInStockKeys } from './lists'
 import { getStapleKeys, isStaple, type ParseResult } from './parse'
 
 const KNOWN_UNITS = new Set([
@@ -78,23 +79,34 @@ export async function saveRecipeFromParse(result: ParseResult): Promise<number |
   return db.recipes.add(recipe as Recipe)
 }
 
-/** Add a recipe's ingredients to a grocery list, scaled by `factor` (default 1).
- *  Staples are skipped. Optional ingredients are skipped too, unless their index
- *  is in `includeOptional` — that's how the detail view opts specific ones in.
- *  Returns how many items were added. */
+/** A recipe line left off the list because the pantry has it: the line as it
+ *  would have been added (already scaled), so "Add anyway" is one call. */
+export type Skipped = NewItem
+
+/**
+ * Add a recipe's ingredients to a grocery list, scaled by `factor` (default 1).
+ *
+ * Skipped, in this order: Never Add These staples (silently, always); optional
+ * ingredients, unless their index is in `includeOptional` (that's how the detail
+ * view opts specific ones in); and anything an in-stock pantry item matches
+ * (getInStockKeys). Only the last is reported, in `skipped`, because it is the
+ * one a person can disagree with ("I used the last of it") and `addSkipped`
+ * puts those lines back. A pantry item marked out never skips anything.
+ */
 export async function addRecipeToList(
   recipe: Recipe,
   factor = 1,
   listId: number,
   includeOptional?: Set<number>,
-): Promise<number> {
-  const staples = await getStapleKeys()
+): Promise<{ added: number; skipped: Skipped[] }> {
+  const [staples, stocked] = await Promise.all([getStapleKeys(), getInStockKeys()])
   let added = 0
+  const skipped: Skipped[] = []
   for (let i = 0; i < recipe.ingredients.length; i++) {
     const ing = recipe.ingredients[i]
     if (isStaple(staples, ing)) continue
     if (ing.optional && !includeOptional?.has(i)) continue
-    await addItem({
+    const line: NewItem = {
       listId,
       displayName: ing.displayName,
       canonicalKey: ing.canonicalKey,
@@ -107,10 +119,37 @@ export async function addRecipeToList(
       sizeUnit: ing.sizeUnit,
       packaging: ing.packaging,
       section: ing.section,
-    })
+    }
+    if (isStaple(stocked, ing)) {
+      skipped.push(line)
+      continue
+    }
+    await addItem(line)
     added++
   }
-  return added
+  return { added, skipped }
+}
+
+/** Put lines that were skipped for being in the pantry on the list after all.
+ *  Returns how many were added. */
+export async function addSkipped(skipped: Skipped[]): Promise<number> {
+  for (const line of skipped) await addItem(line)
+  return skipped.length
+}
+
+/** "Skipped 2 you have: sugar, vanilla", naming at most three. */
+export function skippedMessage(skipped: Skipped[]): string {
+  const names: string[] = []
+  const seen = new Set<string>()
+  for (const s of skipped) {
+    const k = s.displayName.trim().toLowerCase()
+    if (seen.has(k)) continue
+    seen.add(k)
+    names.push(k)
+  }
+  const shown = names.slice(0, 3).join(', ')
+  const more = names.length > 3 ? ` +${names.length - 3} more` : ''
+  return `Skipped ${skipped.length} you have: ${shown}${more}`
 }
 
 function round2(n: number): number {
@@ -144,6 +183,8 @@ export type PlanShop = {
   notThisWeek: number
   /** Plan entries whose recipe is gone. */
   missing: number
+  /** Lines left off because the pantry has them (see addRecipeToList). */
+  skipped: Skipped[]
   /** Puts the grocery list back exactly as it was. */
   undo: () => Promise<void>
 }
@@ -166,7 +207,7 @@ export type PlanShop = {
  *
  * "Leftovers" and "Out" are plan entries with nothing to buy; they carry no
  * recipe and are not counted. Everything goes through addRecipeToList, so the
- * merge, staple-skipping and scaling all apply.
+ * merge, staple- and pantry-skipping and scaling all apply.
  */
 export async function shopTheWeek(
   planItems: Item[],
@@ -197,7 +238,10 @@ export async function shopTheWeek(
 
   // The list as it was, for undo: every row that was there, whole.
   const before = await db.items.filter((i) => i.listId === listId).toArray()
-  for (const [uid, factor] of factorByUid) await addRecipeToList(byUid.get(uid)!, factor, listId)
+  const skipped: Skipped[] = []
+  for (const [uid, factor] of factorByUid) {
+    skipped.push(...(await addRecipeToList(byUid.get(uid)!, factor, listId)).skipped)
+  }
 
   const undo = async () => {
     const was = new Map(before.map((r) => [r.id!, r]))
@@ -212,5 +256,5 @@ export async function shopTheWeek(
     })
   }
 
-  return { recipes: factorByUid.size, meals, notThisWeek, missing, undo }
+  return { recipes: factorByUid.size, meals, notThisWeek, missing, skipped, undo }
 }

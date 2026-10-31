@@ -13,7 +13,7 @@ import {
 } from './parse'
 import { saveRecipeFromParse } from './recipes'
 import { planPlainPaste } from './plainPaste'
-import { defaultGroceryListId } from './lists'
+import { defaultGroceryListId, getInStockKeys } from './lists'
 import { Icon } from './Icon'
 import { Sheet } from './Sheet'
 import { useAiEnabled } from './edition'
@@ -36,6 +36,7 @@ interface Row {
   section: Section
   include: boolean
   isStaple: boolean
+  inPantry: boolean
   optional: boolean
 }
 
@@ -96,6 +97,7 @@ export function CaptureSheet({
           section: p.section,
           include: true,
           isStaple: false,
+          inPantry: false,
           optional: false,
         })),
       )
@@ -116,12 +118,17 @@ export function CaptureSheet({
     setStage('loading')
     setError('')
     try {
-      const [result, staples] = await Promise.all([
+      const [result, staples, stocked] = await Promise.all([
         parseCapture({ type: mode, content }),
         getStapleKeys(),
+        getInStockKeys(),
       ])
+      // A pasted list is what you typed, so only a recipe's lines are held
+      // back for being in the pantry (the same rule as addRecipeToList).
+      const recipe = result.sourceType === 'recipe'
       const built: Row[] = result.items.map((it: ParsedItem) => {
         const isStaple = isStapleLine(staples, it)
+        const inPantry = recipe && !isStaple && isStapleLine(stocked, it)
         const optional = Boolean(it.optional)
         return {
           displayName: it.displayName,
@@ -133,9 +140,11 @@ export function CaptureSheet({
           sizeUnit: it.sizeUnit ?? undefined,
           packaging: it.packaging ?? undefined,
           section: it.section,
-          // Staples and recipe-optional items are pre-skipped but toggleable.
-          include: !isStaple && !optional,
+          // Staples, pantry stock and recipe-optional items are pre-skipped but
+          // toggleable.
+          include: !isStaple && !inPantry && !optional,
           isStaple,
+          inPantry,
           optional,
         }
       })
@@ -290,7 +299,7 @@ export function CaptureSheet({
             </h3>
             <p className="review-hint">
               {includedCount} of {rows.length} will be added. Tap to toggle
-              {plain ? '; aisles come from what you have added before.' : '; staples and optional extras are pre-skipped.'}
+              {plain ? '; aisles come from what you have added before.' : '; staples, pantry stock and optional extras are pre-skipped.'}
               {isRecipe && ' · saved to your recipes'}
               {isRecipe && parsed?.tips && parsed.tips.length > 0 && (
                 <>
@@ -313,6 +322,7 @@ export function CaptureSheet({
                     <div className="rev-top">
                       <span className="rev-name">{r.displayName}</span>
                       {r.isStaple && <span className="rev-tag">staple</span>}
+                      {r.inPantry && <span className="rev-tag">in pantry</span>}
                       {r.optional && <span className="rev-tag optional">optional</span>}
                     </div>
                     <div className="rev-meta">

@@ -211,6 +211,22 @@ export async function restockFromPurchase(bought: Item[]): Promise<Item[]> {
   return flipped
 }
 
+/**
+ * Every key an in-stock pantry item answers to, for a recipe to be checked
+ * against (use isStaple() from parse.ts to test a line, as with getStapleKeys).
+ *
+ * In stock means on a live pantry list and not marked out: a marked-out item is
+ * what you want bought, so it must not suppress the recipe's line.
+ */
+export async function getInStockKeys(): Promise<Set<string>> {
+  const pantryIds = new Set(
+    (await db.lists.filter((l) => l.kind === 'pantry' && isLive(l)).toArray()).map((l) => l.id!),
+  )
+  if (!pantryIds.size) return new Set()
+  const rows = await db.items.filter((i) => pantryIds.has(i.listId) && !i.checked && !i.pending).toArray()
+  return new Set(rows.flatMap((i) => [...itemKeys(i)]))
+}
+
 export async function undoRestock(flipped: Item[]): Promise<void> {
   for (const f of flipped) await db.items.update(f.id!, { checked: true })
 }
