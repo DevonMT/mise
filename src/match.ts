@@ -98,6 +98,8 @@ const ALIASES: Record<string, string> = {
   garbanzo: 'chickpea', 'garbanzo bean': 'chickpea', 'chick pea': 'chickpea',
   'coriander leaf': 'cilantro', 'cilantro leaf': 'cilantro',
   'confectioner sugar': 'powdered sugar', 'icing sugar': 'powdered sugar',
+  'granulated sugar': 'sugar', 'white sugar': 'sugar', 'granulated white sugar': 'sugar',
+  'white granulated sugar': 'sugar',
   'all purpose flour': 'flour', 'plain flour': 'flour', 'ap flour': 'flour',
   'bicarbonate soda': 'baking soda', 'bicarb soda': 'baking soda', 'sodium bicarbonate': 'baking soda',
   'extra virgin olive oil': 'olive oil', 'virgin olive oil': 'olive oil', evoo: 'olive oil',
