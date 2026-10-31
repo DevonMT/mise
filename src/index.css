@@ -31,24 +31,26 @@
  */
 
 /*
- * THE CLOTH AND THE RIM. A dark green rim along the very top, like the lip of an
- * enamel bowl, and large, faint gingham fading out from the top-right corner:
- * a kitchen cloth without a band across the page. Picked on the real app over
+ * THE CLOTH. Large, faint gingham fading out from the top-right corner: a
+ * kitchen cloth without a band across the page. Picked on the real app over
  * the board's towel band (2026-09-13), which cost 28px of list on a phone.
  *
- * Painted on .app, which never scrolls (.scroll is the pane that does), so both
- * stay put behind a transparent top bar. The gingham is a pseudo-element
- * because it needs a mask to fade, and a mask cannot apply to one background
- * layer. Dark mode needs it stronger: at the light strength it vanishes on the
- * warm dark ground. Still: nothing for the motion setting to stop.
+ * There used to be a dark green rim along the top of .app as well. .app is
+ * capped at 1320px, so on a wide screen the rim stopped short of both edges,
+ * and it was --accent-deep where the nav is --accent. The estate bar draws the
+ * full-bleed accent line itself (ds/chrome.css), so the rim is gone.
+ *
+ * Painted on .app, which never scrolls (.scroll is the pane that does), so it
+ * stays put behind a transparent top bar. The gingham is a pseudo-element
+ * because it needs a mask to fade. Dark mode needs it stronger: at the light
+ * strength it vanishes on the warm dark ground. Still: nothing for the motion
+ * setting to stop.
  */
 .app {
   --gingham-mix: 9%;
   position: relative;
   isolation: isolate;
-  background:
-    linear-gradient(var(--accent-deep), var(--accent-deep)) top / 100% 5px no-repeat,
-    var(--bg);
+  background: var(--bg);
 }
 .app::before {
   content: "";
@@ -102,8 +104,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  /* +4px clears the enamel rim painted on .app behind this bar. */
-  padding-top: calc(max(14px, env(safe-area-inset-top, 0px)) + 4px);
+  padding-top: max(14px, env(safe-area-inset-top, 0px));
   background: transparent;
   border-bottom: 1px solid var(--line);
 }
@@ -2422,7 +2423,7 @@
     /* Restated, because the shorthand above resets the safe-area padding set
        on .topbar near the top of this file. A landscape phone wide enough to
        reach this breakpoint still has a status bar to clear. */
-    padding-top: calc(max(18px, env(safe-area-inset-top, 0px)) + 4px);
+    padding-top: max(18px, env(safe-area-inset-top, 0px));
   }
   .scroll { grid-area: main; padding: 16px 28px 0; }
 
@@ -2442,8 +2443,7 @@
        screen where the home indicator is. */
     padding-left: max(12px, env(safe-area-inset-left, 0px));
     padding-bottom: max(18px, env(safe-area-inset-bottom, 0px));
-    /* The enamel rim on .app runs across the rail too; clear it as the top bar does. */
-    padding-top: 22px;
+    padding-top: 18px;
     border-top: none;
     border-right: 1px solid var(--line);
     background: transparent;
