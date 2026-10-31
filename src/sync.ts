@@ -41,6 +41,7 @@ import { EDITION, grantedEdition, setGrantedVariant, tierActuallyChanged } from 
 import { hydrateSettings } from './prefs'
 import { filePending } from './list'
 import { asForwarding, foldLegacyLists, rememberFolded } from './fold'
+import { bindAccount, boundAccount } from './account'
 
 /**
  * Sync is a devondoes.dev feature: it needs the platform session cookie, which
@@ -214,6 +215,9 @@ export type State = {
   tombstones: WireTombstone[]
   /** The tier this account holds, per the platform. Absent means none. */
   variant?: string | null
+  /** Who the platform answered for (#278). Absent from a platform older than
+   *  that, which leaves this device unbound. */
+  account?: string
 }
 
 /**
@@ -422,6 +426,10 @@ export type SyncResult =
       edition?: 'personal' | 'lite'
     }
   | { ok: false; reason: 'off' | 'signin' | 'forbidden' | 'offline' | 'error'; message: string }
+  /** Signed in as a different account from the one this device's lists belong
+   *  to (account.ts). Nothing was sent or merged; `account` is who is signed in
+   *  now, for keepForAccount / clearThisDevice. */
+  | { ok: false; reason: 'account'; message: string; account: string }
 
 export function syncEnabled(): boolean {
   return EDITION === 'personal' && localStorage.getItem(ENABLED_KEY) === '1'
@@ -549,6 +557,7 @@ async function syncOnce(): Promise<SyncResult> {
     return { ok: false, reason: 'offline', message: 'No connection — your list is safe on this device.' }
   }
 
+  const bound = boundAccount()
   let payload: State
   try {
     payload = await localState()
@@ -562,10 +571,18 @@ async function syncOnce(): Promise<SyncResult> {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, deviceId: deviceId() }),
+      // Whose lists these are. The platform refuses the push (409) when that
+      // is not who is signed in, before it merges anything (account.ts).
+      body: JSON.stringify({ ...payload, deviceId: deviceId(), account: bound ?? undefined }),
     })
   } catch {
     return { ok: false, reason: 'offline', message: 'Could not reach the server.' }
+  }
+
+  if (res.status === 409) {
+    const body = (await res.json().catch(() => null)) as { account?: unknown } | null
+    if (typeof body?.account === 'string' && body.account) return mismatch(body.account)
+    return { ok: false, reason: 'error', message: 'Server said 409.' }
   }
 
   if (res.status === 401) {
@@ -586,6 +603,14 @@ async function syncOnce(): Promise<SyncResult> {
   }
   if (!Array.isArray(state?.records) || !Array.isArray(state?.tombstones)) {
     return { ok: false, reason: 'error', message: 'The server sent an unexpected shape.' }
+  }
+  if (typeof state.account === 'string' && state.account) {
+    // Belt and braces: a platform that names the account but did not refuse.
+    // The push has landed by now; at least this device takes nothing back.
+    if (bound && state.account !== bound) return mismatch(state.account)
+    // The first sync that learns the account binds to it: a device that only
+    // ever ran signed out, or one that synced before this shipped.
+    if (!bound) bindAccount(state.account)
   }
 
   // The tier rides home on every sync, so a change made in admin applies here
@@ -617,6 +642,20 @@ async function syncOnce(): Promise<SyncResult> {
     // became rather than what some captured variable said it used to be.
     edition: grantedEdition(),
   }
+}
+
+const mismatch = (account: string): SyncResult => ({
+  ok: false, reason: 'account', account,
+  message: 'These lists belong to a different account from the one signed in, so this device is not syncing.',
+})
+
+/**
+ * "Keep them as this account's": the one way lists cross accounts, and only
+ * because somebody chose it (account.ts). Binds, then syncs, which merges them.
+ */
+export function keepForAccount(account: string): Promise<SyncResult> {
+  bindAccount(account)
+  return sync()
 }
 
 /**

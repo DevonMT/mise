@@ -454,6 +454,18 @@
   color: var(--accent-ink);
   text-decoration: none;
 }
+.account-note {
+  margin: 6px 2px 14px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.account-sheet .ghost {
+  width: 100%;
+}
+.account-err {
+  color: var(--danger);
+}
 .hint-x {
   flex: 0 0 auto;
   width: 36px;
@@ -2529,6 +2541,8 @@
   /* An instruction you cannot follow is worse than none. There is nothing to
      swipe with a mouse — you click the box, and delete is in the row. */
   .hint-banner { display: none; }
+  /* Not an instruction: sync has stopped until someone chooses (#278). */
+  .hint-banner.account-banner { display: flex; }
 
   /* Show what a row does instead of explaining it. Never on touch, where a
      hover state sticks after a tap and looks like a broken selection. */

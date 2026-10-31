@@ -39,6 +39,7 @@ import { QuickAddSheet } from './QuickAdd'
 import { RefineSheet } from './RefineView'
 import { setPrice as savePrice, setFavoriteByKey, syncCatalogName } from './catalog'
 import { Sheet } from './Sheet'
+import { AccountSheet } from './AccountSheet'
 import { SwipeRow } from './SwipeRow'
 import { BottomNav, type Tab } from './BottomNav'
 import { RecipeForm } from './RecipeForm'
@@ -106,6 +107,10 @@ export default function App() {
     action?: { label: string; run: () => void }
   } | null>(null)
   const [signedOut, setSignedOut] = useState(false)
+  // Signed in as someone other than the account these lists synced with
+  // (#278): who is signed in, and whether the choice is on screen.
+  const [otherAccount, setOtherAccount] = useState<string | null>(null)
+  const [accountOpen, setAccountOpen] = useState(false)
   const [showHint, setShowHint] = useState(() => !localStorage.getItem('mise.swipeHint'))
 
   // A Pantry on every install, not only new ones: "things I always have" lives
@@ -136,6 +141,18 @@ export default function App() {
       startAutoSync((r) => {
         if (r.ok) setSignedOut(false)
         else if (r.reason === 'signin') setSignedOut(true)
+        // Asked once per account per session; after "Decide later" a banner
+        // keeps saying it is not syncing. Signed out or back to the right
+        // account (an ok sync) clears it.
+        if (!r.ok && r.reason === 'account') {
+          setOtherAccount((was) => {
+            if (was !== r.account) setAccountOpen(true)
+            return r.account
+          })
+        } else if (r.ok || r.reason === 'signin') {
+          setOtherAccount(null)
+          setAccountOpen(false)
+        }
         // The first sync is what tells a fresh device whether the account
         // already has lists, so seeding is decided here rather than at mount.
         if (r.ok) void ensureDefaultLists().then(() => dedupeDefaultLists())
@@ -483,6 +500,7 @@ export default function App() {
   })
   useBackLayer(sheet !== null, () => setSheet(null))
   useBackLayer(pending !== null, () => setPending(null))
+  useBackLayer(accountOpen, () => setAccountOpen(false))
 
   // One-time reconcile of catalog names against the current items.
   useEffect(() => {
@@ -614,6 +632,15 @@ export default function App() {
                 >
                   Sign in
                 </a>
+              </div>
+            )}
+
+            {otherAccount && !accountOpen && (
+              <div className="hint-banner account-banner" role="status">
+                <span>Another account is signed in — this device isn’t syncing.</span>
+                <button className="signin-link" onClick={() => setAccountOpen(true)}>
+                  Choose
+                </button>
               </div>
             )}
 
@@ -849,6 +876,17 @@ export default function App() {
         }}
         onManageLists={() => setSwitcherOpen(true)}
       />
+
+      {otherAccount && accountOpen && (
+        <AccountSheet
+          account={otherAccount}
+          onClose={() => setAccountOpen(false)}
+          onKept={() => {
+            setOtherAccount(null)
+            setAccountOpen(false)
+          }}
+        />
+      )}
 
       {menuOpen && (
         <Sheet className="menu" label="List actions" onClose={() => setMenuOpen(false)}>
