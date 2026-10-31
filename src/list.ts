@@ -1,7 +1,7 @@
 import {db, canonicalize, type Item, type Section, type Schedule } from './db'
 import { recordCatalog } from './catalog'
 import { KINDS } from './kinds'
-import { itemKeys } from './match'
+import { itemKeys, sameIngredient } from './match'
 
 /** Units that just mean "a count of whole things" — treated as interchangeable
  *  (and with no unit) so "2 onions" and "1 whole onion" merge. */
@@ -118,11 +118,14 @@ export async function findMergeTarget(
     i.listId === input.listId && i.backlog === backlog && unitKey(i.unit) === unitKey(input.unit)
 
   const exact = await db.items.where('canonicalKey').equals(canonicalKey).filter(sameSlot).first()
-  if (exact) return exact
-
   const list = await db.lists.get(input.listId)
-  if (!list || !KINDS[list.kind]?.sections) return undefined
-  const mine = itemKeys({ displayName: input.displayName, canonicalKey, quantity: input.quantity, unit: input.unit })
+  const fuzzy = !!list && !!KINDS[list.kind]?.sections
+  const probe = { displayName: input.displayName, canonicalKey, quantity: input.quantity, unit: input.unit }
+  // On a list with aisles an equal key still has to pass the matcher's guards (a counted
+  // "pepper" is not the jar, ground coriander is not the fresh herb); elsewhere it is exact.
+  if (exact && (!fuzzy || sameIngredient(exact, probe))) return exact
+  if (!fuzzy) return undefined
+  const mine = itemKeys(probe)
   return db.items
     .where('listId')
     .equals(input.listId)

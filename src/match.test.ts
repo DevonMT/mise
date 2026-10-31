@@ -505,6 +505,23 @@ test('architect pass: a piece of a whole spice is not the ground jar', () => {
   same('1 inch piece ginger', 'ginger')
 })
 
+test('#711: a stored key cannot carry a row across a guard', () => {
+  // A ground-coriander row keyed plain "coriander" meets neither the herb nor its own raw key's trace.
+  const jar = { displayName: 'Ground coriander', canonicalKey: 'coriander' }
+  assert.ok(!sameIngredient(jar, { displayName: 'coriander', canonicalKey: 'coriander' }))
+  assert.ok(!itemKeys(jar).has('coriander'))
+  assert.ok(itemKeys(jar).has('ground coriander'))
+  assert.ok(sameIngredient(jar, { displayName: 'coriander powder', canonicalKey: 'coriander powder' }))
+  // The herb's own row still answers to its key.
+  assert.ok(itemKeys({ displayName: 'Coriander', canonicalKey: 'coriander' }).has('coriander'))
+  // Lean ratios of every size keep their own key.
+  for (const n of ['93/7 ground beef', '96/4 ground beef', '85/15 ground beef', '70/30 ground beef']) apartRows(n, 'ground beef')
+  apartRows('93/7 ground beef', '96/4 ground beef')
+  same('1 lb 93/7 ground beef', '93/7 ground beef')
+  // A fraction is still an amount.
+  same('1/2 lb ground beef', 'ground beef')
+})
+
 test('architect pass: odd cases', () => {
   apartRows('80/20 ground beef', 'ground beef')
   same('1 lb 80/20 ground beef', '80/20 ground beef')
