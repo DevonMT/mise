@@ -48,3 +48,19 @@ test('every people call goes to the platform with credentials', async () => {
     assert.equal(c.init?.credentials, 'include', `${c.url} drops the session cookie`)
   }
 })
+
+test("a refused share brings back the platform's reason, and offline is null", async () => {
+  const real = globalThis.fetch
+  try {
+    globalThis.fetch = (async () => new Response(
+      JSON.stringify({ error: 'Every account has its own copy of this list.' }),
+      { status: 409, headers: { 'Content-Type': 'application/json' } })) as typeof fetch
+    assert.deepEqual(await people.subscribe('default:list', 'u1'),
+      { error: 'Every account has its own copy of this list.' })
+
+    globalThis.fetch = (async () => { throw new TypeError('offline') }) as typeof fetch
+    assert.deepEqual(await people.subscribe('l1', 'u1'), { error: null })
+  } finally {
+    globalThis.fetch = real
+  }
+})

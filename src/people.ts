@@ -91,8 +91,23 @@ export async function sendTo(to: string, label: string, payload: unknown) {
   return post<{ ok: boolean }>(`${ENDPOINT}/send`, { to, label, payload })
 }
 
-export async function subscribe(listUid: string, to: string) {
-  return post<{ ok: boolean }>(`${ENDPOINT}/lists/${encodeURIComponent(listUid)}/share`, { to })
+/** Keep a list in step with somebody. A refusal carries the platform's own
+ *  words (a seeded `default:` list cannot be shared, #682) so the app can say
+ *  why; `error` is null when the platform could not be asked at all. */
+export async function subscribe(listUid: string, to: string): Promise<{ ok: true } | { error: string | null }> {
+  try {
+    const r = await fetch(`${ENDPOINT}/lists/${encodeURIComponent(listUid)}/share`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to }),
+    })
+    if (r.ok) return { ok: true }
+    const d = (await r.json().catch(() => null)) as { error?: unknown } | null
+    return { error: typeof d?.error === 'string' ? d.error : null }
+  } catch {
+    return { error: null }
+  }
 }
 
 export async function unsubscribe(listUid: string, who: string) {
