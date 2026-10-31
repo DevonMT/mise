@@ -1784,10 +1784,36 @@
   border-color: var(--accent);
   background: var(--accent-soft);
 }
+.ropt-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
 .ropt-label {
   font-weight: 600;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.ropt-fit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.ropt-fit.exact {
+  color: var(--accent);
+  font-weight: 600;
+}
+.ropt-best {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 .ropt-price {
   flex: 0 0 auto;
