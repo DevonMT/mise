@@ -16,7 +16,7 @@ import {
   REFINE_SCHEMA,
   refineSystem,
 } from './parseContract.js'
-import { createCallCap } from './guard.js'
+import { authorize, brokerFailure, createCallCap, isStatus, unexpectedFailure } from './guard.js'
 import { timingSafeEqual } from 'node:crypto'
 
 const IMAGE_MEDIA = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const
@@ -156,25 +156,22 @@ app.use('/api/*', async (c, next) => {
   // decided that.
   c.set('caller', email)
 
-  // THE TIER, ENFORCED HERE. Lite ("no AI features") used to be a promise the
-  // app kept by hiding three buttons; anyone with a Lite grant could still post
-  // to /api/parse with curl. Every route past this point makes a model call, so
-  // it needs the Full variant, as the gateway states it (it overwrites whatever
-  // the client sent). A blank tier is Lite, and the Access fallback carries no
-  // tier at all, so it gets nothing. Devon's rule: nobody but him reaches a
-  // model unless AI is deliberately turned on for them — which here is
-  // granting Full.
-  if (c.req.path !== '/api/status') {
-    const variant = viaGateway ? (c.req.header('x-platform-variant') ?? '').trim() : ''
-    if (variant !== 'full') {
-      return c.json({ error: 'AI features are not part of your Mise.' }, 403)
-    }
-  }
+  // WHO MAY CALL WHAT, ENFORCED HERE (rules and reasons in guard.ts). Lite ("no
+  // AI features") used to be a promise the app kept by hiding three buttons;
+  // anyone with a Lite grant could still post to /api/parse with curl. Devon's
+  // rule: nobody but him reaches a model unless AI is deliberately turned on
+  // for them, which the gateway states as the `full` variant. /api/status, which
+  // describes how this server is wired, is the owner's only.
+  const denied = authorize(c.req.path, Boolean(viaGateway), {
+    variant: c.req.header('x-platform-variant'),
+    groups: c.req.header('x-platform-groups'),
+  })
+  if (denied) return c.json({ error: denied.error }, denied.status)
 
   // /api/status makes no model call, so it spends nothing: a status poll must
   // not eat anyone's AI allowance. Everything else counts against the CALLER's
   // own cap, never a shared one.
-  if (c.req.path !== '/api/status' && !callCap.take(email)) {
+  if (!isStatus(c.req.path) && !callCap.take(email)) {
     return c.json(
       { error: `Daily cap of ${DAILY_CALL_CAP} AI calls reached. Try tomorrow.` },
       429,
@@ -265,14 +262,14 @@ app.post('/api/parse', async (c) => {
     // Keep the broker's status. A refusal (422) and an exhausted budget (429)
     // are not server faults, and flattening them to 500 tells the person
     // holding the phone the wrong thing about what to do next.
+    // The broker's own detail stays in the journal (logged above), never in
+    // what the person sees.
     if (e instanceof BrokerError) {
-      const msg =
-        e.code === 'model_refused' ? 'The model declined to parse that input.'
-        : e.code === 'budget_exceeded' ? 'The AI budget for Mise is spent for this month.'
-        : `Parse failed: ${e.message}`
-      return c.json({ error: msg }, e.status as 400)
+      const f = brokerFailure(e, 'parse that', 'parse')
+      return c.json({ error: f.error }, f.status)
     }
-    return c.json({ error: `Parse failed: ${String(e)}` }, 500)
+    const f = unexpectedFailure('parse that')
+    return c.json({ error: f.error }, f.status)
   }
 })
 
@@ -309,14 +306,14 @@ app.post('/api/prices', async (c) => {
     // Keep the broker's status. A refusal (422) and an exhausted budget (429)
     // are not server faults, and flattening them to 500 tells the person
     // holding the phone the wrong thing about what to do next.
+    // The broker's own detail stays in the journal (logged above), never in
+    // what the person sees.
     if (e instanceof BrokerError) {
-      const msg =
-        e.code === 'model_refused' ? 'The model declined to prices that input.'
-        : e.code === 'budget_exceeded' ? 'The AI budget for Mise is spent for this month.'
-        : `Pricing failed: ${e.message}`
-      return c.json({ error: msg }, e.status as 400)
+      const f = brokerFailure(e, 'price those items', 'price')
+      return c.json({ error: f.error }, f.status)
     }
-    return c.json({ error: `Pricing failed: ${String(e)}` }, 500)
+    const f = unexpectedFailure('price those items')
+    return c.json({ error: f.error }, f.status)
   }
 })
 
@@ -353,14 +350,14 @@ app.post('/api/refine', async (c) => {
     // Keep the broker's status. A refusal (422) and an exhausted budget (429)
     // are not server faults, and flattening them to 500 tells the person
     // holding the phone the wrong thing about what to do next.
+    // The broker's own detail stays in the journal (logged above), never in
+    // what the person sees.
     if (e instanceof BrokerError) {
-      const msg =
-        e.code === 'model_refused' ? 'The model declined to refine that input.'
-        : e.code === 'budget_exceeded' ? 'The AI budget for Mise is spent for this month.'
-        : `Refine failed: ${e.message}`
-      return c.json({ error: msg }, e.status as 400)
+      const f = brokerFailure(e, 'refine those items', 'refine')
+      return c.json({ error: f.error }, f.status)
     }
-    return c.json({ error: `Refine failed: ${String(e)}` }, 500)
+    const f = unexpectedFailure('refine those items')
+    return c.json({ error: f.error }, f.status)
   }
 })
 
