@@ -39,7 +39,8 @@ globalThis.fetch = (async (_u: unknown, init?: RequestInit) => {
     l.displayName === "za'atar"
       ? { index: l.index, quantity: 2, unit: 'tsp', buyCount: null, sizeAmount: null, sizeUnit: null, packaging: null }
       : { index: l.index, quantity: null, unit: null, buyCount: null, sizeAmount: null, sizeUnit: null, packaging: null })
-  return new Response(JSON.stringify({ lines }), { status: 200 })
+  // The real server says which indexes the model saw (standardizeReply).
+  return new Response(JSON.stringify({ lines, asked: body.lines.map((l: { index: number }) => l.index) }), { status: 200 })
 }) as typeof fetch
 
 const ing = (displayName: string, rest: Partial<RecipeIngredient> = {}): RecipeIngredient =>
@@ -65,6 +66,36 @@ test('Standardize asks the model once per line; a line it left alone is not aske
   const second = await standardizeRecipe(after, true)
   assert.equal(calls.length, 0)
   assert.equal(second.filled, 0)
+})
+
+test('only lines the model saw are marked: a capped send, a dropped line, a reply with no model call', async () => {
+  // 70 gaps: one call sends 60, the other 10 wait for the next tap.
+  const many = Array.from({ length: 70 }, (_, i) => ing(`spice ${i}`))
+  const id = await db.recipes.add({ title: 'Big', servings: 1, createdAt: 1, ingredients: many } as Recipe)
+  calls = []
+  await standardizeRecipe((await db.recipes.get(id))!, true)
+  assert.equal(calls[0].lines.length, 60)
+  let rows = (await db.recipes.get(id))!.ingredients
+  assert.equal(rows.filter((l) => l.estimateAsked).length, 60)
+  assert.deepEqual(openGaps(rows), Array.from({ length: 10 }, (_, i) => 60 + i))
+
+  // The server kept only some lines (it drops malformed ones): only those are marked.
+  const ok = globalThis.fetch
+  globalThis.fetch = (async (_u: unknown, init?: RequestInit) => {
+    const b = JSON.parse(String(init?.body))
+    return new Response(JSON.stringify({ lines: [], asked: [b.lines[0].index] }), { status: 200 })
+  }) as typeof fetch
+  const id2 = await db.recipes.add({ title: 'Two', servings: 1, createdAt: 1, ingredients: [ing('a'), ing('b')] } as Recipe)
+  await standardizeRecipe((await db.recipes.get(id2))!, true)
+  rows = (await db.recipes.get(id2))!.ingredients
+  assert.deepEqual(rows.map((l) => l.estimateAsked), [true, undefined])
+
+  // No model call at all ({lines: [], asked: []}): nothing is marked.
+  globalThis.fetch = (async () => new Response(JSON.stringify({ lines: [], asked: [] }), { status: 200 })) as typeof fetch
+  const id3 = await db.recipes.add({ title: 'None', servings: 1, createdAt: 1, ingredients: [ing('c')] } as Recipe)
+  await standardizeRecipe((await db.recipes.get(id3))!, true)
+  assert.equal((await db.recipes.get(id3))!.ingredients[0].estimateAsked, undefined)
+  globalThis.fetch = ok
 })
 
 test('a failed model call marks nothing, so the next tap can try again', async () => {

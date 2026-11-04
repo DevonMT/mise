@@ -132,7 +132,7 @@ const AMOUNTS: Array<{ match: RegExp; quantity: number; unit: string; fresh?: bo
 ]
 
 /** Words that mean the line is not the spice itself: "bell pepper", "garlic cloves". */
-const NOT_A_SPICE = /\b(bell|jalape\w*|poblano|serrano|habanero|banana|anaheim|sweet|hot|chipotle|roasted red) peppers?\b|(?<!crushed )\b(green|red|yellow|orange) pepper\b(?! flakes)|\bpeppers\b|\bgarlic cloves?\b|\bcloves? (of )?garlic\b|\bpeppercorn sauce\b|\bpepper jack\b|\bsalted butter\b|\bsalt pork\b|\bpickles?\b|\bsausages?\b|\bginger (ale|beer)\b|\bgingersnaps?\b|\b(cinnamon|sweet) rolls?\b|\bcinnamon (sticks?|sugar|toast|bread)\b|\bmint (chocolate|chips|ice cream)\b|\bbasil pesto\b|\bpesto\b/
+const NOT_A_SPICE = /\b(jalape\w*|poblano|serrano|habanero|anaheim|fresno|scotch bonnet)\b|\b(bell|banana|sweet|hot|chipotle|roasted red|chil(i|e)|thai|cherry) peppers?\b(?! flakes)|\bthai chil(i|e)s?\b|(?<!crushed )\b(green|red|yellow|orange) pepper\b(?! flakes)|\bpeppers\b|\bgarlic cloves?\b|\bcloves? (of )?garlic\b|\bpeppercorn sauce\b|\bpepper jack\b|\bsalted butter\b|\bsalt pork\b|\bpickles?\b|\bsausages?\b|\bginger (ale|beer)\b|\bgingersnaps?\b|\b(cinnamon|sweet) rolls?\b|\bcinnamon (sticks?|sugar|toast|bread)\b|\bmint (chocolate|chips|ice cream)\b|\bbasil pesto\b|\bpesto\b/
 
 /** Lowercase, accents and trademarks gone, "Ro-Tel" as "rotel". */
 function norm(s: string): string {
@@ -149,13 +149,25 @@ function norm(s: string): string {
 type Line = Pick<RecipeIngredient, 'displayName' | 'canonicalKey' | 'section'> &
   Partial<Pick<RecipeIngredient, 'quantity' | 'unit' | 'buyCount' | 'sizeAmount' | 'sizeUnit' | 'packaging' | 'sizeEstimated' | 'amountEstimated' | 'estimateAsked'>>
 
-/** The two spellings a rule may match: the display name, then the merge key
- *  ("Ro-Tel Original" is keyed "diced tomatoes and green chiles"). Exclusions
- *  are only ever tested on the name, which is what the recipe actually said. */
-const names = (l: Pick<Line, 'displayName' | 'canonicalKey'>) => {
+/**
+ * Whether a rule claims this line. It may match the display name or, failing
+ * that, the merge key ("Ro-Tel Original" is keyed "diced tomatoes and green
+ * chiles"). The exclusion always runs on the name, which is what the recipe
+ * said; when only the key matched it runs on the key as well, because the key
+ * is where the match came from ("jalapeño" keyed "jalapeno pepper" must not
+ * become a pepper spice). Exported for the tests.
+ */
+export function claims(l: Pick<Line, 'displayName' | 'canonicalKey'>, match: RegExp, not?: RegExp): boolean {
   const name = norm(l.displayName)
+  if (not?.test(name)) return false
+  if (match.test(name)) return true
   const key = norm(l.canonicalKey ?? '')
-  return { name, either: (re: RegExp) => re.test(name) || (!!key && re.test(key)) }
+  return !!key && match.test(key) && !not?.test(key)
+}
+
+/** Produce and meat are sold loose: a line filed there takes a pack only when its own unit names a container. */
+function soldLoose(l: Pick<Line, 'section' | 'unit'>): boolean {
+  return (l.section === 'produce' || l.section === 'meat') && !CONTAINERS[unitOf(l)]
 }
 const unitOf = (l: Pick<Line, 'unit'>) => norm(l.unit ?? '')
 
@@ -193,12 +205,10 @@ export function needsAmount(l: Line): boolean {
  * chiles"): "1 green chile" or "fresh tuna" stays as it is.
  */
 export function lookupPack(l: Line): PackSize | null {
-  const { name, either } = names(l)
   const said = CONTAINERS[unitOf(l)]
-  if ((l.section === 'produce' || l.section === 'meat') && !said) return null
+  if (soldLoose(l)) return null
   for (const r of PACKS) {
-    if (r.not?.test(name)) continue
-    if (!either(r.match)) continue
+    if (!claims(l, r.match, r.not)) continue
     const size = (said ? r.alt?.[said] : undefined) ?? r.size
     return { size, unit: r.unit, packaging: said && said !== 'container' ? said : r.packaging }
   }
@@ -207,10 +217,8 @@ export function lookupPack(l: Line): PackSize | null {
 
 /** The table's estimated amount for a spice or herb with none, or null. */
 export function lookupAmount(l: Line): { quantity: number; unit: string } | null {
-  const { name, either } = names(l)
-  if (NOT_A_SPICE.test(name)) return null
   for (const a of AMOUNTS) {
-    if (!either(a.match)) continue
+    if (!claims(l, a.match, NOT_A_SPICE)) continue
     // A fresh herb (filed with produce) is chopped by the tablespoon.
     if (a.fresh && l.section === 'produce') return { quantity: 2, unit: 'tbsp' }
     return { quantity: a.quantity, unit: a.unit }
@@ -318,11 +326,13 @@ export function mergeEstimate<T extends Line>(l: T, e: Estimate | undefined): T 
 /**
  * At parse time: the model has already estimated (flagged) where it could. The
  * table still goes first, so a table hit replaces the model's estimated size;
- * a size the source stated (not flagged) is kept. Amounts the model estimated
+ * a size the source stated (not flagged) is kept, and an estimated pack on a
+ * produce or meat line with no container unit is dropped. Amounts the model estimated
  * stay, because it saw the recipe's yield and the table did not.
  */
 export function standardizeParsed<T extends Line>(l: T): T {
-  if (l.sizeEstimated && lookupPack(l)) {
+  // The model guessed a pack for something sold loose ("1 green chile"): drop it.
+  if (l.sizeEstimated && (soldLoose(l) || lookupPack(l))) {
     l = { ...l, buyCount: undefined, sizeAmount: undefined, sizeUnit: undefined, packaging: undefined, sizeEstimated: undefined }
   }
   return fillFromTable(l)

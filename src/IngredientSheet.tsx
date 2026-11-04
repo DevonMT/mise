@@ -108,10 +108,12 @@ export function IngredientSheet({
   const target = data?.target
   const [busy, setBusy] = useState(false)
 
-  const qty = formatQty({
+  const amount = formatQty({
     quantity: ing.quantity != null ? Math.round(ing.quantity * factor * 100) / 100 : undefined,
     unit: ing.unit,
   })
+  // "≈" when Mise estimated it (#774), as on the recipe screen.
+  const qty = amount && ing.amountEstimated ? `≈ ${amount}` : amount
 
   const run = async (fn: () => Promise<string>) => {
     setBusy(true)

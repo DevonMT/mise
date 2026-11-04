@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { authorize } from './guard.js'
-import { PARSE_SCHEMA, SYSTEM_PROMPT, parseSystem, standardizePrompt, standardizeRequest } from './parseContract.js'
+import { PARSE_SCHEMA, SYSTEM_PROMPT, parseReply, parseSystem, standardizePrompt, standardizeReply, standardizeRequest } from './parseContract.js'
 
 test('standardize: lines are cleaned, capped and checked before they reach a prompt', () => {
   const req = standardizeRequest({
@@ -55,4 +55,25 @@ test('estimates are opt-in: only a client that asks gets the standard-size rules
   assert.match(asked, /STANDARD SIZES AND AMOUNTS\. This request asks for them/)
   assert.match(asked, /Velveeta 32 oz block/)
   assert.match(asked, /spaghetti squash/)
+})
+
+test('the parse reply says estimates back only when they were asked for', () => {
+  const data = { sourceType: 'recipe', items: [] }
+  assert.deepEqual(parseReply(data, true), { sourceType: 'recipe', items: [], estimates: true })
+  assert.equal(parseReply(data, false), data, 'unchanged for a client that did not ask')
+  assert.equal(parseReply(null, true), null)
+  assert.deepEqual(parseReply([1], true), [1])
+})
+
+test('the standardize reply names exactly the indexes the model saw', () => {
+  const req = standardizeRequest({ lines: [{ index: 4, displayName: 'cumin' }, { index: 7, displayName: '' }, { index: 9, displayName: 'oil' }] })
+  const reply = standardizeReply({ lines: [{ index: 4, quantity: 1, unit: 'tsp' }] }, req)
+  assert.deepEqual(reply.asked, [4, 9], 'the blank line was dropped, so it was never asked')
+  assert.equal(reply.lines.length, 1)
+  // No request worth sending: no model call, nothing asked.
+  assert.deepEqual(standardizeReply(null, null), { lines: [], asked: [] })
+  assert.deepEqual(standardizeReply({ nope: true }, req).lines, [])
+  // The cap: 200 sent, 60 asked.
+  const big = standardizeRequest({ lines: Array.from({ length: 200 }, (_, i) => ({ index: i, displayName: `x${i}` })) })
+  assert.equal(standardizeReply({ lines: [] }, big).asked.length, 60)
 })

@@ -200,14 +200,18 @@ export interface StandardizeAsk {
 export async function standardizeLines(
   recipe: { title: string; servings: number },
   lines: StandardizeAsk[],
-): Promise<Array<Estimate & { index: number }>> {
-  if (!lines.length) return []
-  const data = await postJson<{ lines?: Array<Estimate & { index: number }> }>(
+): Promise<{ answers: Array<Estimate & { index: number }>; asked: Set<number> }> {
+  if (!lines.length) return { answers: [], asked: new Set() }
+  const data = await postJson<{ lines?: Array<Estimate & { index: number }>; asked?: unknown }>(
     '/api/standardize',
     { title: recipe.title, servings: recipe.servings, lines },
     'Standardize',
   )
-  return Array.isArray(data.lines) ? data.lines.filter((l) => l && Number.isInteger(l.index)) : []
+  const answers = Array.isArray(data.lines) ? data.lines.filter((l) => l && Number.isInteger(l.index)) : []
+  // The indexes the model actually saw. Only those count as tried: a line the
+  // server dropped, or a reply that made no model call, must be asked again.
+  const asked = new Set(Array.isArray(data.asked) ? data.asked.filter((i): i is number => Number.isInteger(i)) : [])
+  return { answers, asked }
 }
 
 /**

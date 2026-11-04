@@ -83,6 +83,9 @@ export async function saveRecipeFromParse(result: ParseResult): Promise<number |
   return db.recipes.add(recipe as Recipe)
 }
 
+/** Lines one Standardize call may send; matches STANDARDIZE_MAX_LINES in server/src/parseContract.ts. */
+export const STANDARDIZE_MAX_LINES = 60
+
 export interface Standardized {
   /** Lines the table or the model filled. */
   filled: number
@@ -105,10 +108,12 @@ export async function standardizeRecipe(recipe: Recipe, ai: boolean): Promise<St
     if (changedCount(before, lines) > 0) await db.recipes.update(recipe.id!, { ingredients: lines })
   }
   await save()
-  const gaps = ai ? openGaps(lines) : []
+  // One call asks about at most 60 lines (the server's STANDARDIZE_MAX_LINES);
+  // the rest wait for the next tap, unmarked.
+  const gaps = ai ? openGaps(lines).slice(0, STANDARDIZE_MAX_LINES) : []
   if (!gaps.length) return { filled: filledCount(before, lines) }
   try {
-    const answers = await standardizeLines(
+    const { answers, asked: seen } = await standardizeLines(
       { title: recipe.title, servings: recipe.servings },
       gaps.map((i) => ({
         index: i,
@@ -117,11 +122,11 @@ export async function standardizeRecipe(recipe: Recipe, ai: boolean): Promise<St
         unit: lines[i].unit ?? null,
       })),
     )
-    const asked = new Set(gaps)
+    // Marked tried: a line this call sent AND the server says the model saw,
+    // answered or not. The model was told to leave "oil for frying" alone, and
+    // asking again would spend another call and keep the button up forever.
+    const asked = new Set(gaps.filter((i) => seen.has(i)))
     const byIndex = new Map(answers.filter((a) => asked.has(a.index)).map((a) => [a.index, a]))
-    // Every line asked about is marked, answered or not: the model was told to
-    // leave "oil for frying" alone, and asking again would spend another call
-    // and keep the button up forever.
     const tried = <T extends Recipe['ingredients'][number]>(l: T, i: number): T => {
       const m = mergeEstimate(l, byIndex.get(i))
       return asked.has(i) ? { ...m, estimateAsked: true } : m

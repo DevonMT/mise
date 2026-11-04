@@ -19,6 +19,8 @@ import {
   STANDARDIZE_SYSTEM,
   standardizePrompt,
   standardizeRequest,
+  parseReply,
+  standardizeReply,
 } from './parseContract.js'
 import { authorize, brokerFailure, capFrom, createCallCap, unexpectedFailure } from './guard.js'
 import { timingSafeEqual } from 'node:crypto'
@@ -263,9 +265,8 @@ app.post('/api/parse', async (c) => {
       system: parseSystem(estimates),
       images,
     })
-    // Said back, so the client knows the model really was asked for estimates
-    // (a server from before #774 ignores the flag and says nothing).
-    return c.json(estimates && data && typeof data === 'object' ? { ...data, estimates: true } : data)
+    // Said back, so the client knows the model really was asked for estimates.
+    return c.json(parseReply(data, estimates))
   } catch (e) {
     console.error('parse error:', e)
     // Keep the broker's status. A refusal (422) and an exhausted budget (429)
@@ -393,7 +394,8 @@ app.post('/api/standardize', async (c) => {
     return c.json({ error: 'Invalid JSON body.' }, 400)
   }
   const req = standardizeRequest(body)
-  if (!req) return c.json({ lines: [] })
+  // Nothing worth asking: no model call, and `asked` empty so nothing is marked tried.
+  if (!req) return c.json(standardizeReply(null, null))
 
   const capped = overCap(c)
   if (capped) return capped
@@ -405,7 +407,7 @@ app.post('/api/standardize', async (c) => {
       schema: STANDARDIZE_SCHEMA,
       system: STANDARDIZE_SYSTEM,
     })
-    return c.json(data)
+    return c.json(standardizeReply(data, req))
   } catch (e) {
     console.error('standardize error:', e)
     if (e instanceof BrokerError) {

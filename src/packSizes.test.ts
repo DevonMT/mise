@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import type { RecipeIngredient, Section } from './db'
 import {
   canStandardize,
+  claims,
   fillFromTable,
   lookupAmount,
   lookupPack,
@@ -247,4 +248,37 @@ test('a stated unit with no number keeps its unit; only the number is filled', (
   assert.equal(amount(mergeEstimate(real("za'atar", 'zaatar', { unit: 'pinch' }, 'baking'), { quantity: 2, unit: null })), '2 pinch true')
   assert.equal(amount(mergeEstimate(real("za'atar", 'zaatar', { unit: 'tsp' }, 'baking'), { quantity: 2, unit: 'tsp' })), '2 tsp true')
   assert.equal(amount(mergeEstimate(real("za'atar", 'zaatar', {}, 'baking'), { quantity: 2, unit: null })), '2 undefined true')
+})
+
+test('a fresh chile keyed as a pepper stays a chile: the exclusion runs on the key too', () => {
+  for (const [name, key] of [
+    ['jalapeño', 'jalapeno pepper'],
+    ['jalapeños', 'jalapeno'],
+    ['serrano', 'serrano pepper'],
+    ['poblano', 'poblano pepper'],
+    ['Thai chili', 'chili pepper'],
+    ['habanero', 'habanero pepper'],
+  ]) {
+    for (const section of ['produce', 'other'] as Section[]) {
+      const out = fillFromTable(real(name, key, {}, section))
+      assert.equal(out.quantity, undefined, `${name} (${key}, ${section}) is not ¼ tsp of pepper`)
+      assert.equal(out.sizeAmount, undefined)
+    }
+  }
+  // The spice itself, keyed broadly, still gets its amount.
+  assert.equal(fillFromTable(real('freshly ground black pepper', 'pepper', {}, 'baking')).quantity, 0.25)
+  assert.equal(fillFromTable(real('chili pepper flakes', 'red pepper flakes', {}, 'baking')).quantity, 0.5)
+  assert.equal(claims(real('Ro-Tel Original', 'diced tomatoes and green chiles'), /\brotel\b|diced tomatoes (and|&) green chil/), true)
+})
+
+test("at parse time a model's pack on loose produce or meat is dropped", () => {
+  const chile = real('green chile', 'green chile', { quantity: 1, unit: 'whole', buyCount: 1, sizeAmount: 4, sizeUnit: 'oz', packaging: 'can', sizeEstimated: true }, 'produce')
+  assert.deepEqual(pack(standardizeParsed(chile)), [undefined, undefined, undefined, undefined])
+  const steak = real('ribeye', 'ribeye steak', { quantity: 1, unit: 'whole', buyCount: 1, sizeAmount: 12, sizeUnit: 'oz', packaging: 'package', sizeEstimated: true }, 'meat')
+  assert.equal(standardizeParsed(steak).sizeAmount, undefined)
+  // A container the cook named keeps the model's size, and a stated size always stays.
+  const canned = real('green chiles', 'green chile', { quantity: 1, unit: 'can', buyCount: 1, sizeAmount: 4, sizeUnit: 'oz', packaging: 'can', sizeEstimated: true }, 'produce')
+  assert.equal(standardizeParsed(canned).sizeAmount, 4)
+  const stated = real('ribeye', 'ribeye steak', { quantity: 1, unit: 'whole', buyCount: 1, sizeAmount: 12, sizeUnit: 'oz', packaging: 'package' }, 'meat')
+  assert.equal(standardizeParsed(stated), stated)
 })
