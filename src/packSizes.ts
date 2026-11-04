@@ -70,7 +70,7 @@ const PACKS: PackRule[] = [
   { match: /\bchipotles?\b.*\badobo\b/, size: 7, unit: 'oz', packaging: 'can' },
   { match: /\benchilada sauce\b/, size: 10, unit: 'oz', packaging: 'can' },
   { match: /\bpumpkin puree\b|\b(canned|pure) pumpkin\b/, size: 15, unit: 'oz', packaging: 'can' },
-  { match: /\btuna\b(?! steaks?)/, size: 5, unit: 'oz', packaging: 'can' },
+  { match: /(?<!(fresh|ahi|sushi[- ]grade|seared) )\btuna\b(?! (steaks?|fillets?|loin|tartare|poke))/, size: 5, unit: 'oz', packaging: 'can' },
   { match: /\b(chicken|beef|vegetable|veggie|bone) (broth|stock)\b|^(broth|stock) \|/, size: 32, unit: 'oz', packaging: 'carton', alt: { can: 14.5 } },
   // Jars and tubs
   { match: /\bsalsa\b|\bqueso dip\b/, size: 16, unit: 'oz', packaging: 'jar' },
@@ -83,7 +83,7 @@ const PACKS: PackRule[] = [
   // Boxes, bags and packets
   { match: /\bfrozen (chopped )?spinach\b/, size: 10, unit: 'oz', packaging: 'box' },
   { match: /\bcake mix\b/, size: 15.25, unit: 'oz', packaging: 'box' },
-  { match: /\b(instant )?pudding( mix)?\b/, size: 3.4, unit: 'oz', packaging: 'box' },
+  { match: /\b(instant )?pudding mix\b|\binstant pudding\b/, size: 3.4, unit: 'oz', packaging: 'box' },
   { match: /\bchocolate chips\b/, size: 12, unit: 'oz', packaging: 'bag' },
   { match: /\btortilla chips\b/, size: 13, unit: 'oz', packaging: 'bag' },
   { match: /\b(taco|ranch|fajita|chili|onion soup|italian dressing|gravy) (seasoning|mix|dressing mix|soup mix)\b/, size: 1, unit: 'oz', packaging: 'packet' },
@@ -118,6 +118,8 @@ const AMOUNTS: Array<{ match: RegExp; quantity: number; unit: string; fresh?: bo
   { match: /\b(ground )?(nutmeg|cloves|allspice|cardamom)\b/, quantity: 0.25, unit: 'tsp' },
   { match: /\bitalian seasoning\b|\bcajun seasoning\b|\bcreole seasoning\b|\bold bay\b|\bseasoning salt\b|\bseasoned salt\b|\bherbes de provence\b/, quantity: 1, unit: 'tsp' },
   { match: /\bbay lea(f|ves)\b/, quantity: 2, unit: 'whole' },
+  // One line for both, above either alone, so the salt is not lost.
+  { match: /\bsalt (and|&) (black )?pepper\b/, quantity: 0.5, unit: 'tsp' },
   { match: /\b(black |white )?pepper(corns)?\b/, quantity: 0.25, unit: 'tsp' },
   { match: /\b(kosher |sea |table )?salt\b/, quantity: 0.5, unit: 'tsp' },
   // Herbs: fresh ones are chopped by the tablespoon, dried by the teaspoon.
@@ -125,7 +127,7 @@ const AMOUNTS: Array<{ match: RegExp; quantity: number; unit: string; fresh?: bo
 ]
 
 /** Words that mean the line is not the spice itself: "bell pepper", "garlic cloves". */
-const NOT_A_SPICE = /\b(bell|jalape\w*|poblano|serrano|habanero|banana|anaheim|sweet|hot|chipotle|roasted red) peppers?\b|(?<!crushed )\b(green|red|yellow|orange) pepper\b(?! flakes)|\bpeppers\b|\bgarlic cloves?\b|\bcloves? (of )?garlic\b|\bpeppercorn sauce\b|\bpepper jack\b|\bsalted butter\b|\bsalt pork\b/
+const NOT_A_SPICE = /\b(bell|jalape\w*|poblano|serrano|habanero|banana|anaheim|sweet|hot|chipotle|roasted red) peppers?\b|(?<!crushed )\b(green|red|yellow|orange) pepper\b(?! flakes)|\bpeppers\b|\bgarlic cloves?\b|\bcloves? (of )?garlic\b|\bpeppercorn sauce\b|\bpepper jack\b|\bsalted butter\b|\bsalt pork\b|\bpickles?\b|\bsausages?\b|\bginger (ale|beer)\b|\bgingersnaps?\b|\b(cinnamon|sweet) rolls?\b|\bcinnamon (sticks?|sugar|toast|bread)\b|\bmint (chocolate|chips|ice cream)\b|\bbasil pesto\b|\bpesto\b/
 
 /** Lowercase, accents and trademarks gone, "Ro-Tel" as "rotel". */
 function norm(s: string): string {
@@ -145,10 +147,16 @@ type Line = Pick<RecipeIngredient, 'displayName' | 'canonicalKey' | 'section'> &
 const text = (l: Pick<Line, 'displayName' | 'canonicalKey'>) => norm(`${l.displayName} | ${l.canonicalKey ?? ''}`)
 const unitOf = (l: Pick<Line, 'unit'>) => norm(l.unit ?? '')
 
-/** The line says how many containers or whole things, or nothing at all: a pack size can go on it. */
-export function countedLine(l: Pick<Line, 'unit'>): boolean {
+/**
+ * The line counts containers ("2 cans"), or is one bare thing ("Velveeta",
+ * "1 Velveeta"): a pack size can go on it. A count of more than one with no
+ * container ("12 lasagna noodles", "8 crescent rolls") counts PIECES, not
+ * packages, so it gets none: 12 noodles is not 12 boxes.
+ */
+export function countedLine(l: Pick<Line, 'unit' | 'quantity'>): boolean {
   const u = unitOf(l)
-  return COUNTS.has(u) || u in CONTAINERS
+  if (u in CONTAINERS) return true
+  return COUNTS.has(u) && (l.quantity == null || l.quantity <= 1)
 }
 
 /** No package chosen: no count, no size, no container. */

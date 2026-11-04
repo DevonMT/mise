@@ -159,3 +159,30 @@ test('openGaps names the lines left for the model', () => {
   assert.equal(canStandardize(lines, false), false, 'without AI only the table counts, and it has nothing here')
   assert.equal(canStandardize([line('black beans', { quantity: 1, unit: 'can' })], false), true)
 })
+
+test('review fixes: pieces are not packages, and look-alike words are not spices', () => {
+  // A count of pieces with no container gets no pack: 12 noodles is not 12 boxes.
+  for (const l of [line('lasagna noodles', { quantity: 12 }), line('crescent rolls', { quantity: 8, unit: 'whole' })]) {
+    assert.equal(fillFromTable(l), l, l.displayName)
+  }
+  // One bare thing still does.
+  assert.deepEqual(pack(fillFromTable(line('Velveeta', { quantity: 1, unit: 'whole' }, 'dairy'))), [1, 32, 'oz', 'block'])
+  // And a counted container always does.
+  assert.deepEqual(pack(fillFromTable(line('crescent rolls', { quantity: 2, unit: 'cans' }))), [2, 8, 'oz', 'can'])
+
+  const amt = (name: string) => {
+    const a = lookupAmount(line(name, {}, 'baking'))
+    return a && `${a.quantity} ${a.unit}`
+  }
+  assert.equal(amt('salt and pepper'), '0.5 tsp')
+  for (const name of ['dill pickles', 'sage sausage', 'ginger ale', 'cinnamon rolls', 'basil pesto']) {
+    assert.equal(amt(name), null, name)
+  }
+  const size = (name: string) => lookupPack(line(name, {}))?.packaging ?? null
+  assert.equal(size('fresh tuna'), null)
+  assert.equal(size('tuna fillets'), null)
+  assert.equal(size('ahi tuna'), null)
+  assert.equal(size('chunk light tuna'), 'can')
+  assert.equal(size('bread pudding'), null)
+  assert.equal(size('instant pudding mix'), 'box')
+})
