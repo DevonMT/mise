@@ -105,11 +105,22 @@ async function postJson<T>(path: string, body: unknown, label: string): Promise<
   if (res.status === 401) {
     throw new Error('You are signed out. Sign in at id.devondoes.dev and try again.')
   }
+  // A 403 from Mise's own door carries its reason ("AI features are not part
+  // of your Mise."), which is a different fix from having no Mise at all
+  // (#768). Only a 403 without one (the gateway's) means no access.
   if (res.status === 403) {
-    throw new Error('Your account does not have access to Mise yet. Ask Devon for it.')
+    throw new Error(serverError(data) ?? 'Your account does not have access to Mise yet. Ask Devon for it.')
   }
-  if (!res.ok) throw new Error((data as { error?: string })?.error ?? `${label} failed (${res.status})`)
+  if (!res.ok) throw new Error(serverError(data) ?? `${label} failed (${res.status})`)
   return data as T
+}
+
+/** The server's own sentence from an error body, if it sent a usable one. Exported for the tests. */
+export function serverError(data: unknown): string | null {
+  const e = (data as { error?: unknown } | null)?.error
+  if (typeof e !== 'string') return null
+  const s = e.trim()
+  return s && s.length <= 300 ? s : null
 }
 
 export async function parseCapture(input: {
