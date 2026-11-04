@@ -26,11 +26,14 @@ export function matchesRecipe(r: Pick<Recipe, 'title' | 'ingredients'>, q: strin
 
 export function RecipesView({
   activeListId,
+  home,
   onAddRecipe,
   onAdded,
   onToast,
 }: {
   activeListId: number
+  /** Goes up by one each time the Recipes tab is tapped while already on it. */
+  home: number
   onAddRecipe: () => void
   /** The grocery list the ingredients actually landed on — may not be the one
    *  you were standing on, so the caller switches you to it. */
@@ -51,6 +54,13 @@ export function RecipesView({
   const [q, setQ] = useState('')
   // Back from a recipe goes to Recipes, not all the way to the list.
   useBackLayer(selected !== null, () => setSelected(null))
+  // Re-tapping the Recipes tab is the other way out of a recipe. Adjusted
+  // during render (not in an effect) so the detail never paints once more.
+  const [seenHome, setSeenHome] = useState(home)
+  if (home !== seenHome) {
+    setSeenHome(home)
+    setSelectedId(null)
+  }
 
   if (selected) {
     return (

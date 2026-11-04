@@ -83,6 +83,13 @@ export default function App() {
   const catalog = useLiveQuery(() => db.catalog.toArray(), []) ?? []
 
   const [tab, setTab] = useState<Tab>('list')
+  // Tapping the tab you are already on takes you to its top, like most phone
+  // apps: on Recipes it closes the open recipe.
+  const [recipesHome, setRecipesHome] = useState(0)
+  const pickTab = (t: Tab) => {
+    if (t === tab && t === 'recipes') setRecipesHome((n) => n + 1)
+    setTab(t)
+  }
   const [view, setView] = useState<ListView>('list')
   const [sheet, setSheet] = useState<SheetState>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -815,6 +822,7 @@ export default function App() {
         {tab === 'recipes' && (
           <RecipesView
             activeListId={activeId}
+            home={recipesHome}
             // With AI on, offer all the capture methods; in Lite, straight to
             // the manual form (it'd be the menu's only option).
             onAddRecipe={() =>
@@ -889,7 +897,7 @@ export default function App() {
 
       <BottomNav
         tab={tab}
-        onChange={setTab}
+        onChange={pickTab}
         listIconName={listIcon(activeList)}
         listName={activeList.name}
         lists={lists}
