@@ -16,6 +16,7 @@ import {
   REFINE_SCHEMA,
   refineSystem,
 } from './parseContract.js'
+import { createCallCap } from './guard.js'
 import { timingSafeEqual } from 'node:crypto'
 
 const IMAGE_MEDIA = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const
@@ -105,7 +106,8 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '')
   .map((o) => o.trim())
   .filter(Boolean)
 // Backstop: if the key ever leaks, this caps the damage at a known number of
-// calls per day instead of an unbounded API bill.
+// calls per day instead of an unbounded API bill. Per person (see guard.ts), so
+// one user cannot use up another's day.
 const DAILY_CALL_CAP = Number(process.env.DAILY_CALL_CAP ?? 200)
 
 const app = new Hono<{ Variables: { caller: string } }>()
@@ -126,8 +128,7 @@ app.use(
   }),
 )
 
-let capDay = ''
-let capCount = 0
+const callCap = createCallCap(DAILY_CALL_CAP)
 
 app.use('/api/*', async (c, next) => {
   // /api/health stays open: it is the tunnel's and Mission Control's probe and
@@ -170,18 +171,15 @@ app.use('/api/*', async (c, next) => {
     }
   }
 
-  const today = new Date().toISOString().slice(0, 10)
-  if (today !== capDay) {
-    capDay = today
-    capCount = 0
-  }
-  if (capCount >= DAILY_CALL_CAP) {
+  // /api/status makes no model call, so it spends nothing: a status poll must
+  // not eat anyone's AI allowance. Everything else counts against the CALLER's
+  // own cap, never a shared one.
+  if (c.req.path !== '/api/status' && !callCap.take(email)) {
     return c.json(
       { error: `Daily cap of ${DAILY_CALL_CAP} AI calls reached. Try tomorrow.` },
       429,
     )
   }
-  capCount += 1
   return next()
 })
 
