@@ -2595,7 +2595,10 @@
   /* An instruction you cannot follow is worse than none. There is nothing to
      swipe with a mouse — you click the box, and delete is in the row. */
   .hint-banner { display: none; }
-  /* Not an instruction: sync has stopped until someone chooses (#278). */
+  /* Not instructions: sync has stopped until someone signs in or chooses
+     (#278, #716). Only the swipe hint is hidden above; any new banner that
+     reports a state needs its class listed here. */
+  .hint-banner.signin-banner,
   .hint-banner.account-banner { display: flex; }
 
   /* Show what a row does instead of explaining it. Never on touch, where a
