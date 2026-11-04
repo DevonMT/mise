@@ -1377,6 +1377,30 @@
   font-weight: 700;
   color: var(--accent);
 }
+/* The pack to grab, under the amount (#774). "≈" marks an estimate. */
+.ing-pack {
+  display: block;
+  font-weight: 500;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.std-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: -4px 0 14px;
+}
+.std-note {
+  flex: 1 1 22ch;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.std-btn {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
 
 /* ---- Tap an ingredient (recipe detail) ---- */
 .ing-tap {
@@ -1442,6 +1466,11 @@
 }
 
 /* ---- Optional ingredients (recipe detail) ---- */
+/* A pack size reads as a size, not a label: "≈ 32 oz block". */
+.rev-tag.pack {
+  text-transform: none;
+  letter-spacing: 0;
+}
 .rev-tag.optional {
   color: var(--fav);
   background: var(--fav-soft);

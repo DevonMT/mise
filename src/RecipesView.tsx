@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Recipe } from './db'
-import { addRecipeToList, type Skipped } from './recipes'
-import { formatQty } from './list'
+import { addRecipeToList, standardizeRecipe, type Skipped } from './recipes'
+import { formatBuy, formatQty } from './list'
+import { canStandardize } from './packSizes'
 import { defaultGroceryListId } from './lists'
 import { recipePageUrl, shareRecipePayload } from './share'
 import { recipeText, smsHref } from './recipeText'
@@ -225,6 +226,41 @@ ${url}`)
       quantity: ing.quantity != null ? Math.round(ing.quantity * factor * 100) / 100 : undefined,
       unit: ing.unit,
     })
+  // The amount, then the pack to grab: "2 can · 15 oz can". "≈" marks what Mise
+  // filled in rather than the recipe (#774), with a note under the list.
+  const amountOf = (ing: Recipe['ingredients'][number]) => {
+    const qty = qtyOf(ing)
+    const pack = formatBuy({ sizeAmount: ing.sizeAmount, sizeUnit: ing.sizeUnit, packaging: ing.packaging })
+    return (
+      <span className="ing-qty">
+        {qty && (ing.amountEstimated ? <span title="Estimated by Mise">≈ {qty}</span> : qty)}
+        {pack && (
+          <span className="ing-pack" title={ing.sizeEstimated ? 'Standard size, estimated by Mise' : undefined}>
+            {ing.sizeEstimated ? `≈ ${pack}` : pack}
+          </span>
+        )}
+      </span>
+    )
+  }
+  const anyEstimate = recipe.ingredients.some((i) => i.sizeEstimated || i.amountEstimated)
+
+  const aiOn = useAiEnabled()
+  const [standardizing, setStandardizing] = useState(false)
+  const standardizable = useMemo(() => canStandardize(recipe.ingredients, aiOn), [recipe.ingredients, aiOn])
+  const standardize = async () => {
+    setStandardizing(true)
+    try {
+      const { filled, error } = await standardizeRecipe(recipe, aiOn)
+      const done = filled
+        ? `Filled in ${filled} ${filled === 1 ? 'line' : 'lines'}, marked ≈.`
+        : error
+          ? ''
+          : 'Nothing left to fill in.'
+      onToast(error ? `${done} ${error}`.trim() : done)
+    } finally {
+      setStandardizing(false)
+    }
+  }
 
   return (
     <>
@@ -260,7 +296,7 @@ ${url}`)
             onClick={() => setPicked(i)}
           >
             <span className="ing-name">{ing.displayName}</span>
-            <span className="ing-qty">{qtyOf(ing)}</span>
+            {amountOf(ing)}
           </button>
         ))}
       </div>
@@ -276,7 +312,7 @@ ${url}`)
                   <button className={on ? 'opt-row on' : 'opt-row'} onClick={() => toggleOpt(i)}>
                     <span className="opt-check">{on ? '✓' : ''}</span>
                     <span className="ing-name">{ing.displayName}</span>
-                    <span className="ing-qty">{qtyOf(ing)}</span>
+                    {amountOf(ing)}
                   </button>
                   <button
                     className="opt-more"
@@ -289,6 +325,17 @@ ${url}`)
               )
             })}
           </div>
+        </div>
+      )}
+
+      {(anyEstimate || standardizable) && (
+        <div className="std-row">
+          {anyEstimate && <p className="std-note">≈ Estimated by Mise: standard sizes and amounts the recipe left out.</p>}
+          {standardizable && (
+            <button className="ghost std-btn" onClick={() => void standardize()} disabled={standardizing}>
+              {standardizing ? 'Standardizing…' : 'Standardize'}
+            </button>
+          )}
         </div>
       )}
 

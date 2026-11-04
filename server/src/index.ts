@@ -15,6 +15,10 @@ import {
   shopperLine,
   REFINE_SCHEMA,
   refineSystem,
+  STANDARDIZE_SCHEMA,
+  STANDARDIZE_SYSTEM,
+  standardizePrompt,
+  standardizeRequest,
 } from './parseContract.js'
 import { authorize, brokerFailure, capFrom, createCallCap, unexpectedFailure } from './guard.js'
 import { timingSafeEqual } from 'node:crypto'
@@ -364,6 +368,47 @@ app.post('/api/refine', async (c) => {
       return c.json({ error: f.error }, f.status)
     }
     const f = unexpectedFailure('refine those items')
+    return c.json({ error: f.error }, f.status)
+  }
+})
+
+/**
+ * POST /api/standardize (#774)
+ * body: { title?: string, servings?: number, lines: [{index, displayName, quantity, unit}] }
+ * -> { lines: [{index, quantity, unit, buyCount, sizeAmount, sizeUnit, packaging}] }
+ *
+ * The second pass of a recipe's Standardize button, for the lines the client's
+ * pack-size table could not fill. The client merges the answer into gaps only.
+ * Gated like every model route (guard.ts: the `full` variant) and capped.
+ */
+app.post('/api/standardize', async (c) => {
+  let body: unknown
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON body.' }, 400)
+  }
+  const req = standardizeRequest(body)
+  if (!req) return c.json({ lines: [] })
+
+  const capped = overCap(c)
+  if (capped) return capped
+
+  try {
+    const data = await askStructured<unknown>({
+      user: c.get('caller'),
+      prompt: standardizePrompt(req),
+      schema: STANDARDIZE_SCHEMA,
+      system: STANDARDIZE_SYSTEM,
+    })
+    return c.json(data)
+  } catch (e) {
+    console.error('standardize error:', e)
+    if (e instanceof BrokerError) {
+      const f = brokerFailure(e, 'fill in those sizes', 'size')
+      return c.json({ error: f.error }, f.status)
+    }
+    const f = unexpectedFailure('fill in those sizes')
     return c.json({ error: f.error }, f.status)
   }
 })

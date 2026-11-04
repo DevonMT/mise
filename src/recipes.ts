@@ -1,7 +1,8 @@
 import { db, canonicalize, type Recipe, type Item } from './db'
 import { addItem, fallsOn, packCount, startOfDay, type NewItem } from './list'
 import { getInStockKeys } from './lists'
-import { getStapleKeys, isStaple, type ParseResult } from './parse'
+import { getStapleKeys, isStaple, standardizeLines, type ParseResult } from './parse'
+import { changedCount, fillFromTable, mergeEstimate, openGaps } from './packSizes'
 
 const KNOWN_UNITS = new Set([
   'cup', 'cups', 'tbsp', 'tsp', 'oz', 'lb', 'lbs', 'g', 'kg', 'ml', 'l',
@@ -62,6 +63,8 @@ export async function saveRecipeFromParse(result: ParseResult): Promise<number |
       sizeAmount: i.sizeAmount ?? undefined,
       sizeUnit: i.sizeUnit ?? undefined,
       packaging: i.packaging ?? undefined,
+      sizeEstimated: i.sizeEstimated || undefined,
+      amountEstimated: i.amountEstimated || undefined,
       section: i.section,
       optional: i.optional || undefined,
     })),
@@ -77,6 +80,58 @@ export async function saveRecipeFromParse(result: ParseResult): Promise<number |
     return existing.id
   }
   return db.recipes.add(recipe as Recipe)
+}
+
+export interface Standardized {
+  /** Lines the table or the model filled. */
+  filled: number
+  /** Set when the model's pass failed; the table's fills are saved anyway. */
+  error?: string
+}
+
+/**
+ * Standardize a saved recipe (#774): fill in the pack sizes and amounts it left
+ * out, gaps only, so a size or amount already there (stated, edited, or an
+ * earlier estimate) never changes. The table first, saved at once; then, only
+ * with AI, the model for what the table did not know. Without AI it is the
+ * table alone and nothing errors.
+ */
+export async function standardizeRecipe(recipe: Recipe, ai: boolean): Promise<Standardized> {
+  if (recipe.id == null) return { filled: 0 }
+  const before = recipe.ingredients
+  let lines = before.map(fillFromTable)
+  const save = async () => {
+    if (changedCount(before, lines) > 0) await db.recipes.update(recipe.id!, { ingredients: lines })
+  }
+  await save()
+  const gaps = ai ? openGaps(lines) : []
+  if (!gaps.length) return { filled: changedCount(before, lines) }
+  try {
+    const answers = await standardizeLines(
+      { title: recipe.title, servings: recipe.servings },
+      gaps.map((i) => ({
+        index: i,
+        displayName: lines[i].displayName,
+        quantity: lines[i].quantity ?? null,
+        unit: lines[i].unit ?? null,
+      })),
+    )
+    const asked = new Set(gaps)
+    const byIndex = new Map(answers.filter((a) => asked.has(a.index)).map((a) => [a.index, a]))
+    lines = lines.map((l, i) => mergeEstimate(l, byIndex.get(i)))
+    // Re-read, so an edit made while the model was thinking is not lost: the
+    // answers go into the saved row's lines, gaps only, and only into a line
+    // still at the index (and with the name) it was asked about.
+    const now = await db.recipes.get(recipe.id)
+    if (!now) return { filled: 0 }
+    const merged = now.ingredients.map((l, i) =>
+      l.displayName === lines[i]?.displayName ? mergeEstimate(l, byIndex.get(i)) : l,
+    )
+    if (changedCount(now.ingredients, merged) > 0) await db.recipes.update(recipe.id, { ingredients: merged })
+    return { filled: changedCount(before, lines) }
+  } catch (e) {
+    return { filled: changedCount(before, lines), error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 /** A recipe line left off the list because the pantry has it: the line as it

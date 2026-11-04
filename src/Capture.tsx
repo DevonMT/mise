@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { ListKind, Section } from './db'
 import { KINDS } from './kinds'
 import { SECTIONS } from './sections'
-import { addItem, packCount } from './list'
+import { addItem, formatBuy, packCount } from './list'
 import {
   parseCapture,
   getStapleKeys,
@@ -26,13 +26,17 @@ interface Row {
   canonicalKey: string
   quantityStr: string
   unit: string | null
-  /** Pack the source named ("2 (10½ oz) cans") — undefined when it named none. */
+  /** Pack the source named ("2 (10½ oz) cans"), or a recipe's standard size
+   *  filled by packSizes.ts / the model (sizeEstimated). Undefined when neither. */
   buyCount?: number
   sizeAmount?: number
   sizeUnit?: string
   packaging?: string
   /** Plain paste: buyCount is the catalogue's pack as filed, not a container count from the source. */
   plain?: boolean
+  /** Mise filled the size / the amount in (#774); shown as "≈". */
+  sizeEstimated?: boolean
+  amountEstimated?: boolean
   section: Section
   include: boolean
   isStaple: boolean
@@ -139,6 +143,8 @@ export function CaptureSheet({
           sizeAmount: it.sizeAmount ?? undefined,
           sizeUnit: it.sizeUnit ?? undefined,
           packaging: it.packaging ?? undefined,
+          sizeEstimated: it.sizeEstimated || undefined,
+          amountEstimated: it.amountEstimated || undefined,
           section: it.section,
           // Staples, pantry stock and recipe-optional items are pre-skipped but
           // toggleable.
@@ -173,7 +179,7 @@ export function CaptureSheet({
         quantity,
         unit: r.unit ?? undefined,
         section: r.section,
-        // When the source named a pack, buyCount *is* the container count — so
+        // When the line has a pack (named or estimated), buyCount *is* the container count — so
         // editing the qty here ("2 cans" → "3") has to carry into what you buy.
         buyCount: r.plain ? r.buyCount : r.buyCount != null ? packCount(quantity ?? r.buyCount) : undefined,
         sizeAmount: r.sizeAmount,
@@ -324,6 +330,17 @@ export function CaptureSheet({
                       {r.isStaple && <span className="rev-tag">staple</span>}
                       {r.inPantry && <span className="rev-tag">in pantry</span>}
                       {r.optional && <span className="rev-tag optional">optional</span>}
+                      {!r.plain && formatBuy(r) && (
+                        <span className="rev-tag pack" title={r.sizeEstimated ? 'Standard size, estimated by Mise' : undefined}>
+                          {r.sizeEstimated ? '≈ ' : ''}
+                          {formatBuy({ ...r, buyCount: undefined })}
+                        </span>
+                      )}
+                      {r.amountEstimated && (
+                        <span className="rev-tag" title="Amount estimated by Mise">
+                          ≈ amount
+                        </span>
+                      )}
                     </div>
                     <div className="rev-meta">
                       <input

@@ -197,14 +197,23 @@ export type RecipeIngredient = Pick<
   | 'canonicalKey'
   | 'quantity'
   | 'unit'
-  // The pack the recipe itself named ("2 × 10½ oz can") — kept so adding the
-  // recipe to a list tells you which size to grab, not just "2 can".
+  // The pack the recipe itself named ("2 × 10½ oz can"), or the standard size
+  // Mise filled in (sizeEstimated, #774) — kept so adding the recipe to a list
+  // tells you which size to grab, not just "2 can".
   | 'buyCount'
   | 'sizeAmount'
   | 'sizeUnit'
   | 'packaging'
   | 'section'
-> & { optional?: boolean }
+> & {
+  optional?: boolean
+  /** The pack size was filled in by Mise (packSizes.ts or the model), not
+   *  stated by the source (#774). Shown as an estimate. */
+  sizeEstimated?: boolean
+  /** The amount was filled in by Mise, not stated: a spice with none, or a
+   *  bare "Velveeta" counted as one block. Cleared when the amount is edited. */
+  amountEstimated?: boolean
+}
 
 /** A saved recipe. */
 export interface Recipe {

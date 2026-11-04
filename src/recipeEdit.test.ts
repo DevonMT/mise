@@ -90,3 +90,11 @@ test('the pack to buy survives an edit', () => {
   const out = fromRow({ ...toRow(beans), qtyText: '2' })
   assert.deepEqual([out?.buyCount, out?.sizeAmount, out?.packaging], [1, 15, 'can'])
 })
+
+test('editing an estimated amount makes it the cook\'s: the ≈ mark goes (#774)', () => {
+  const cumin = { displayName: 'cumin', canonicalKey: 'cumin', quantity: 1, unit: 'tsp',
+                  section: 'baking' as const, amountEstimated: true }
+  assert.equal(fromRow(toRow(cumin))?.amountEstimated, true, 'untouched keeps the mark')
+  assert.equal(fromRow({ ...toRow(cumin), qtyText: '2' })?.amountEstimated, undefined)
+  assert.equal(fromRow({ ...toRow(cumin), unit: 'tbsp' })?.amountEstimated, undefined)
+})

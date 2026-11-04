@@ -17,15 +17,14 @@ import { useBackLayer } from './back'
  * A full-screen view rather than a sheet, for the same reason Refine is one: a
  * tall bottom sheet in the installed app left its lower controls untappable.
  */
-type Row = RecipeIngredient & { key: number; qtyText: string; origName: string }
+type Row = RecipeIngredient & { key: number; qtyText: string; origName: string; origAmount: string }
 
 let nextKey = 1
-const toRow = (i: RecipeIngredient): Row => ({
-  ...i,
-  key: nextKey++,
-  qtyText: i.quantity != null ? String(i.quantity) : '',
-  origName: i.displayName,
-})
+const amountText = (qtyText: string, unit?: string) => `${qtyText.trim()}|${(unit ?? '').trim()}`
+const toRow = (i: RecipeIngredient): Row => {
+  const qtyText = i.quantity != null ? String(i.quantity) : ''
+  return { ...i, key: nextKey++, qtyText, origName: i.displayName, origAmount: amountText(qtyText, i.unit) }
+}
 
 /** A row back into an ingredient. Exported for the tests.
  *
@@ -35,7 +34,7 @@ const toRow = (i: RecipeIngredient): Row => ({
  * ("chicken breast" for "boneless skinless chicken breasts") and is what lets
  * two recipes' chicken merge on one line. */
 export function fromRow(r: Row): RecipeIngredient | null {
-  const { key: _k, qtyText, origName, ...rest } = r
+  const { key: _k, qtyText, origName, origAmount, ...rest } = r
   const name = rest.displayName.trim()
   if (!name) return null
   const q = qtyText.trim() === '' ? undefined : Number(qtyText.trim().replace(',', '.'))
@@ -46,6 +45,8 @@ export function fromRow(r: Row): RecipeIngredient | null {
     quantity: q != null && Number.isFinite(q) && q > 0 ? q : undefined,
     unit: rest.unit?.trim() || undefined,
     optional: rest.optional || undefined,
+    // An amount typed by hand is the cook's, not Mise's estimate (#774).
+    amountEstimated: rest.amountEstimated && amountText(qtyText, rest.unit) === origAmount ? true : undefined,
   }
 }
 

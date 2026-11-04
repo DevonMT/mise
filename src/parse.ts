@@ -1,5 +1,6 @@
 import { db, type Section } from './db'
 import { itemKeys } from './match'
+import { standardizeParsed, type Estimate } from './packSizes'
 
 /**
  * Where the parse endpoint lives.
@@ -30,12 +31,17 @@ export interface ParsedItem {
   canonicalKey: string
   quantity: number | null
   unit: string | null
-  /** Buy layer, when the SOURCE stated a package size ("2 (10½ oz) cans").
-   *  All null when it didn't — Refine fills it in later. */
+  /** Buy layer: the package size the SOURCE stated ("2 (10½ oz) cans"), or,
+   *  on a recipe line counted in containers with none, the standard US size
+   *  (packSizes.ts first, the model second), flagged by sizeEstimated (#774). */
   buyCount?: number | null
   sizeAmount?: number | null
   sizeUnit?: string | null
   packaging?: string | null
+  /** The size above is an estimate, not the source's. */
+  sizeEstimated?: boolean
+  /** quantity/unit is an estimate (a spice with no amount), not the source's. */
+  amountEstimated?: boolean
   section: Section
   /** The recipe marks this ingredient as optional — not added by default. */
   optional?: boolean
@@ -110,7 +116,67 @@ export async function parseCapture(input: {
   type: 'text' | 'url' | 'image'
   content: string
 }): Promise<ParseResult> {
-  return postJson<ParseResult>('/api/parse', input, 'Parse')
+  const result = await postJson<ParseResult>('/api/parse', input, 'Parse')
+  return standardizeResult(result)
+}
+
+/**
+ * The size table over a parse result (#774). Recipes only: a typed shopping
+ * list says what you want, and a size or a teaspoon of cumin nobody wrote is
+ * not that. A list's flags are cleared, so nothing claims to be an estimate.
+ */
+export function standardizeResult(result: ParseResult): ParseResult {
+  if (result.sourceType !== 'recipe') {
+    return { ...result, items: result.items.map((i) => ({ ...i, sizeEstimated: false, amountEstimated: false })) }
+  }
+  return {
+    ...result,
+    items: result.items.map((i) => {
+      // The table works on undefined gaps; the wire says null.
+      const line = {
+        ...i,
+        quantity: i.quantity ?? undefined,
+        unit: i.unit ?? undefined,
+        buyCount: i.buyCount ?? undefined,
+        sizeAmount: i.sizeAmount ?? undefined,
+        sizeUnit: i.sizeUnit ?? undefined,
+        packaging: i.packaging ?? undefined,
+        sizeEstimated: i.sizeEstimated || undefined,
+        amountEstimated: i.amountEstimated || undefined,
+      }
+      // A flag with nothing under it is the model's slip, not an estimate.
+      if (line.sizeEstimated && line.sizeAmount == null) line.sizeEstimated = undefined
+      if (line.amountEstimated && line.quantity == null) line.amountEstimated = undefined
+      const out = standardizeParsed(line)
+      return { ...out, quantity: out.quantity ?? null, unit: out.unit ?? null }
+    }),
+  }
+}
+
+/** One line sent to /api/standardize. */
+export interface StandardizeAsk {
+  index: number
+  displayName: string
+  quantity: number | null
+  unit: string | null
+}
+
+/**
+ * The model's pass of Standardize, for lines the table left with a gap. Goes
+ * through the same door as every AI call, so an account without AI gets the
+ * server's 403 sentence; the caller only asks when aiEnabled().
+ */
+export async function standardizeLines(
+  recipe: { title: string; servings: number },
+  lines: StandardizeAsk[],
+): Promise<Array<Estimate & { index: number }>> {
+  if (!lines.length) return []
+  const data = await postJson<{ lines?: Array<Estimate & { index: number }> }>(
+    '/api/standardize',
+    { title: recipe.title, servings: recipe.servings, lines },
+    'Standardize',
+  )
+  return Array.isArray(data.lines) ? data.lines.filter((l) => l && Number.isInteger(l.index)) : []
 }
 
 /**
