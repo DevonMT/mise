@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useDialog } from './ds/useDialog'
+import { Sheet } from './Sheet'
 import * as people from './people'
 import type { SharePayload } from './share'
 
@@ -34,7 +34,6 @@ export function SharePeople({
   onClose: () => void
   onToast: (s: string) => void
 }) {
-  const ref = useDialog(onClose)
   // A seeded list has the same uid in every account, so the platform cannot
   // tell your copy from theirs and refuses to keep one in step (#682). Not
   // offered, rather than offered and refused.
@@ -68,11 +67,8 @@ export function SharePeople({
   }
 
   return (
-    <div className="scrim" onClick={onClose}>
-      <div className="sheet people-sheet" ref={ref} role="dialog" aria-modal="true"
-           aria-label={`Share ${listName}`} tabIndex={-1}
-           onClick={(e) => e.stopPropagation()}>
-        <h2>Share “{listName}”</h2>
+    <Sheet className="people-sheet" label={`Share ${listName}`} onClose={onClose}>
+        <h3 className="sheet-title">Share “{listName}”</h3>
 
         {friends === null && <p className="hint">Looking…</p>}
 
@@ -109,8 +105,7 @@ export function SharePeople({
             new list for that.
           </p>
         ))}
-      </div>
-    </div>
+    </Sheet>
   )
 }
 

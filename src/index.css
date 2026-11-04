@@ -2841,7 +2841,9 @@
    Two different things, said as two different things: a copy they keep, or one
    list you both edit. One control with a mode is how somebody shares a
    shopping list expecting it to update and finds out on the way home. */
-.people-sheet { display: grid; gap: 10px; }
+/* On the body, not the .sheet: .sheet is the flex column that lets the body
+   scroll, and a grid there silently breaks that (#715). */
+.people-sheet .sheet-body { display: grid; gap: 10px; align-content: start; }
 .person {
   display: flex;
   align-items: center;
