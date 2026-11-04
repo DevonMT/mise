@@ -7,7 +7,7 @@ import { askStructured, BrokerError } from './broker.js'
 import { BlockedAddressError, safeGet, type SafeResponse } from './safeFetch.js'
 import {
   PARSE_SCHEMA,
-  SYSTEM_PROMPT,
+  parseSystem,
   PRICES_SCHEMA,
   pricesSystem,
   PLACE_RULE,
@@ -208,7 +208,7 @@ app.get('/api/status', (c) =>
  * -> the parse contract (sourceType, recipeTitle, servings, items[])
  */
 app.post('/api/parse', async (c) => {
-  let body: { type?: string; content?: string; mediaType?: string }
+  let body: { type?: string; content?: string; mediaType?: string; estimates?: unknown }
   try {
     body = await c.req.json()
   } catch {
@@ -258,7 +258,8 @@ app.post('/api/parse', async (c) => {
       user: c.get('caller'),
       prompt: userContent,
       schema: PARSE_SCHEMA,
-      system: SYSTEM_PROMPT,
+      // Estimates only for a client that stores their flags (#774).
+      system: parseSystem(body.estimates === true),
       images,
     })
     return c.json(data)

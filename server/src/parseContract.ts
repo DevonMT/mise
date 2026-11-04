@@ -86,13 +86,11 @@ Return ONLY structured data matching the schema. Rules:
 - Skip ingredients nobody shops for, even when the recipe lists them as ingredients: plain water in any form ("1 1/2 cups water", "warm water", "water for boiling"), ice, and anything the recipe makes from other listed ingredients. They still belong in the instructions — they just never become shopping items.
 - displayName: the product AS IT IS SOLD, in shopping-friendly words (e.g. "yellow onion", "boneless chicken breast"). Strip the prep the cook does to it — chopped, diced, minced, sliced, grated, melted, softened, cooked, drained, rinsed, divided, room temperature — including a trailing prep clause after a comma: "Rotel Tomatoes, chopped" -> "Rotel tomatoes"; "1 1/2 cups chopped onions" -> "onions"; "1 cup grated cheddar cheese" -> "cheddar cheese". Keep a word that describes how the product is SOLD rather than what you do to it: "ground beef", "crushed tomatoes", "sliced sandwich bread", and "shredded mozzarella" where the recipe clearly wants the pre-shredded bag.
 - canonicalKey: a normalized merge key — lowercase, singular, no brand/adjectives that don't change what you buy. "yellow onions" and "1 diced onion" both -> "onion"; "boneless skinless chicken breasts" -> "chicken breast". This is how duplicates across sources get merged, so be consistent.
-- quantity: a number if one is stated or clearly implied, else null. Convert written numbers ("two") and simple fractions ("1/2" -> 0.5). Do not invent quantities, with ONE exception for recipes: a spice, dried herb, fresh herb or seasoning listed with no amount ("cumin", "salt and pepper to taste", "fresh cilantro") gets a modest estimated amount in tsp or tbsp suited to the recipe's yield (e.g. 1 tsp cumin, 1/2 tsp salt, 2 tbsp chopped cilantro), with amountEstimated true.
-- amountEstimated: true ONLY for that estimated spice/herb amount, or a bare packaged product counted as 1 container (below). false whenever the source stated the amount, and always false for a plain list.
+- quantity: a number if one is stated or clearly implied, else null. Convert written numbers ("two") and simple fractions ("1/2" -> 0.5). Do not invent quantities.
 - unit: the unit of measure if present (cup, lb, oz, clove, can, bunch, whole...), else null. If the item is just a count of whole things (e.g. "2 onions"), use "whole".
 - buyCount / sizeAmount / sizeUnit / packaging: the package to actually put in the cart. Recipes usually state it in parentheses — "2 (10 1/2 ounce) cans cream of mushroom soup", "1 (13-16 oz) bag Doritos", "one 15 oz can black beans". Fill these ONLY when the source states a container size AND the item is counted in containers: buyCount = how many containers (2), sizeAmount = what's in ONE container (10.5), sizeUnit = that measure ("oz"), packaging = the container noun ("can", "bag", "jar", "box", "bottle", "package"). Worked: "2 (10 1/2 ounce) cans cream of mushroom soup" -> quantity 2, unit "can", buyCount 2, sizeAmount 10.5, sizeUnit "oz", packaging "can". "1 (13-16 ounce) bag plain Doritos" -> quantity 1, unit "bag", buyCount 1, sizeAmount 13, sizeUnit "oz", packaging "bag" (given a range, use the smaller number).
-  Standard sizes (recipes only): when a RECIPE counts an item in containers but states no size ("1 can Rotel", "2 cans black beans", "1 block cream cheese"), or names a packaged product bare with no amount ("Velveeta"), fill the standard US retail size of that container (Rotel 10 oz can, Velveeta 32 oz block, canned beans 15 oz, condensed cream-of soups 10.5 oz, tomato paste 6 oz, cream cheese 8 oz block) and set sizeEstimated true. A bare product with no amount is quantity 1, unit = the container noun, amountEstimated true. Only estimate a size you are confident is the common one; otherwise leave the four null.
-  Set ALL FOUR to null (sizeEstimated false) for a plain list with no stated size, for loose produce and anything not sold in a container ("2 onions", "1 lemon"), and whenever the amount is a cooking measure — 1 1/2 cups onions, 2 tbsp butter, 3 cloves garlic, 1 lb ground beef, 8 oz Velveeta all get null. A stated equivalent like "1 cup (8 oz) sour cream" is a conversion, NOT a package size — null.
-- sizeEstimated: true ONLY when the size is your standard-size estimate; false when the source stated it or the four are null.
+  Set ALL FOUR to null when the source states no container size ("1 can of beans"), or when the amount is a cooking measure — 1 1/2 cups onions, 2 tbsp butter, 3 cloves garlic, 1 lb ground beef all get null. A stated equivalent like "1 cup (8 oz) sour cream" is a conversion, NOT a package size — null. Never invent a size that isn't written down.
+- sizeEstimated, amountEstimated: always false (a STANDARD SIZES section below, present only on some requests, is the one exception).
 - section: the store section, chosen ONLY from the list below. Pick the single best fit; use "other" only when nothing else fits.
     - produce: fresh fruit & vegetables, fresh herbs, bagged salad.
     - bakery: fresh bread, buns, rolls, tortillas, bagels, pastries, cakes.
@@ -116,6 +114,24 @@ Return ONLY structured data matching the schema. Rules:
 - tips: an array of short, standalone ideas the recipe offers BEYOND the core method — serving suggestions, variations, substitutions, make-ahead/storage notes, or "you can also…" ideas (e.g. "Bake the tortillas draped over an upturned muffin tin to make crispy taco bowls"). One idea per string, concise, in the recipe's own spirit. Empty array [] when the input offers none. Never invent tips, and never put a required cooking step here — steps go in instructions.
 
 Be thorough but do not duplicate the same canonicalKey+unit within your output — merge those yourself and sum quantities.`
+
+/**
+ * Added to SYSTEM_PROMPT only when the client asks (`estimates: true`, #774).
+ * Opt-in because a client from before #774 saves the four pack fields but not
+ * the flags, so an estimated size would be stored as if the recipe had said it.
+ */
+export const ESTIMATES_RULES = `
+
+STANDARD SIZES AND AMOUNTS. This request asks for them. For a RECIPE only (never a plain list), they replace "Do not invent quantities" and "Never invent a size" above:
+- A spice, dried herb, fresh herb or seasoning listed with no amount ("cumin", "salt and pepper to taste", "fresh cilantro") gets a modest amount in tsp or tbsp suited to the recipe's yield (1 tsp cumin, 1/2 tsp salt, 2 tbsp chopped cilantro), with amountEstimated true. A line that names a unit but no number ("a pinch of salt") keeps its unit; only the number is estimated.
+- When the recipe counts an item in containers but states no size ("1 can Rotel", "2 cans black beans", "1 block cream cheese"), or names a packaged product bare with no amount ("Velveeta"), fill buyCount/sizeAmount/sizeUnit/packaging with the standard US retail size of that container (Rotel 10 oz can, Velveeta 32 oz block, canned beans 15 oz, condensed cream-of soups 10.5 oz, tomato paste 6 oz, cream cheese 8 oz block) and set sizeEstimated true. A bare product with no amount is quantity 1, unit = the container noun, amountEstimated true. Only estimate a size you are confident is the common one; otherwise leave the four null.
+- Still null, with sizeEstimated false: loose produce, fresh chiles and anything not sold in a container ("2 onions", "1 lemon", "1 spaghetti squash", "1 green chile"), meat by weight, and any line whose amount is a cooking measure (1 1/2 cups onions, 2 tbsp butter, 3 cloves garlic, 1 lb ground beef, 8 oz Velveeta).
+- sizeEstimated / amountEstimated: true ONLY for these estimates; false when the source stated the value.`
+
+/** The parse system prompt, with the estimate rules only when asked for. */
+export function parseSystem(estimates: boolean): string {
+  return estimates ? SYSTEM_PROMPT + ESTIMATES_RULES : SYSTEM_PROMPT
+}
 
 /** Schema for POST /api/prices — a price (USD) per catalog item. */
 export const PRICES_SCHEMA = {

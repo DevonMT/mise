@@ -43,6 +43,17 @@ test('a 403 with no usable reason still says there is no access', async () => {
   }
 })
 
+test('this client asks the parser for estimates (#774)', async () => {
+  let sent: Record<string, unknown> = {}
+  globalThis.fetch = (async (_u: unknown, init?: RequestInit) => {
+    sent = JSON.parse(String(init?.body))
+    return new Response(JSON.stringify({ sourceType: 'list', recipeTitle: null, servings: null, instructions: null, items: [] }), { status: 200 })
+  }) as typeof fetch
+  await parseCapture({ type: 'text', content: 'milk' })
+  assert.equal(sent.estimates, true)
+  assert.equal(sent.content, 'milk')
+})
+
 test('a 401 is still "signed out", whatever the body says', async () => {
   answer(401, { error: 'Sign in to use the AI features.' })
   assert.match(await message(parseCapture({ type: 'text', content: 'milk' })), /signed out/)

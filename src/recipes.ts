@@ -2,7 +2,7 @@ import { db, canonicalize, type Recipe, type Item } from './db'
 import { addItem, fallsOn, packCount, startOfDay, type NewItem } from './list'
 import { getInStockKeys } from './lists'
 import { getStapleKeys, isStaple, standardizeLines, type ParseResult } from './parse'
-import { changedCount, fillFromTable, mergeEstimate, openGaps } from './packSizes'
+import { changedCount, fillFromTable, filledCount, listAmount, mergeEstimate, openGaps } from './packSizes'
 
 const KNOWN_UNITS = new Set([
   'cup', 'cups', 'tbsp', 'tsp', 'oz', 'lb', 'lbs', 'g', 'kg', 'ml', 'l',
@@ -65,6 +65,7 @@ export async function saveRecipeFromParse(result: ParseResult): Promise<number |
       packaging: i.packaging ?? undefined,
       sizeEstimated: i.sizeEstimated || undefined,
       amountEstimated: i.amountEstimated || undefined,
+      estimateAsked: i.estimateAsked || undefined,
       section: i.section,
       optional: i.optional || undefined,
     })),
@@ -105,7 +106,7 @@ export async function standardizeRecipe(recipe: Recipe, ai: boolean): Promise<St
   }
   await save()
   const gaps = ai ? openGaps(lines) : []
-  if (!gaps.length) return { filled: changedCount(before, lines) }
+  if (!gaps.length) return { filled: filledCount(before, lines) }
   try {
     const answers = await standardizeLines(
       { title: recipe.title, servings: recipe.servings },
@@ -118,19 +119,24 @@ export async function standardizeRecipe(recipe: Recipe, ai: boolean): Promise<St
     )
     const asked = new Set(gaps)
     const byIndex = new Map(answers.filter((a) => asked.has(a.index)).map((a) => [a.index, a]))
-    lines = lines.map((l, i) => mergeEstimate(l, byIndex.get(i)))
+    // Every line asked about is marked, answered or not: the model was told to
+    // leave "oil for frying" alone, and asking again would spend another call
+    // and keep the button up forever.
+    const tried = <T extends Recipe['ingredients'][number]>(l: T, i: number): T => {
+      const m = mergeEstimate(l, byIndex.get(i))
+      return asked.has(i) ? { ...m, estimateAsked: true } : m
+    }
+    lines = lines.map(tried)
     // Re-read, so an edit made while the model was thinking is not lost: the
     // answers go into the saved row's lines, gaps only, and only into a line
     // still at the index (and with the name) it was asked about.
     const now = await db.recipes.get(recipe.id)
     if (!now) return { filled: 0 }
-    const merged = now.ingredients.map((l, i) =>
-      l.displayName === lines[i]?.displayName ? mergeEstimate(l, byIndex.get(i)) : l,
-    )
+    const merged = now.ingredients.map((l, i) => (l.displayName === lines[i]?.displayName ? tried(l, i) : l))
     if (changedCount(now.ingredients, merged) > 0) await db.recipes.update(recipe.id, { ingredients: merged })
-    return { filled: changedCount(before, lines) }
+    return { filled: filledCount(before, lines) }
   } catch (e) {
-    return { filled: changedCount(before, lines), error: e instanceof Error ? e.message : String(e) }
+    return { filled: filledCount(before, lines), error: e instanceof Error ? e.message : String(e) }
   }
 }
 
@@ -165,8 +171,8 @@ export async function addRecipeToList(
       listId,
       displayName: ing.displayName,
       canonicalKey: ing.canonicalKey,
-      quantity: ing.quantity != null ? round2(ing.quantity * factor) : undefined,
-      unit: ing.unit,
+      // An estimated amount stays on the recipe (see listAmount).
+      ...listAmount(ing, factor),
       // Doubling the recipe doubles the cans — and half a can still means
       // buying one, so the scaled pack count rounds up.
       buyCount: ing.buyCount != null ? packCount(ing.buyCount * factor) : undefined,
@@ -205,10 +211,6 @@ export function skippedMessage(skipped: Skipped[]): string {
   const shown = names.slice(0, 3).join(', ')
   const more = names.length > 3 ? ` +${names.length - 3} more` : ''
   return `Skipped ${skipped.length} you have: ${shown}${more}`
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100
 }
 
 /**

@@ -2,10 +2,11 @@ import { db, liveLists, type Item, type List, type RecipeIngredient } from './db
 import { addItem, findMergeTarget, formatQty } from './list'
 import { DEFAULT_PANTRY_UID, ensurePantryList } from './lists'
 import { sameIngredient } from './match'
+import { listAmount } from './packSizes'
 
 /** The part of a recipe line the ingredient sheet needs. */
 export type IngredientLine = Pick<RecipeIngredient, 'displayName' | 'canonicalKey' | 'section'> &
-  Partial<Pick<RecipeIngredient, 'quantity' | 'unit' | 'buyCount' | 'sizeAmount' | 'sizeUnit' | 'packaging'>>
+  Partial<Pick<RecipeIngredient, 'quantity' | 'unit' | 'buyCount' | 'sizeAmount' | 'sizeUnit' | 'packaging' | 'amountEstimated'>>
 
 export interface Holding {
   item: Item
@@ -56,8 +57,7 @@ export async function ingredientStatus(ing: IngredientLine, listId?: number): Pr
       listId,
       displayName: ing.displayName,
       canonicalKey: ing.canonicalKey,
-      quantity: ing.quantity,
-      unit: ing.unit,
+      ...listAmount(ing),
     })
   }
   return out
@@ -72,13 +72,12 @@ export async function addIngredientToList(
   factor: number,
   listId: number,
 ): Promise<ListAdd> {
-  const quantity = ing.quantity != null ? Math.round(ing.quantity * factor * 100) / 100 : undefined
   const input = {
     listId,
     displayName: ing.displayName,
     canonicalKey: ing.canonicalKey,
-    quantity,
-    unit: ing.unit,
+    // An estimated amount stays on the recipe, so the line merges (listAmount).
+    ...listAmount(ing, factor),
     section: ing.section,
   }
   const target = await findMergeTarget(input)

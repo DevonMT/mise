@@ -42,6 +42,9 @@ export interface ParsedItem {
   sizeEstimated?: boolean
   /** quantity/unit is an estimate (a spice with no amount), not the source's. */
   amountEstimated?: boolean
+  /** Set by standardizeResult on a recipe parsed with estimates: the model has
+   *  had its go at this line, so Standardize does not ask it again. */
+  estimateAsked?: boolean
   section: Section
   /** The recipe marks this ingredient as optional — not added by default. */
   optional?: boolean
@@ -127,18 +130,30 @@ export async function parseCapture(input: {
   type: 'text' | 'url' | 'image'
   content: string
 }): Promise<ParseResult> {
-  const result = await postJson<ParseResult>('/api/parse', input, 'Parse')
+  // `estimates`: this client stores sizeEstimated/amountEstimated, so the
+  // server may estimate. A client that would drop the flags never sends it (#774).
+  const result = await postJson<ParseResult>('/api/parse', { ...input, estimates: true }, 'Parse')
   return standardizeResult(result)
 }
 
 /**
  * The size table over a parse result (#774). Recipes only: a typed shopping
  * list says what you want, and a size or a teaspoon of cumin nobody wrote is
- * not that. A list's flags are cleared, so nothing claims to be an estimate.
+ * not that. On a list, anything the model flagged as estimated is removed
+ * (the values, not just the flag), so a list line is only what was typed.
  */
 export function standardizeResult(result: ParseResult): ParseResult {
   if (result.sourceType !== 'recipe') {
-    return { ...result, items: result.items.map((i) => ({ ...i, sizeEstimated: false, amountEstimated: false })) }
+    return {
+      ...result,
+      items: result.items.map((i) => ({
+        ...i,
+        ...(i.sizeEstimated ? { buyCount: null, sizeAmount: null, sizeUnit: null, packaging: null } : {}),
+        ...(i.amountEstimated ? { quantity: null, unit: null } : {}),
+        sizeEstimated: false,
+        amountEstimated: false,
+      })),
+    }
   }
   return {
     ...result,
@@ -159,7 +174,7 @@ export function standardizeResult(result: ParseResult): ParseResult {
       if (line.sizeEstimated && line.sizeAmount == null) line.sizeEstimated = undefined
       if (line.amountEstimated && line.quantity == null) line.amountEstimated = undefined
       const out = standardizeParsed(line)
-      return { ...out, quantity: out.quantity ?? null, unit: out.unit ?? null }
+      return { ...out, quantity: out.quantity ?? null, unit: out.unit ?? null, estimateAsked: true }
     }),
   }
 }

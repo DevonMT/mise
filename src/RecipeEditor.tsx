@@ -47,6 +47,8 @@ export function fromRow(r: Row): RecipeIngredient | null {
     optional: rest.optional || undefined,
     // An amount typed by hand is the cook's, not Mise's estimate (#774).
     amountEstimated: rest.amountEstimated && amountText(qtyText, rest.unit) === origAmount ? true : undefined,
+    // A renamed line is a new question for Standardize.
+    estimateAsked: rest.estimateAsked && name === origName.trim() ? true : undefined,
   }
 }
 

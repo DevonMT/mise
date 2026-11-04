@@ -171,13 +171,15 @@ export function CaptureSheet({
     for (const r of rows) {
       if (!r.include) continue
       const qty = r.quantityStr.trim() ? Number(r.quantityStr) : undefined
-      const quantity = Number.isFinite(qty as number) ? qty : undefined
+      // An amount Mise estimated stays on the recipe, so the list line merges
+      // with what is already there (see listAmount). Editing it makes it the cook's.
+      const quantity = r.amountEstimated ? undefined : Number.isFinite(qty as number) ? qty : undefined
       await addItem({
         listId: target,
         displayName: r.displayName,
         canonicalKey: r.canonicalKey,
         quantity,
-        unit: r.unit ?? undefined,
+        unit: r.amountEstimated ? undefined : (r.unit ?? undefined),
         section: r.section,
         // When the line has a pack (named or estimated), buyCount *is* the container count — so
         // editing the qty here ("2 cans" → "3") has to carry into what you buy.
@@ -348,13 +350,13 @@ export function CaptureSheet({
                         placeholder="qty"
                         inputMode="decimal"
                         value={r.quantityStr}
-                        onChange={(e) => patch(i, { quantityStr: e.target.value })}
+                        onChange={(e) => patch(i, { quantityStr: e.target.value, amountEstimated: false })}
                       />
                       <input
                         className="rev-unit"
                         placeholder="unit"
                         value={r.unit ?? ''}
-                        onChange={(e) => patch(i, { unit: e.target.value || null })}
+                        onChange={(e) => patch(i, { unit: e.target.value || null, amountEstimated: false })}
                       />
                       <select
                         className="rev-sec"

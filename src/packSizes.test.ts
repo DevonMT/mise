@@ -186,3 +186,62 @@ test('review fixes: pieces are not packages, and look-alike words are not spices
   assert.equal(size('bread pudding'), null)
   assert.equal(size('instant pudding mix'), 'box')
 })
+
+// Realistic merge keys (what the parser actually writes), not the display name
+// copied: the key is broader, so an exclusion on it alone would be lost.
+const real = (displayName: string, canonicalKey: string, rest: Partial<RecipeIngredient> = {}, section: Section = 'pantry'): RecipeIngredient =>
+  ({ displayName, canonicalKey, section, ...rest })
+
+test('must stay apart: produce, meat and look-alikes keep no pack, whatever the key says', () => {
+  const none = [
+    real('spaghetti squash', 'spaghetti squash', { quantity: 1, unit: 'whole' }, 'produce'),
+    real('spaghetti squash', 'spaghetti squash', { quantity: 1, unit: 'whole' }, 'pantry'),
+    real('green chile', 'green chile', { quantity: 1, unit: 'whole' }, 'produce'),
+    real('fresh Hatch green chiles', 'green chile', {}, 'produce'),
+    real('fresh ahi tuna', 'tuna', {}, 'meat'),
+    real('ahi tuna steak', 'tuna', { quantity: 1, unit: 'whole' }, 'pantry'),
+    real('seared tuna', 'tuna', {}, 'pantry'),
+    real('pumpkin', 'pumpkin', { quantity: 1, unit: 'whole' }, 'produce'),
+    real('pasta salad', 'pasta salad', {}, 'deli'),
+  ]
+  for (const l of none) assert.equal(fillFromTable(l).sizeAmount, undefined, `${l.displayName} (${l.section})`)
+
+  const packOf = (l: RecipeIngredient) => {
+    const p = fillFromTable(l)
+    return `${p.sizeAmount} ${p.sizeUnit} ${p.packaging}`
+  }
+  // Sauces and salsas that say "green chile" are the sauce, not a 4 oz can.
+  assert.equal(packOf(real('green chile enchilada sauce', 'enchilada sauce', { quantity: 1, unit: 'can' })), '10 oz can')
+  assert.equal(packOf(real('green chile salsa', 'salsa', { quantity: 1, unit: 'jar' }, 'condiments')), '16 oz jar')
+  assert.equal(packOf(real('diced green chiles', 'green chile', { quantity: 1, unit: 'can' })), '4 oz can')
+  // A container named on a produce line still gets its size: the cook said "can".
+  assert.equal(packOf(real('green chiles', 'green chile', { quantity: 1, unit: 'can' }, 'produce')), '4 oz can')
+  // The key still helps where the name is a brand.
+  assert.equal(packOf(real('Ro-Tel Original', 'diced tomatoes and green chiles', { quantity: 1, unit: 'can' })), '10 oz can')
+  assert.equal(packOf(real('chunk light tuna', 'tuna', { quantity: 1, unit: 'can' })), '5 oz can')
+  assert.equal(packOf(real('spaghetti', 'spaghetti', {})), '16 oz box')
+  assert.equal(packOf(real('chicken stock', 'broth', {})), '32 oz carton')
+
+  // Spice exclusions run on the name, so a broad key does not undo them.
+  assert.equal(fillFromTable(real('dill pickles', 'dill', {}, 'condiments')).quantity, undefined)
+  assert.equal(fillFromTable(real('jalapeño pepper', 'pepper', {}, 'produce')).quantity, undefined)
+  assert.equal(fillFromTable(real('sage breakfast sausage', 'sage', {}, 'meat')).quantity, undefined)
+})
+
+test('a stated unit with no number keeps its unit; only the number is filled', () => {
+  const amount = (l: RecipeIngredient) => {
+    const o = fillFromTable(l)
+    return `${o.quantity} ${o.unit} ${o.amountEstimated}`
+  }
+  assert.equal(amount(real('salt', 'salt', { unit: 'pinch' }, 'baking')), '1 pinch true')
+  assert.equal(amount(real('cumin', 'cumin', { unit: 'tbsp' }, 'baking')), '0.33 tbsp true')
+  assert.equal(amount(real('chili powder', 'chili powder', { unit: 'teaspoons' }, 'baking')), '3 teaspoons true')
+  assert.equal(amount(real('cumin', 'cumin', { unit: 'tsp' }, 'baking')), '1 tsp true')
+  // A container named with no count: one of it, in the cook's own word.
+  const rotel = fillFromTable(real('Rotel', 'rotel', { unit: 'cans' }))
+  assert.deepEqual([rotel.quantity, rotel.unit, rotel.sizeAmount], [1, 'cans', 10])
+  // The model's number, with no unit or the line's own, keeps the line's unit.
+  assert.equal(amount(mergeEstimate(real("za'atar", 'zaatar', { unit: 'pinch' }, 'baking'), { quantity: 2, unit: null })), '2 pinch true')
+  assert.equal(amount(mergeEstimate(real("za'atar", 'zaatar', { unit: 'tsp' }, 'baking'), { quantity: 2, unit: 'tsp' })), '2 tsp true')
+  assert.equal(amount(mergeEstimate(real("za'atar", 'zaatar', {}, 'baking'), { quantity: 2, unit: null })), '2 undefined true')
+})

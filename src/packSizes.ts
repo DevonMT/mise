@@ -35,6 +35,9 @@ export interface PackSize {
 
 interface PackRule extends PackSize {
   match: RegExp
+  /** Tested on the DISPLAY NAME only: a word there that means another product
+   *  ("fresh tuna", "spaghetti squash"), whatever the merge key says. */
+  not?: RegExp
   /** A different size when the line names another container ("1 can broth" is 14.5 oz, a carton is 32). */
   alt?: Record<string, number>
 }
@@ -66,17 +69,19 @@ const PACKS: PackRule[] = [
   { match: /\b(black|pinto|kidney|cannellini|navy|great northern|white|garbanzo|butter|chili|baked|ranch style|red) beans\b|\bchickpeas\b/, size: 15, unit: 'oz', packaging: 'can' },
   { match: /\bcream(ed|-style)? corn\b/, size: 14.75, unit: 'oz', packaging: 'can' },
   { match: /\b(whole kernel|canned|sweet) corn\b/, size: 15.25, unit: 'oz', packaging: 'can' },
-  { match: /\b(diced |chopped )?green chil(e|i|ies|es)\b/, size: 4, unit: 'oz', packaging: 'can' },
   { match: /\bchipotles?\b.*\badobo\b/, size: 7, unit: 'oz', packaging: 'can' },
   { match: /\benchilada sauce\b/, size: 10, unit: 'oz', packaging: 'can' },
   { match: /\bpumpkin puree\b|\b(canned|pure) pumpkin\b/, size: 15, unit: 'oz', packaging: 'can' },
-  { match: /(?<!(fresh|ahi|sushi[- ]grade|seared) )\btuna\b(?! (steaks?|fillets?|loin|tartare|poke))/, size: 5, unit: 'oz', packaging: 'can' },
-  { match: /\b(chicken|beef|vegetable|veggie|bone) (broth|stock)\b|^(broth|stock) \|/, size: 32, unit: 'oz', packaging: 'carton', alt: { can: 14.5 } },
+  { match: /\btuna\b/, not: /\b(fresh|ahi|yellowfin|sushi|sashimi|seared|steaks?|fillets?|loin|tartare|poke)\b/, size: 5, unit: 'oz', packaging: 'can' },
+  { match: /\b(chicken|beef|vegetable|veggie|bone) (broth|stock)\b|^(broth|stock)$/, size: 32, unit: 'oz', packaging: 'carton', alt: { can: 14.5 } },
   // Jars and tubs
   { match: /\bsalsa\b|\bqueso dip\b/, size: 16, unit: 'oz', packaging: 'jar' },
   { match: /\b(marinara|pasta sauce|spaghetti sauce)\b/, size: 24, unit: 'oz', packaging: 'jar' },
   { match: /\bsour cream\b/, size: 16, unit: 'oz', packaging: 'tub' },
   { match: /\b(cool whip|whipped topping)\b/, size: 8, unit: 'oz', packaging: 'tub' },
+  // Below enchilada sauce and salsa, which often say "green chile" too. A
+  // fresh chile is produce, and the section gate in lookupPack keeps it loose.
+  { match: /\b(diced |chopped )?green chil(e|i|ies|es)\b/, not: /\b(fresh|sauce|salsa|enchilada)\b/, size: 4, unit: 'oz', packaging: 'can' },
   // Refrigerated dough
   { match: /\bcrescent( roll)?s?\b/, size: 8, unit: 'oz', packaging: 'can' },
   { match: /\b(refrigerated )?biscuit dough\b|\bcanned biscuits\b/, size: 16.3, unit: 'oz', packaging: 'can' },
@@ -87,7 +92,7 @@ const PACKS: PackRule[] = [
   { match: /\bchocolate chips\b/, size: 12, unit: 'oz', packaging: 'bag' },
   { match: /\btortilla chips\b/, size: 13, unit: 'oz', packaging: 'bag' },
   { match: /\b(taco|ranch|fajita|chili|onion soup|italian dressing|gravy) (seasoning|mix|dressing mix|soup mix)\b/, size: 1, unit: 'oz', packaging: 'packet' },
-  { match: /\b(spaghetti|penne|rigatoni|elbow macaroni|macaroni|fettuccine|linguine|rotini|ziti|egg noodles|lasagna noodles|pasta)\b/, size: 16, unit: 'oz', packaging: 'box' },
+  { match: /\b(spaghetti|penne|rigatoni|elbow macaroni|macaroni|fettuccine|linguine|rotini|ziti|egg noodles|lasagna noodles|pasta)\b/, not: /\b(squash|sauce|salad|cheese|zucchini)\b/, size: 16, unit: 'oz', packaging: 'box' },
 ]
 
 /** Container words a recipe counts in. "1 block Velveeta", "2 cans". */
@@ -142,9 +147,16 @@ function norm(s: string): string {
 }
 
 type Line = Pick<RecipeIngredient, 'displayName' | 'canonicalKey' | 'section'> &
-  Partial<Pick<RecipeIngredient, 'quantity' | 'unit' | 'buyCount' | 'sizeAmount' | 'sizeUnit' | 'packaging' | 'sizeEstimated' | 'amountEstimated'>>
+  Partial<Pick<RecipeIngredient, 'quantity' | 'unit' | 'buyCount' | 'sizeAmount' | 'sizeUnit' | 'packaging' | 'sizeEstimated' | 'amountEstimated' | 'estimateAsked'>>
 
-const text = (l: Pick<Line, 'displayName' | 'canonicalKey'>) => norm(`${l.displayName} | ${l.canonicalKey ?? ''}`)
+/** The two spellings a rule may match: the display name, then the merge key
+ *  ("Ro-Tel Original" is keyed "diced tomatoes and green chiles"). Exclusions
+ *  are only ever tested on the name, which is what the recipe actually said. */
+const names = (l: Pick<Line, 'displayName' | 'canonicalKey'>) => {
+  const name = norm(l.displayName)
+  const key = norm(l.canonicalKey ?? '')
+  return { name, either: (re: RegExp) => re.test(name) || (!!key && re.test(key)) }
+}
 const unitOf = (l: Pick<Line, 'unit'>) => norm(l.unit ?? '')
 
 /**
@@ -174,12 +186,19 @@ export function needsAmount(l: Line): boolean {
   return l.quantity == null
 }
 
-/** The table's standard pack for this line, or null. The container the line names picks an `alt` size. */
+/**
+ * The table's standard pack for this line, or null. The container the line
+ * names picks an `alt` size. Produce and meat are sold loose, so a line filed
+ * there gets a pack only when its own unit names a container ("1 can green
+ * chiles"): "1 green chile" or "fresh tuna" stays as it is.
+ */
 export function lookupPack(l: Line): PackSize | null {
-  const t = text(l)
+  const { name, either } = names(l)
   const said = CONTAINERS[unitOf(l)]
+  if ((l.section === 'produce' || l.section === 'meat') && !said) return null
   for (const r of PACKS) {
-    if (!r.match.test(t)) continue
+    if (r.not?.test(name)) continue
+    if (!either(r.match)) continue
     const size = (said ? r.alt?.[said] : undefined) ?? r.size
     return { size, unit: r.unit, packaging: said && said !== 'container' ? said : r.packaging }
   }
@@ -188,10 +207,10 @@ export function lookupPack(l: Line): PackSize | null {
 
 /** The table's estimated amount for a spice or herb with none, or null. */
 export function lookupAmount(l: Line): { quantity: number; unit: string } | null {
-  const t = text(l)
-  if (NOT_A_SPICE.test(t)) return null
+  const { name, either } = names(l)
+  if (NOT_A_SPICE.test(name)) return null
   for (const a of AMOUNTS) {
-    if (!a.match.test(t)) continue
+    if (!either(a.match)) continue
     // A fresh herb (filed with produce) is chopped by the tablespoon.
     if (a.fresh && l.section === 'produce') return { quantity: 2, unit: 'tbsp' }
     return { quantity: a.quantity, unit: a.unit }
@@ -218,9 +237,37 @@ const goodWord = (s: unknown): s is string =>
 function withPack<T extends Line>(l: T, p: PackSize, buyCount?: number | null): T {
   const n = buyCount ?? (l.quantity != null && l.quantity > 0 ? packCount(l.quantity) : 1)
   const out: T = { ...l, buyCount: n, sizeAmount: p.size, sizeUnit: p.unit, packaging: p.packaging, sizeEstimated: true }
-  // A bare "Velveeta" is one of them, counted in its package.
-  if (l.quantity == null) Object.assign(out, { quantity: 1, unit: p.packaging, amountEstimated: true })
+  // A bare "Velveeta" is one of them, counted in its package. A unit the line
+  // already has ("can Rotel") is kept; only the number is filled.
+  if (l.quantity == null) Object.assign(out, { quantity: 1, unit: l.unit?.trim() || p.packaging, amountEstimated: true })
   return out
+}
+
+/**
+ * An estimated amount fitted to a unit the line already states ("a pinch of
+ * salt", "cumin, to taste" with unit "tsp"): the line's unit is kept and only
+ * the number is filled. tsp and tbsp convert; any other stated unit (pinch,
+ * dash, sprig, bunch) is one of it. No stated unit: the estimate's own.
+ */
+const MEASURE_SPELLINGS: Record<string, string> = {
+  teaspoon: 'tsp', teaspoons: 'tsp', tsps: 'tsp', t: 'tsp',
+  tablespoon: 'tbsp', tablespoons: 'tbsp', tbsps: 'tbsp', tbs: 'tbsp', tbl: 'tbsp', T: 'tbsp',
+}
+/** One spelling per measure, so "teaspoons" and "tsp" compare equal. */
+function measure(u: string): string {
+  const t = u.trim().replace(/\.$/, '')
+  return MEASURE_SPELLINGS[t] ?? MEASURE_SPELLINGS[t.toLowerCase()] ?? norm(t).replace(/s$/, '')
+}
+
+function fitAmount(stated: string | undefined, quantity: number, unit: string | undefined): { quantity: number; unit?: string } {
+  const s = stated?.trim()
+  if (!s) return { quantity, unit }
+  const k = measure(s)
+  const u = unit ? measure(unit) : ''
+  if (!u || k === u) return { quantity, unit: s }
+  if (u === 'tsp' && k === 'tbsp') return { quantity: Math.round((quantity / 3) * 100) / 100, unit: s }
+  if (u === 'tbsp' && k === 'tsp') return { quantity: quantity * 3, unit: s }
+  return { quantity: 1, unit: s }
 }
 
 /**
@@ -235,7 +282,7 @@ export function fillFromTable<T extends Line>(l: T): T {
   }
   if (needsAmount(out)) {
     const a = lookupAmount(out)
-    if (a) out = { ...out, quantity: a.quantity, unit: a.unit, amountEstimated: true }
+    if (a) out = { ...out, ...fitAmount(out.unit, a.quantity, a.unit), amountEstimated: true }
   }
   return out
 }
@@ -249,8 +296,9 @@ export function mergeEstimate<T extends Line>(l: T, e: Estimate | undefined): T 
   if (!e) return l
   let out = l
   if (needsAmount(out) && goodNum(e.quantity, 1000)) {
+    // A unit the model sends must be a plain word; with none, the line keeps its own.
     const unit = e.unit == null ? undefined : goodWord(e.unit) ? e.unit.trim() : null
-    if (unit !== null) out = { ...out, quantity: e.quantity, unit, amountEstimated: true }
+    if (unit !== null) out = { ...out, ...fitAmount(out.unit, e.quantity, unit), amountEstimated: true }
   }
   if (needsSize(out) && goodNum(e.sizeAmount, 1000) && goodWord(e.sizeUnit)) {
     const packaging = goodWord(e.packaging) ? e.packaging.trim().toLowerCase() : CONTAINERS[unitOf(out)] ?? 'package'
@@ -278,10 +326,12 @@ export function standardizeParsed<T extends Line>(l: T): T {
  * at all, or counted in a named container ("1 jar harissa") with no size. A
  * line counted in whole things ("2 onions") is not asked about: it is almost
  * always loose produce, and only the table claims the exceptions ("1 Velveeta").
+ * A line the model was already asked about (estimateAsked) is never asked again.
  */
 export function openGaps(lines: Line[]): number[] {
   const out: number[] = []
   lines.forEach((l, i) => {
+    if (l.estimateAsked) return
     if (needsAmount(l) || (needsSize(l) && unitOf(l) in CONTAINERS)) out.push(i)
   })
   return out
@@ -293,9 +343,34 @@ export function canStandardize(lines: Line[], ai: boolean): boolean {
   return ai && openGaps(lines).length > 0
 }
 
-/** How many lines differ between two versions of the same list (Standardize's toast). */
+/** How many lines gained an estimate between two versions of the same list (Standardize's toast). */
+export function filledCount(before: Line[], after: Line[]): number {
+  let n = 0
+  for (let i = 0; i < Math.min(before.length, after.length); i++) {
+    const b = before[i]
+    const a = after[i]
+    if ((a.sizeEstimated && !b.sizeEstimated) || (a.amountEstimated && !b.amountEstimated)) n++
+  }
+  return n
+}
+
+/** How many lines differ between two versions of the same list (by identity: fillFromTable returns the same object when nothing changed). */
 export function changedCount(before: Line[], after: Line[]): number {
   let n = 0
   for (let i = 0; i < before.length; i++) if (before[i] !== after[i]) n++
   return n
+}
+
+/**
+ * The amount a recipe line puts on a shopping list, scaled. An estimated amount
+ * is left off: a list line merges only with one in the same unit, so "1 tsp
+ * cumin" Mise made up would sit beside the "cumin" already on the list instead
+ * of merging into it. The pack (an estimated size included) still goes.
+ */
+export function listAmount(
+  l: Pick<Line, 'quantity' | 'unit' | 'amountEstimated'>,
+  factor = 1,
+): { quantity?: number; unit?: string } {
+  if (l.amountEstimated) return { quantity: undefined, unit: undefined }
+  return { quantity: l.quantity != null ? Math.round(l.quantity * factor * 100) / 100 : undefined, unit: l.unit }
 }

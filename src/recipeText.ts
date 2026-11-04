@@ -40,7 +40,8 @@ function line(ing: RecipeIngredient, factor: number): string {
   // "whole" is how the parser marks a countable thing; "3 whole eggs" reads
   // worse than "3 eggs".
   const unit = ing.unit && ing.unit !== 'whole' ? ` ${ing.unit}` : ''
-  return `• ${q}${unit} ${name}`
+  // The same "≈" for an amount Mise estimated.
+  return `• ${ing.amountEstimated ? '≈ ' : ''}${q}${unit} ${name}`
 }
 
 export function recipeText(recipe: Recipe, factor = 1): string {

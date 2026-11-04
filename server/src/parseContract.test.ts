@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { authorize } from './guard.js'
-import { PARSE_SCHEMA, SYSTEM_PROMPT, standardizePrompt, standardizeRequest } from './parseContract.js'
+import { PARSE_SCHEMA, SYSTEM_PROMPT, parseSystem, standardizePrompt, standardizeRequest } from './parseContract.js'
 
 test('standardize: lines are cleaned, capped and checked before they reach a prompt', () => {
   const req = standardizeRequest({
@@ -39,9 +39,20 @@ test('standardize is a model route: no AI grant, no call', () => {
   assert.equal(authorize('/api/standardize', false, { variant: 'full' })?.status, 403)
 })
 
-test('the parse contract asks for estimate flags and no longer forbids a standard size', () => {
+test('estimates are opt-in: only a client that asks gets the standard-size rules', () => {
   const req = PARSE_SCHEMA.properties.items.items.required as readonly string[]
   assert.ok(req.includes('sizeEstimated'))
   assert.ok(req.includes('amountEstimated'))
-  assert.doesNotMatch(SYSTEM_PROMPT, /Never invent a size/)
+  // A client from before #774 does not ask, and keeps the old rule: it would
+  // save an estimated size without its flag, as if the recipe had said it.
+  const plain = parseSystem(false)
+  assert.equal(plain, SYSTEM_PROMPT)
+  assert.match(plain, /Never invent a size/)
+  assert.match(plain, /Do not invent quantities\./)
+  assert.doesNotMatch(plain, /STANDARD SIZES AND AMOUNTS\. This request/)
+  const asked = parseSystem(true)
+  assert.ok(asked.startsWith(SYSTEM_PROMPT))
+  assert.match(asked, /STANDARD SIZES AND AMOUNTS\. This request asks for them/)
+  assert.match(asked, /Velveeta 32 oz block/)
+  assert.match(asked, /spaghetti squash/)
 })

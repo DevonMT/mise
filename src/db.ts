@@ -213,6 +213,10 @@ export type RecipeIngredient = Pick<
   /** The amount was filled in by Mise, not stated: a spice with none, or a
    *  bare "Velveeta" counted as one block. Cleared when the amount is edited. */
   amountEstimated?: boolean
+  /** The model has been asked to fill this line's gaps (at parse, or by
+   *  Standardize), answered or not. Standardize does not ask again; renaming
+   *  the line in the editor clears it. */
+  estimateAsked?: boolean
 }
 
 /** A saved recipe. */

@@ -98,3 +98,10 @@ test('editing an estimated amount makes it the cook\'s: the ≈ mark goes (#774)
   assert.equal(fromRow({ ...toRow(cumin), qtyText: '2' })?.amountEstimated, undefined)
   assert.equal(fromRow({ ...toRow(cumin), unit: 'tbsp' })?.amountEstimated, undefined)
 })
+
+test('renaming a line makes it a new question for Standardize; editing its amount does not', () => {
+  const oil = { displayName: 'oil for frying', canonicalKey: 'oil', section: 'pantry' as const, estimateAsked: true }
+  assert.equal(fromRow(toRow(oil))?.estimateAsked, true)
+  assert.equal(fromRow({ ...toRow(oil), qtyText: '2' })?.estimateAsked, true)
+  assert.equal(fromRow({ ...toRow(oil), displayName: 'peanut oil' })?.estimateAsked, undefined)
+})

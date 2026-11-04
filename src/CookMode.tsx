@@ -121,7 +121,10 @@ export function CookMode({
               {using.map(({ ing, i }) => (
                 <button key={i} className={got.has(i) ? 'cook-ing on' : 'cook-ing'} onClick={() => toggle(i)}>
                   <span className="opt-check">{got.has(i) ? '✓' : ''}</span>
-                  <span className="cook-amt">{amount(ing.quantity, ing.unit)}</span>
+                  <span className="cook-amt" title={ing.amountEstimated ? 'Estimated by Mise' : undefined}>
+                    {ing.amountEstimated && amount(ing.quantity, ing.unit) ? '≈ ' : ''}
+                    {amount(ing.quantity, ing.unit)}
+                  </span>
                   <span className="cook-name">{ing.displayName}</span>
                 </button>
               ))}
