@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { authorize, brokerFailure, createCallCap, isAdmin, isStatus, unexpectedFailure } from './guard.js'
+import { authorize, brokerFailure, capFrom, createCallCap, isAdmin, isStatus, unexpectedFailure } from './guard.js'
 
 function clock(start = '2026-11-04') {
   const c = { day: start, now: () => c.day }
@@ -111,4 +111,31 @@ test('a non-broker error is a plain sentence too', () => {
   const f = unexpectedFailure('refine those items')
   assert.equal(f.status, 500)
   assert.equal(f.error, "Mise couldn't refine those items just now. Try again in a moment.")
+})
+
+test('a ceiling for everyone together stops forged identities, each with a fresh allowance', () => {
+  const cap = createCallCap(2, clock().now, 3)
+  assert.equal(cap.take('a@x.com'), true)
+  assert.equal(cap.take('b@x.com'), true)
+  assert.equal(cap.take('c@x.com'), true)
+  assert.equal(cap.take('d@x.com'), false)
+  assert.equal(cap.remaining('d@x.com'), 0)
+})
+
+test('the ceiling resets with the day', () => {
+  const c = clock()
+  const cap = createCallCap(5, c.now, 1)
+  assert.equal(cap.take('a@x.com'), true)
+  assert.equal(cap.take('b@x.com'), false)
+  c.day = '2026-11-05'
+  assert.equal(cap.take('b@x.com'), true)
+})
+
+test('a bad cap value falls back instead of switching the cap off', () => {
+  assert.equal(capFrom('200/day', 200), 200)
+  assert.equal(capFrom('-1', 200), 200)
+  assert.equal(capFrom('', 200), 200)
+  assert.equal(capFrom(undefined, 200), 200)
+  assert.equal(capFrom('50', 200), 50)
+  assert.equal(capFrom('0', 200), 0)
 })

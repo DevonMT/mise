@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { cors } from 'hono/cors'
 import * as jose from 'jose'
 import { askStructured, BrokerError } from './broker.js'
@@ -16,7 +16,7 @@ import {
   REFINE_SCHEMA,
   refineSystem,
 } from './parseContract.js'
-import { authorize, brokerFailure, createCallCap, isStatus, unexpectedFailure } from './guard.js'
+import { authorize, brokerFailure, capFrom, createCallCap, unexpectedFailure } from './guard.js'
 import { timingSafeEqual } from 'node:crypto'
 
 const IMAGE_MEDIA = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const
@@ -107,8 +107,8 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '')
   .filter(Boolean)
 // Backstop: if the key ever leaks, this caps the damage at a known number of
 // calls per day instead of an unbounded API bill. Per person (see guard.ts), so
-// one user cannot use up another's day.
-const DAILY_CALL_CAP = Number(process.env.DAILY_CALL_CAP ?? 200)
+// one user cannot use up another's day, under a ceiling for everyone together.
+const DAILY_CALL_CAP = capFrom(process.env.DAILY_CALL_CAP, 200)
 
 const app = new Hono<{ Variables: { caller: string } }>()
 
@@ -128,7 +128,14 @@ app.use(
   }),
 )
 
-const callCap = createCallCap(DAILY_CALL_CAP)
+const callCap = createCallCap(DAILY_CALL_CAP, undefined, capFrom(process.env.GLOBAL_DAILY_CAP, DAILY_CALL_CAP * 5))
+
+/** Spend one of the caller's calls; a 429 Response when they are out, else null. Called just before a model call, so a bad request or a dead link spends nothing. */
+function overCap(c: Context<{ Variables: { caller: string } }>) {
+  return callCap.take(c.get('caller'))
+    ? null
+    : c.json({ error: "You have used today's AI allowance. Try again tomorrow." }, 429)
+}
 
 app.use('/api/*', async (c, next) => {
   // /api/health stays open: it is the tunnel's and Mission Control's probe and
@@ -168,15 +175,6 @@ app.use('/api/*', async (c, next) => {
   })
   if (denied) return c.json({ error: denied.error }, denied.status)
 
-  // /api/status makes no model call, so it spends nothing: a status poll must
-  // not eat anyone's AI allowance. Everything else counts against the CALLER's
-  // own cap, never a shared one.
-  if (!isStatus(c.req.path) && !callCap.take(email)) {
-    return c.json(
-      { error: `Daily cap of ${DAILY_CALL_CAP} AI calls reached. Try tomorrow.` },
-      429,
-    )
-  }
   return next()
 })
 
@@ -248,6 +246,9 @@ app.post('/api/parse', async (c) => {
     userContent = raw
   }
 
+  const capped = overCap(c)
+  if (capped) return capped
+
   try {
     const data = await askStructured<unknown>({
       user: c.get('caller'),
@@ -293,6 +294,9 @@ app.post('/api/prices', async (c) => {
     .map((i) => `- ${i.canonicalKey}: ${i.displayName}${i.unit ? ` (${i.unit})` : ''}`)
     .join('\n')
 
+  const capped = overCap(c)
+  if (capped) return capped
+
   try {
     const data = await askStructured<unknown>({
       user: c.get('caller'),
@@ -336,6 +340,9 @@ app.post('/api/refine', async (c) => {
   const list = items
     .map((i) => `- ${i.canonicalKey}: ${i.displayName}${i.unit ? ` (${i.unit})` : ''}`)
     .join('\n')
+
+  const capped = overCap(c)
+  if (capped) return capped
 
   try {
     const data = await askStructured<unknown>({

@@ -9,37 +9,52 @@ export type Clock = () => string
 
 const utcDay: Clock = () => new Date().toISOString().slice(0, 10)
 
+/** A cap from the environment: a whole number >= 0, else the fallback (NaN would switch the cap off). */
+export function capFrom(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw.trim() === '') return fallback
+  const n = Number(raw)
+  return Number.isInteger(n) && n >= 0 ? n : fallback
+}
+
 /**
- * A daily call cap kept PER PERSON.
+ * A daily call cap kept PER PERSON, under a ceiling for everyone together.
  *
  * It used to be one global counter, so a friend with the AI grant could spend
  * the whole day's allowance and lock the owner out. Each caller now has their
- * own count, keyed by email (lowercased: the gateway sets the header, but two
- * spellings of one address must not get two allowances). The map is dropped
- * when the day rolls over, so it never holds more than one day of callers.
+ * own count, keyed by email (lowercased: two spellings of one address must not
+ * get two allowances).
+ *
+ * The ceiling is the old backstop's job: if the gateway token ever leaked, a
+ * caller could forge a new email per request and get a fresh per-person
+ * allowance each time, so the total is capped too. It also bounds the map. The
+ * counts are dropped when the day rolls over.
  */
-export function createCallCap(limit: number, today: Clock = utcDay) {
+export function createCallCap(limit: number, today: Clock = utcDay, ceiling = limit * 5) {
   let day = ''
+  let total = 0
   const counts = new Map<string, number>()
 
   return {
-    /** Spend one call for `user`. False when they are already at the cap. */
+    /** Spend one call for `user`. False when they, or everyone together, are at the cap. */
     take(user: string): boolean {
       const d = today()
       if (d !== day) {
         day = d
+        total = 0
         counts.clear()
       }
       const key = user.trim().toLowerCase()
       const n = counts.get(key) ?? 0
-      if (n >= limit) return false
+      if (n >= limit || total >= ceiling) return false
       counts.set(key, n + 1)
+      total += 1
       return true
     },
     /** Calls left today for `user`, without spending one. */
     remaining(user: string): number {
-      if (today() !== day) return limit
-      return Math.max(0, limit - (counts.get(user.trim().toLowerCase()) ?? 0))
+      if (today() !== day) return Math.min(limit, ceiling)
+      const own = limit - (counts.get(user.trim().toLowerCase()) ?? 0)
+      return Math.max(0, Math.min(own, ceiling - total))
     },
   }
 }
