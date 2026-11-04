@@ -253,16 +253,19 @@ app.post('/api/parse', async (c) => {
   const capped = overCap(c)
   if (capped) return capped
 
+  // Estimates only for a client that stores their flags (#774).
+  const estimates = body.estimates === true
   try {
     const data = await askStructured<unknown>({
       user: c.get('caller'),
       prompt: userContent,
       schema: PARSE_SCHEMA,
-      // Estimates only for a client that stores their flags (#774).
-      system: parseSystem(body.estimates === true),
+      system: parseSystem(estimates),
       images,
     })
-    return c.json(data)
+    // Said back, so the client knows the model really was asked for estimates
+    // (a server from before #774 ignores the flag and says nothing).
+    return c.json(estimates && data && typeof data === 'object' ? { ...data, estimates: true } : data)
   } catch (e) {
     console.error('parse error:', e)
     // Keep the broker's status. A refusal (422) and an exhausted budget (429)

@@ -58,6 +58,9 @@ export interface ParseResult {
   items: ParsedItem[]
   /** Serving ideas / variations the recipe offers. Never become list items. */
   tips?: string[]
+  /** The server says it asked the model for estimates (#774). Absent from a
+   *  server that predates them, which ignores the request. */
+  estimates?: boolean
 }
 
 /** Read a picked/captured file into a data URL for the parse endpoint. */
@@ -174,7 +177,9 @@ export function standardizeResult(result: ParseResult): ParseResult {
       if (line.sizeEstimated && line.sizeAmount == null) line.sizeEstimated = undefined
       if (line.amountEstimated && line.quantity == null) line.amountEstimated = undefined
       const out = standardizeParsed(line)
-      return { ...out, quantity: out.quantity ?? null, unit: out.unit ?? null, estimateAsked: true }
+      // Marked tried only when the server confirms the model was asked; an
+      // older server ignores `estimates`, and Standardize must still offer these.
+      return { ...out, quantity: out.quantity ?? null, unit: out.unit ?? null, ...(result.estimates === true ? { estimateAsked: true } : {}) }
     }),
   }
 }

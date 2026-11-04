@@ -259,7 +259,10 @@ function measure(u: string): string {
   return MEASURE_SPELLINGS[t] ?? MEASURE_SPELLINGS[t.toLowerCase()] ?? norm(t).replace(/s$/, '')
 }
 
-function fitAmount(stated: string | undefined, quantity: number, unit: string | undefined): { quantity: number; unit?: string } {
+/** Small units a cook counts in: "1 pinch" is a fair estimate for any of them. */
+const SMALL_COUNTS = new Set(['pinch', 'dash', 'sprinkle', 'sprig', 'bunch', 'handful', 'leaf', 'whole', 'clove', 'stick', 'piece', 'drop', 'smidgen'])
+
+function fitAmount(stated: string | undefined, quantity: number, unit: string | undefined): { quantity: number; unit?: string } | null {
   const s = stated?.trim()
   if (!s) return { quantity, unit }
   const k = measure(s)
@@ -267,7 +270,9 @@ function fitAmount(stated: string | undefined, quantity: number, unit: string | 
   if (!u || k === u) return { quantity, unit: s }
   if (u === 'tsp' && k === 'tbsp') return { quantity: Math.round((quantity / 3) * 100) / 100, unit: s }
   if (u === 'tbsp' && k === 'tsp') return { quantity: quantity * 3, unit: s }
-  return { quantity: 1, unit: s }
+  // Anything else ("cup", "oz" on a spice line) cannot be guessed from a
+  // teaspoon estimate: leave the amount empty rather than say "1 cup cumin".
+  return SMALL_COUNTS.has(k) ? { quantity: 1, unit: s } : null
 }
 
 /**
@@ -282,7 +287,8 @@ export function fillFromTable<T extends Line>(l: T): T {
   }
   if (needsAmount(out)) {
     const a = lookupAmount(out)
-    if (a) out = { ...out, ...fitAmount(out.unit, a.quantity, a.unit), amountEstimated: true }
+    const f = a && fitAmount(out.unit, a.quantity, a.unit)
+    if (f) out = { ...out, ...f, amountEstimated: true }
   }
   return out
 }
@@ -298,7 +304,8 @@ export function mergeEstimate<T extends Line>(l: T, e: Estimate | undefined): T 
   if (needsAmount(out) && goodNum(e.quantity, 1000)) {
     // A unit the model sends must be a plain word; with none, the line keeps its own.
     const unit = e.unit == null ? undefined : goodWord(e.unit) ? e.unit.trim() : null
-    if (unit !== null) out = { ...out, ...fitAmount(out.unit, e.quantity, unit), amountEstimated: true }
+    const f = unit === null ? null : fitAmount(out.unit, e.quantity, unit)
+    if (f) out = { ...out, ...f, amountEstimated: true }
   }
   if (needsSize(out) && goodNum(e.sizeAmount, 1000) && goodWord(e.sizeUnit)) {
     const packaging = goodWord(e.packaging) ? e.packaging.trim().toLowerCase() : CONTAINERS[unitOf(out)] ?? 'package'

@@ -83,10 +83,17 @@ test('a recipe parsed with estimates is marked tried; a typed list keeps no esti
     sizeUnit: null, packaging: null, section: 'pantry' as const, ...over,
   })
   const recipe = standardizeResult({
-    sourceType: 'recipe', recipeTitle: 'R', servings: 2, instructions: null,
+    sourceType: 'recipe', recipeTitle: 'R', servings: 2, instructions: null, estimates: true,
     items: [item('oil for frying', {})],
   })
   assert.equal(recipe.items[0].estimateAsked, true)
+  // A server from before #774 ignores the request and does not say it asked:
+  // nothing is marked, so Standardize still offers to fill these.
+  const old = standardizeResult({
+    sourceType: 'recipe', recipeTitle: 'R', servings: 2, instructions: null,
+    items: [item('oil for frying', {})],
+  })
+  assert.equal(old.items[0].estimateAsked, undefined)
 
   const list = standardizeResult({
     sourceType: 'list', recipeTitle: null, servings: null, instructions: null,

@@ -237,6 +237,9 @@ test('a stated unit with no number keeps its unit; only the number is filled', (
   assert.equal(amount(real('cumin', 'cumin', { unit: 'tbsp' }, 'baking')), '0.33 tbsp true')
   assert.equal(amount(real('chili powder', 'chili powder', { unit: 'teaspoons' }, 'baking')), '3 teaspoons true')
   assert.equal(amount(real('cumin', 'cumin', { unit: 'tsp' }, 'baking')), '1 tsp true')
+  // A stray unit a teaspoon estimate cannot convert to stays empty, not "1 cup".
+  assert.equal(amount(real('cumin', 'cumin', { unit: 'cup' }, 'baking')), 'undefined cup undefined')
+  assert.equal(amount(real('salt', 'salt', { unit: 'dash' }, 'baking')), '1 dash true')
   // A container named with no count: one of it, in the cook's own word.
   const rotel = fillFromTable(real('Rotel', 'rotel', { unit: 'cans' }))
   assert.deepEqual([rotel.quantity, rotel.unit, rotel.sizeAmount], [1, 'cans', 10])
