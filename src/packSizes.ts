@@ -21,7 +21,7 @@ import { packCount } from './list'
  *   already saved is never changed (Standardize can be tapped twice).
  * - A pack size goes only on a line counted in containers or whole things
  *   ("1 can", "2 blocks", "1 Velveeta", a bare "Velveeta"), never on a cooking
- *   measure: "8 oz Velveeta" is an amount, and "1 cup salsa" is Refine's job.
+ *   measure: "8 oz Velveeta" is an amount, and "1 cup salsa" is the buy math's job (buy.ts, #811).
  * - Every filled field is flagged (`sizeEstimated`, `amountEstimated`) so the
  *   UI can mark it, and so editing the amount by hand can clear the mark.
  */
@@ -40,6 +40,15 @@ interface PackRule extends PackSize {
   not?: RegExp
   /** A different size when the line names another container ("1 can broth" is 14.5 oz, a carton is 32). */
   alt?: Record<string, number>
+  /** Every common size it is sold in, as [size, packaging] in `unit` (#811).
+   *  The buy math picks the least left over from these. Absent: `size` plus any `alt`. */
+  sold?: Array<[number, string]>
+  /** Weight in `unit` of one cup, for a dry good bought by weight and measured
+   *  by the cup ("2 cups Bisquick" against a 40 oz box). */
+  perCup?: number
+  /** Sizes for the buy math only: lookupPack (Standardize, parse) skips the
+   *  rule, so "1 egg" on a recipe never gets a carton written onto it. */
+  buyOnly?: boolean
 }
 
 /**
@@ -51,21 +60,24 @@ const PACKS: PackRule[] = [
   // Tomatoes
   { match: /\brotel\b|diced tomatoes (and|&|with) (green )?chil/, size: 10, unit: 'oz', packaging: 'can' },
   { match: /\btomato paste\b/, size: 6, unit: 'oz', packaging: 'can' },
-  { match: /\btomato sauce\b/, size: 15, unit: 'oz', packaging: 'can', alt: { can: 15 } },
-  { match: /\b(crushed|whole peeled|whole|peeled|san marzano) tomatoes\b/, size: 28, unit: 'oz', packaging: 'can' },
-  { match: /\b(diced|stewed|petite diced|fire roasted) tomatoes\b|\bcanned tomatoes\b/, size: 14.5, unit: 'oz', packaging: 'can' },
+  { match: /\btomato sauce\b/, size: 15, unit: 'oz', packaging: 'can', alt: { can: 15 }, sold: [[8, 'can'], [15, 'can'], [29, 'can']] },
+  { match: /\b(crushed|whole peeled|whole|peeled|san marzano) tomatoes\b/, size: 28, unit: 'oz', packaging: 'can', sold: [[14.5, 'can'], [28, 'can']] },
+  { match: /\b(diced|stewed|petite diced|fire roasted) tomatoes\b|\bcanned tomatoes\b/, size: 14.5, unit: 'oz', packaging: 'can', sold: [[14.5, 'can'], [28, 'can']] },
   // Cheese
-  { match: /\bvelveeta\b|\bprocess(ed)? cheese( product)?\b/, size: 32, unit: 'oz', packaging: 'block' },
+  { match: /\bvelveeta\b|\bprocess(ed)? cheese( product)?\b/, size: 32, unit: 'oz', packaging: 'block', sold: [[16, 'block'], [32, 'block']] },
   { match: /\bcream cheese\b/, size: 8, unit: 'oz', packaging: 'block' },
-  { match: /\bshredded\b.*\bcheese\b|\bcheese\b.*\bshredded\b/, size: 8, unit: 'oz', packaging: 'bag' },
+  { match: /\bshredded\b.*\bcheese\b|\bcheese\b.*\bshredded\b/, size: 8, unit: 'oz', packaging: 'bag', sold: [[8, 'bag'], [16, 'bag']], perCup: 4 },
   // Milk in cans (above the soups, which also say "condensed")
   { match: /\bsweetened condensed milk\b/, size: 14, unit: 'oz', packaging: 'can' },
-  { match: /\bevaporated milk\b/, size: 12, unit: 'oz', packaging: 'can' },
+  { match: /\bevaporated milk\b/, size: 12, unit: 'oz', packaging: 'can', sold: [[5, 'can'], [12, 'can']] },
   { match: /\bcoconut milk\b/, size: 13.5, unit: 'oz', packaging: 'can' },
-  // Condensed soups
-  { match: /\bcream of (mushroom|chicken|celery|potato|onion|shrimp)\b|\bcondensed\b.*\bsoup\b|\bcheddar cheese soup\b/, size: 10.5, unit: 'oz', packaging: 'can' },
+  // Plain milk, sold by volume. Below the canned milks, which also say "milk".
+  { match: /\bmilk\b/, not: /\b(almond|oat|soy|rice|chocolate|powdered|dry|goat|cashew)\b|\bmilk (chocolate|chips|bread)\b/, size: 64, unit: 'fl oz', packaging: 'carton', sold: [[32, 'carton'], [64, 'carton'], [128, 'jug']] },
+  // Condensed soups. The 10.5 oz can is also the "soup can" a recipe measures with (buy.ts).
+  { match: /\bcream of (mushroom|chicken|celery|potato|onion|shrimp)\b|\bcondensed\b.*\bsoup\b|\bcheddar cheese soup\b/, size: 10.5, unit: 'oz', packaging: 'can', sold: [[10.5, 'can'], [22.6, 'can']] },
+  { match: /\bveg-?all\b|\bcanned mixed vegetables\b/, size: 15, unit: 'oz', packaging: 'can', sold: [[15, 'can'], [29, 'can']] },
   // Beans and other cans
-  { match: /\brefried beans\b/, size: 16, unit: 'oz', packaging: 'can' },
+  { match: /\brefried beans\b/, size: 16, unit: 'oz', packaging: 'can', perCup: 9 },
   { match: /\b(black|pinto|kidney|cannellini|navy|great northern|white|garbanzo|butter|chili|baked|ranch style|red) beans\b|\bchickpeas\b/, size: 15, unit: 'oz', packaging: 'can' },
   { match: /\bcream(ed|-style)? corn\b/, size: 14.75, unit: 'oz', packaging: 'can' },
   { match: /\b(whole kernel|canned|sweet) corn\b/, size: 15.25, unit: 'oz', packaging: 'can' },
@@ -73,11 +85,11 @@ const PACKS: PackRule[] = [
   { match: /\benchilada sauce\b/, size: 10, unit: 'oz', packaging: 'can' },
   { match: /\bpumpkin puree\b|\b(canned|pure) pumpkin\b/, size: 15, unit: 'oz', packaging: 'can' },
   { match: /\btuna\b/, not: /\b(fresh|ahi|yellowfin|sushi|sashimi|seared|steaks?|fillets?|loin|tartare|poke)\b/, size: 5, unit: 'oz', packaging: 'can' },
-  { match: /\b(chicken|beef|vegetable|veggie|bone) (broth|stock)\b|^(broth|stock)$/, size: 32, unit: 'oz', packaging: 'carton', alt: { can: 14.5 } },
+  { match: /\b(chicken|beef|vegetable|veggie|bone) (broth|stock)\b|^(broth|stock)$/, size: 32, unit: 'oz', packaging: 'carton', alt: { can: 14.5 }, sold: [[14.5, 'can'], [32, 'carton'], [48, 'carton']] },
   // Jars and tubs
-  { match: /\bsalsa\b|\bqueso dip\b/, size: 16, unit: 'oz', packaging: 'jar' },
-  { match: /\b(marinara|pasta sauce|spaghetti sauce)\b/, size: 24, unit: 'oz', packaging: 'jar' },
-  { match: /\bsour cream\b/, size: 16, unit: 'oz', packaging: 'tub' },
+  { match: /\bsalsa\b|\bqueso dip\b/, size: 16, unit: 'oz', packaging: 'jar', sold: [[16, 'jar'], [24, 'jar']], perCup: 8.5 },
+  { match: /\b(marinara|pasta sauce|spaghetti sauce)\b/, size: 24, unit: 'oz', packaging: 'jar', sold: [[24, 'jar'], [45, 'jar']], perCup: 8.8 },
+  { match: /\bsour cream\b/, size: 16, unit: 'oz', packaging: 'tub', sold: [[8, 'tub'], [16, 'tub'], [24, 'tub']], perCup: 8.5 },
   { match: /\b(cool whip|whipped topping)\b/, size: 8, unit: 'oz', packaging: 'tub' },
   // Below enchilada sauce and salsa, which often say "green chile" too. A
   // fresh chile is produce, and the section gate in lookupPack keeps it loose.
@@ -89,7 +101,17 @@ const PACKS: PackRule[] = [
   { match: /\bfrozen (chopped )?spinach\b/, size: 10, unit: 'oz', packaging: 'box' },
   { match: /\bcake mix\b/, size: 15.25, unit: 'oz', packaging: 'box' },
   { match: /\b(instant )?pudding mix\b|\binstant pudding\b/, size: 3.4, unit: 'oz', packaging: 'box' },
-  { match: /\bchocolate chips\b/, size: 12, unit: 'oz', packaging: 'bag' },
+  { match: /\bchocolate chips\b/, size: 12, unit: 'oz', packaging: 'bag', sold: [[12, 'bag'], [24, 'bag']] },
+  // Counted things, for the buy math only (#811): "2 eggs" is bought as a dozen.
+  { match: /\beggs?\b/, not: /\begg ?(noodles?|nog|rolls?|whites?|substitute)\b|\beggplant\b|\begg beaters\b/, size: 12, unit: 'ct', packaging: 'carton', sold: [[12, 'carton'], [18, 'carton']], buyOnly: true },
+  { match: /\b(flour|corn) tortillas?\b|^tortillas?$/, not: /\bchips?\b/, size: 10, unit: 'ct', packaging: 'pack', sold: [[10, 'pack'], [20, 'pack']], buyOnly: true },
+  // Dry goods measured by the cup and sold by weight (#811). One cup of each, in oz.
+  { match: /\bbisquick\b|\bbaking mix\b|\bpancake (and|&) baking mix\b/, size: 40, unit: 'oz', packaging: 'box', sold: [[20, 'box'], [40, 'box'], [60, 'box']], perCup: 4.2 },
+  { match: /\b(all[- ]purpose|bread|self[- ]rising|plain|wheat) flour\b|^flour$/, size: 80, unit: 'oz', packaging: 'bag', sold: [[32, 'bag'], [80, 'bag']], perCup: 4.25 },
+  { match: /\b(granulated |white |cane )?sugar\b/, not: /\b(brown|powdered|confectioners|icing|snap|cookies?|free|substitute)\b/, size: 64, unit: 'oz', packaging: 'bag', sold: [[32, 'bag'], [64, 'bag']], perCup: 7.05 },
+  { match: /\b(light |dark )?brown sugar\b/, size: 32, unit: 'oz', packaging: 'bag', perCup: 7.5 },
+  { match: /\b(powdered|confectioners'?|icing) sugar\b/, size: 32, unit: 'oz', packaging: 'bag', perCup: 4.2 },
+  { match: /\b(long grain |white |jasmine |basmati )?rice\b/, not: /\b(vinegar|noodles?|paper|wine|krispies|cakes?|milk|flour|cooked|instant|minute|cauliflower|pasta)\b/, size: 32, unit: 'oz', packaging: 'bag', sold: [[32, 'bag'], [80, 'bag']], perCup: 6.5 },
   { match: /\btortilla chips\b/, size: 13, unit: 'oz', packaging: 'bag' },
   { match: /\b(taco|ranch|fajita|chili|onion soup|italian dressing|gravy) (seasoning|mix|dressing mix|soup mix)\b/, size: 1, unit: 'oz', packaging: 'packet' },
   { match: /\b(spaghetti|penne|rigatoni|elbow macaroni|macaroni|fettuccine|linguine|rotini|ziti|egg noodles|lasagna noodles|pasta)\b/, not: /\b(squash|sauce|salad|cheese|zucchini)\b/, size: 16, unit: 'oz', packaging: 'box' },
@@ -208,9 +230,34 @@ export function lookupPack(l: Line): PackSize | null {
   const said = CONTAINERS[unitOf(l)]
   if (soldLoose(l)) return null
   for (const r of PACKS) {
-    if (!claims(l, r.match, r.not)) continue
+    if (r.buyOnly || !claims(l, r.match, r.not)) continue
     const size = (said ? r.alt?.[said] : undefined) ?? r.size
     return { size, unit: r.unit, packaging: said && said !== 'container' ? said : r.packaging }
+  }
+  return null
+}
+
+/** What the table knows about buying a product: every size it is sold in, and its weight per cup. */
+export interface SoldInfo {
+  sizes: PackSize[]
+  perCup?: number
+}
+
+/**
+ * The sizes this line's product is sold in, for the buy math (#811), or null
+ * when the table doesn't know it. Unlike lookupPack this ignores the container
+ * the recipe counts in: a recipe that says "2 cans broth" can still be bought
+ * as a carton. Produce and meat sold loose stay null, as in lookupPack.
+ */
+export function soldSizes(l: Line): SoldInfo | null {
+  if (soldLoose(l)) return null
+  for (const r of PACKS) {
+    if (!claims(l, r.match, r.not)) continue
+    const pairs: Array<[number, string]> = r.sold ?? [
+      [r.size, r.packaging],
+      ...Object.entries(r.alt ?? {}).map(([pk, size]) => [size, pk] as [number, string]),
+    ]
+    return { sizes: pairs.map(([size, packaging]) => ({ size, unit: r.unit, packaging })), perCup: r.perCup }
   }
   return null
 }

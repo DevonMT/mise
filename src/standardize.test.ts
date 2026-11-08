@@ -165,3 +165,9 @@ test('the recipe text marks an estimated amount with ≈, as the screen does', (
   assert.match(text, /• ≈ 1 tsp cumin/)
   assert.match(text, /• 1 lb ground beef/)
 })
+
+test('a buy-only rule never writes a pack onto a recipe line (#811)', async () => {
+  const { fillFromTable } = await import('./packSizes')
+  const egg = { displayName: 'egg', canonicalKey: 'egg', quantity: 1, unit: 'whole', section: 'dairy' as const }
+  assert.equal(fillFromTable(egg), egg)
+})

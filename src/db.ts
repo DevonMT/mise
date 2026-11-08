@@ -253,6 +253,10 @@ export type RecipeIngredient = Pick<
    *  Standardize), answered or not. Standardize does not ask again; renaming
    *  the line in the editor clears it. */
   estimateAsked?: boolean
+  /** The top of a range the recipe gave ("2 to 3 cans"): `quantity` is the
+   *  low end, which the recipe shows and cooks with; buying covers this one,
+   *  because you can't un-buy at the stove (#811). */
+  quantityMax?: number
 }
 
 /** A saved recipe. */

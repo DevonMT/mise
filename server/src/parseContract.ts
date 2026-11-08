@@ -49,11 +49,14 @@ export const PARSE_SCHEMA = {
           'amountEstimated',
           'section',
           'optional',
+          'quantityMax',
         ],
         properties: {
           displayName: { type: 'string' },
           canonicalKey: { type: 'string' },
           quantity: { type: ['number', 'null'] },
+          // The top of a stated range ("2 to 3 cans"); quantity is the low end (#811).
+          quantityMax: { type: ['number', 'null'] },
           unit: { type: ['string', 'null'] },
           // Buy layer — the source's stated package size ("2 (10 1/2 oz)
           // cans"), or, for a recipe counted in containers with no size, the
@@ -87,7 +90,9 @@ Return ONLY structured data matching the schema. Rules:
 - displayName: the product AS IT IS SOLD, in shopping-friendly words (e.g. "yellow onion", "boneless chicken breast"). Strip the prep the cook does to it — chopped, diced, minced, sliced, grated, melted, softened, cooked, drained, rinsed, divided, room temperature — including a trailing prep clause after a comma: "Rotel Tomatoes, chopped" -> "Rotel tomatoes"; "1 1/2 cups chopped onions" -> "onions"; "1 cup grated cheddar cheese" -> "cheddar cheese". Keep a word that describes how the product is SOLD rather than what you do to it: "ground beef", "crushed tomatoes", "sliced sandwich bread", and "shredded mozzarella" where the recipe clearly wants the pre-shredded bag.
 - canonicalKey: a normalized merge key — lowercase, singular, no brand/adjectives that don't change what you buy. "yellow onions" and "1 diced onion" both -> "onion"; "boneless skinless chicken breasts" -> "chicken breast". This is how duplicates across sources get merged, so be consistent.
 - quantity: a number if one is stated or clearly implied, else null. Convert written numbers ("two") and simple fractions ("1/2" -> 0.5). Do not invent quantities.
+- quantityMax: when the source gives a range of amounts ("2 to 3 cans", "1-2 cups"), quantity is the LOW end and quantityMax the high end (2 and 3). Null when there is no range.
 - unit: the unit of measure if present (cup, lb, oz, clove, can, bunch, whole...), else null. If the item is just a count of whole things (e.g. "2 onions"), use "whole".
+- MEASURING WITH A CAN. When the recipe SAYS it measures a liquid with the can of another ingredient ("1 soup can of milk", "2 cans broth (use the soup can)", "fill the empty soup can with broth"), the unit is "soup can" and the four pack fields below are null. Plain "2 cans chicken broth" stays unit "can": the shopper decides which can when adding to a list.
 - buyCount / sizeAmount / sizeUnit / packaging: the package to actually put in the cart. Recipes usually state it in parentheses — "2 (10 1/2 ounce) cans cream of mushroom soup", "1 (13-16 oz) bag Doritos", "one 15 oz can black beans". Fill these ONLY when the source states a container size AND the item is counted in containers: buyCount = how many containers (2), sizeAmount = what's in ONE container (10.5), sizeUnit = that measure ("oz"), packaging = the container noun ("can", "bag", "jar", "box", "bottle", "package"). Worked: "2 (10 1/2 ounce) cans cream of mushroom soup" -> quantity 2, unit "can", buyCount 2, sizeAmount 10.5, sizeUnit "oz", packaging "can". "1 (13-16 ounce) bag plain Doritos" -> quantity 1, unit "bag", buyCount 1, sizeAmount 13, sizeUnit "oz", packaging "bag" (given a range, use the smaller number).
   Set ALL FOUR to null when the source states no container size ("1 can of beans"), or when the amount is a cooking measure — 1 1/2 cups onions, 2 tbsp butter, 3 cloves garlic, 1 lb ground beef all get null. A stated equivalent like "1 cup (8 oz) sour cream" is a conversion, NOT a package size — null. Never invent a size that isn't written down.
 - sizeEstimated, amountEstimated: always false (a STANDARD SIZES section below, present only on some requests, is the one exception).
@@ -282,7 +287,41 @@ Worked examples (label → count / sizeAmount / sizeUnit / packaging):
     - personal: personal care & health — shampoo, soap, toothpaste, deodorant, cosmetics, vitamins, over-the-counter medicine.
     - other: only when nothing above fits (e.g. baby, pet, flowers).
 
-Return exactly one entry per canonicalKey you were given, with its options ordered from most common/cheapest to larger/pricier. Use realistic ${store} pricing.`
+Return exactly one entry per canonicalKey you were given, with its options ordered from most common/cheapest to larger/pricier. Use realistic ${store} pricing.
+
+AMOUNT NEEDED. Some items end with "need" and an amount ("need 2 cup"): the shopper is buying for a recipe and needs that much. For those items, set each option's count so that count × one package covers the amount, converting a cooking measure to the package's measure the way a cook would (2 cups of baking mix is about 8.5 oz, 2/3 cup of milk is about 5 fl oz). Order those options so the one that leaves the least left over comes first, then the rest from smallest to largest.`
+}
+
+/** One item a client sends to /api/refine. `quantity` + `unit` are what a recipe needs (#811). */
+export interface RefineRequestItem {
+  canonicalKey: string
+  displayName: string
+  unit?: string
+  quantity?: number
+}
+
+/**
+ * The item lines for the refine prompt, made safe the way standardizeRequest
+ * is: each field one short line, the amount a checked number. A line with an
+ * amount says "need 2 cup", which the system prompt's AMOUNT NEEDED rule reads.
+ * Exported for the tests.
+ */
+export function refineLines(items: unknown): { keys: string[]; text: string } {
+  const out: string[] = []
+  const keys: string[] = []
+  for (const raw of Array.isArray(items) ? items.slice(0, 100) : []) {
+    if (!raw || typeof raw !== 'object') continue
+    const i = raw as { canonicalKey?: unknown; displayName?: unknown; unit?: unknown; quantity?: unknown }
+    const key = cleanPlace(i.canonicalKey, 80)
+    const name = cleanPlace(i.displayName, 80) || key
+    if (!key) continue
+    const unit = cleanPlace(i.unit, 20)
+    const q = typeof i.quantity === 'number' && Number.isFinite(i.quantity) && i.quantity > 0 && i.quantity < 10000 ? i.quantity : null
+    const need = q != null ? `need ${Math.round(q * 100) / 100}${unit ? ' ' + unit : ''}` : unit
+    keys.push(key)
+    out.push(`- ${key}: ${name}${need ? ` (${need})` : ''}`)
+  }
+  return { keys, text: out.join('\n') }
 }
 
 export function pricesSystem(store: string): string {

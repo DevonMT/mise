@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Recipe } from './db'
-import { addRecipeToList, standardizeRecipe, type Skipped } from './recipes'
-import { formatBuy, formatQty } from './list'
+import { standardizeRecipe, type Skipped } from './recipes'
+import { formatBuy } from './list'
+import { recipeAmount } from './buy'
+import { AddRecipeSheet } from './AddRecipeSheet'
 import { canStandardize } from './packSizes'
 import { defaultGroceryListId } from './lists'
 import { recipePageUrl, shareRecipePayload } from './share'
@@ -162,15 +164,22 @@ function RecipeDetail({
   // Ingredients only ever land on a grocery list — a pantry is what you *have*
   // and a task list has no use for flour, so neither can receive a recipe.
   // If you're standing on one of those, we find a grocery list and say so.
+  // Add opens the buy review (#811): what the recipe says, what to buy for it.
+  // Pantry stock shows there, unchecked, so nothing is reported as skipped.
+  const [adding, setAdding] = useState<{ id: number; name: string } | null>(null)
+  useBackLayer(adding !== null, () => setAdding(null))
   const add = async () => {
     const target = await defaultGroceryListId(activeListId)
     if (target == null) {
-      onToast('No grocery list to add to — make one first.')
+      onToast('No grocery list to add to. Make one first.')
       return
     }
-    const { skipped } = await addRecipeToList(recipe, factor, target, optSel)
-    onDone(target, skipped)
+    setAdding({ id: target, name: (await db.lists.get(target))?.name ?? 'your list' })
   }
+
+  /** The multiplier buttons: ½×, 1×, 2×, 3× the recipe as written. */
+  const MULTIPLIERS: Array<[number, string]> = [[0.5, '½×'], [1, '1×'], [2, '2×'], [3, '3×']]
+  const setFactor = (m: number) => setN(base ? Math.max(1, Math.round(base * m * 100) / 100) : m)
 
   const [sharing, setSharing] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -221,11 +230,8 @@ ${url}`)
     }
   }
 
-  const qtyOf = (ing: Recipe['ingredients'][number]) =>
-    formatQty({
-      quantity: ing.quantity != null ? Math.round(ing.quantity * factor * 100) / 100 : undefined,
-      unit: ing.unit,
-    })
+  // The recipe's own words, range and all: "2 to 3 soup cans" (#811).
+  const qtyOf = (ing: Recipe['ingredients'][number]) => (ing.quantity != null ? recipeAmount(ing, factor) : '')
   // The amount, then the pack to grab: "2 can · 15 oz can". "≈" marks what Mise
   // filled in rather than the recipe (#774), with a note under the list.
   const amountOf = (ing: Recipe['ingredients'][number]) => {
@@ -284,7 +290,19 @@ ${url}`)
           <span className="stepper-val">{base ? n : `×${n}`}</span>
           <button onClick={() => setN((v) => +(v + step).toFixed(2))}>＋</button>
         </div>
-        {base > 0 && n !== base && <span className="scaler-note">{factor.toFixed(2)}×</span>}
+        <div className="mult-chips" role="group" aria-label="Scale the recipe">
+          {MULTIPLIERS.map(([m, label]) => {
+            const on = Math.abs(factor - m) < 0.001
+            return (
+              <button key={m} className={on ? 'chip on' : 'chip'} aria-pressed={on} onClick={() => setFactor(m)}>
+                {label}
+              </button>
+            )
+          })}
+        </div>
+        {base > 0 && n !== base && !MULTIPLIERS.some(([m]) => Math.abs(factor - m) < 0.001) && (
+          <span className="scaler-note">{factor.toFixed(2)}×</span>
+        )}
       </div>
 
       <div className="ing-list">
@@ -365,7 +383,7 @@ ${url}`)
         </button>
       )}
       <button className="primary" onClick={add}>
-        Add to list{optSel.size > 0 ? ` · +${optSel.size} optional` : ''}
+        Add to List{optSel.size > 0 ? ` · +${optSel.size} optional` : ''}
       </button>
       <button className="ghost danger" onClick={remove} style={{ marginTop: 10 }}>
         Delete Recipe
@@ -378,6 +396,22 @@ ${url}`)
           activeListId={activeListId}
           onClose={() => setPicked(null)}
           onToast={onToast}
+        />
+      )}
+      {adding && (
+        <AddRecipeSheet
+          recipe={recipe}
+          factor={factor}
+          includeOptional={optSel}
+          listId={adding.id}
+          listName={adding.name}
+          onClose={() => setAdding(null)}
+          onDone={(msg) => {
+            const to = adding.id
+            setAdding(null)
+            onToast(msg)
+            onDone(to, [])
+          }}
         />
       )}
       {editing && <RecipeEditor recipe={recipe} onClose={() => setEditing(false)} />}

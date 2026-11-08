@@ -27,6 +27,7 @@ export interface SharedItem {
   z?: string // sizeUnit
   p?: string // packaging
   t?: string // detail — the refined product/brand, list items only
+  m?: number // quantityMax — the top of a range, recipe lines only (#811)
 }
 
 export type SharePayload =
@@ -155,6 +156,7 @@ const toShared = (i: {
   sizeUnit?: string
   packaging?: string
   detail?: string
+  quantityMax?: number
 }): SharedItem => ({
   n: i.displayName,
   k: i.canonicalKey,
@@ -169,6 +171,7 @@ const toShared = (i: {
   ...(i.sizeUnit ? { z: i.sizeUnit } : {}),
   ...(i.packaging ? { p: i.packaging } : {}),
   ...(i.detail ? { t: i.detail } : {}),
+  ...(i.quantityMax != null ? { m: i.quantityMax } : {}),
 })
 
 /** The Buy layer of a shared line, in Item field names. */

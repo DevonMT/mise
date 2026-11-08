@@ -60,6 +60,22 @@ const UNITS: Record<string, UnitInfo> = {
   dozen: DOZEN, doz: DOZEN,
 }
 
+/** A unit's family and size in that family's base (fl oz, oz, one), or null. Used by buy.ts. */
+export function unitInfo(raw: string | null | undefined): { family: Family; factor: number } | null {
+  return lookup(raw)
+}
+
+/**
+ * Whether a product is a liquid, so a bare "oz" on its label is fluid ounces
+ * (buy.ts). Looser than readsAsFluid, which guards Refine's size hints: here
+ * the NAME decides even in a can, because broth in a 14.5 oz can is still
+ * poured by the cup.
+ */
+export function liquidProduct(name: string, packaging?: string | null): boolean {
+  if (LIQUID_PACKAGING.has((packaging ?? '').trim().toLowerCase())) return true
+  return LIQUID_NAME.test(name.toLowerCase().replace(NOT_LIQUID_NAME, ''))
+}
+
 function lookup(raw: string | null | undefined): UnitInfo | null {
   const key = (raw ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
   return UNITS[key] ?? null

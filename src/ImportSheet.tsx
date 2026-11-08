@@ -7,6 +7,7 @@ import { createList } from './lists'
 import { decodeShare, shareHashIn, sharedPack, sharedToItem, type SharedItem, type SharePayload } from './share'
 import { Icon } from './Icon'
 import { Sheet } from './Sheet'
+import { recipeAmount } from './buy'
 
 /** A shared line as addItem takes it, pack and brand included. */
 function toNewItem(s: SharedItem, listId: number): NewItem {
@@ -17,7 +18,7 @@ function toNewItem(s: SharedItem, listId: number): NewItem {
 /** Preview row: the amount, or the pack you'd buy when the sender set one. */
 function SharedRow({ item: i }: { item: SharedItem }) {
   const pack = formatBuy(sharedPack(i))
-  const amount = i.q != null ? `${i.q}${i.u ? ' ' + i.u : ''}` : ''
+  const amount = i.q != null ? recipeAmount({ quantity: i.q, quantityMax: i.m, unit: i.u }) : ''
   return (
     <div className="ing-row">
       <span className="ing-name">{i.n}</span>
@@ -103,6 +104,7 @@ export function ImportSheet({
           ...sharedPack(i),
           section: i.s,
           optional: i.x || undefined,
+          quantityMax: typeof i.m === 'number' && i.q != null && i.m > i.q ? i.m : undefined,
         })),
         instructions: payload.instructions,
         tips: payload.tips,

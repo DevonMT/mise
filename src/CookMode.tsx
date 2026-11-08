@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Recipe } from './db'
 import { kitchenNumber } from './recipeText'
+import { recipeAmount } from './buy'
 import { Icon } from './Icon'
 import { useDialog } from './ds/useDialog'
 import { useBackLayer } from './back'
@@ -77,11 +78,9 @@ export function CookMode({
     .map((ing, i) => ({ ing, i }))
     .filter(({ ing, i }) => !ing.optional || includeOptional.has(i))
 
-  const amount = (q?: number, unit?: string) => {
-    if (q == null) return ''
-    const u = unit && unit !== 'whole' ? ` ${unit}` : ''
-    return kitchenNumber(q * factor) + u
-  }
+  // The recipe's own words, range and all: "2 to 3 soup cans" (#811).
+  const amount = (q?: number, unit?: string, quantityMax?: number) =>
+    q == null ? '' : recipeAmount({ quantity: q, quantityMax, unit }, factor)
 
   const toggle = (i: number) =>
     setGot((s) => {
@@ -123,7 +122,7 @@ export function CookMode({
                   <span className="opt-check">{got.has(i) ? '✓' : ''}</span>
                   <span className="cook-amt" title={ing.amountEstimated ? 'Estimated by Mise' : undefined}>
                     {ing.amountEstimated && amount(ing.quantity, ing.unit) ? '≈ ' : ''}
-                    {amount(ing.quantity, ing.unit)}
+                    {amount(ing.quantity, ing.unit, ing.quantityMax)}
                   </span>
                   <span className="cook-name">{ing.displayName}</span>
                 </button>

@@ -36,7 +36,9 @@ function line(ing: RecipeIngredient, factor: number): string {
   // "≈" when Mise filled the size in (#774), as on the recipe screen.
   const name = pack ? `${ing.displayName} (${ing.sizeEstimated ? '≈ ' : ''}${pack})` : ing.displayName
   if (ing.quantity == null) return `• ${name}`
-  const q = kitchenNumber(ing.quantity * factor)
+  // A range reads as the recipe wrote it: "2 to 3 soup can" (#811).
+  const lo = kitchenNumber(ing.quantity * factor)
+  const q = ing.quantityMax != null ? `${lo} to ${kitchenNumber(ing.quantityMax * factor)}` : lo
   // "whole" is how the parser marks a countable thing; "3 whole eggs" reads
   // worse than "3 eggs".
   const unit = ing.unit && ing.unit !== 'whole' ? ` ${ing.unit}` : ''

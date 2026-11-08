@@ -48,6 +48,8 @@ export interface ParsedItem {
   section: Section
   /** The recipe marks this ingredient as optional — not added by default. */
   optional?: boolean
+  /** Top of a stated range; `quantity` is the low end (#811). Older servers omit it. */
+  quantityMax?: number | null
 }
 
 export interface ParseResult {
@@ -281,7 +283,8 @@ export interface RefineItem {
 
 export async function refineItems(
   store: string,
-  items: Array<{ canonicalKey: string; displayName: string; unit?: string }>,
+  /** `quantity` (#811): what a recipe needs, so each option's count covers it. */
+  items: Array<{ canonicalKey: string; displayName: string; unit?: string; quantity?: number }>,
   area = '',
 ): Promise<RefineItem[]> {
   const data = await postJson<{ items?: RefineItem[] }>('/api/refine', { store, area, items }, 'Refine')

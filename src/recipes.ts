@@ -1,5 +1,6 @@
-import { db, canonicalize, type Recipe, type Item } from './db'
-import { addItem, fallsOn, packCount, startOfDay, type NewItem } from './list'
+import { db, canonicalize, type Recipe, type Item, type RecipeIngredient } from './db'
+import { addItem, fallsOn, startOfDay, type NewItem } from './list'
+import { buyLine, type BuyPlan } from './buy'
 import { getInStockKeys } from './lists'
 import { getStapleKeys, isStaple, standardizeLines, type ParseResult } from './parse'
 import { changedCount, fillFromTable, filledCount, listAmount, mergeEstimate, openGaps } from './packSizes'
@@ -68,6 +69,9 @@ export async function saveRecipeFromParse(result: ParseResult): Promise<number |
       estimateAsked: i.estimateAsked || undefined,
       section: i.section,
       optional: i.optional || undefined,
+      // A range keeps its top only when it is one (#811).
+      quantityMax:
+        i.quantityMax != null && i.quantity != null && i.quantityMax > i.quantity ? i.quantityMax : undefined,
     })),
     instructions: result.instructions ?? undefined,
     tips: tips.length ? tips : undefined,
@@ -159,6 +163,34 @@ export type Skipped = NewItem
  * one a person can disagree with ("I used the last of it") and `addSkipped`
  * puts those lines back. A pantry item marked out never skips anything.
  */
+/**
+ * One recipe line as a list line. The amount is the recipe's (an estimated
+ * amount stays on the recipe, see listAmount); the pack is `plan`, from the buy
+ * math or the review sheet (#811). With no plan the pack is left off, so the
+ * row shows the amount alone.
+ */
+export function recipeListLine(
+  ing: RecipeIngredient,
+  factor: number,
+  listId: number,
+  plan: BuyPlan | Pick<NewItem, 'buyCount' | 'sizeAmount' | 'sizeUnit' | 'packaging'> | null,
+  extra?: Pick<NewItem, 'detail' | 'section'>,
+): NewItem {
+  return {
+    listId,
+    displayName: ing.displayName,
+    canonicalKey: ing.canonicalKey,
+    // A range goes on the list at its top: that is what you buy for (#811).
+    ...listAmount({ ...ing, quantity: ing.quantityMax ?? ing.quantity }, factor),
+    buyCount: plan?.buyCount,
+    sizeAmount: plan?.sizeAmount,
+    sizeUnit: plan?.sizeUnit,
+    packaging: plan?.packaging,
+    section: extra?.section ?? ing.section,
+    ...(extra?.detail ? { detail: extra.detail } : {}),
+  }
+}
+
 export async function addRecipeToList(
   recipe: Recipe,
   factor = 1,
@@ -172,20 +204,7 @@ export async function addRecipeToList(
     const ing = recipe.ingredients[i]
     if (isStaple(staples, ing)) continue
     if (ing.optional && !includeOptional?.has(i)) continue
-    const line: NewItem = {
-      listId,
-      displayName: ing.displayName,
-      canonicalKey: ing.canonicalKey,
-      // An estimated amount stays on the recipe (see listAmount).
-      ...listAmount(ing, factor),
-      // Doubling the recipe doubles the cans — and half a can still means
-      // buying one, so the scaled pack count rounds up.
-      buyCount: ing.buyCount != null ? packCount(ing.buyCount * factor) : undefined,
-      sizeAmount: ing.sizeAmount,
-      sizeUnit: ing.sizeUnit,
-      packaging: ing.packaging,
-      section: ing.section,
-    }
+    const line = recipeListLine(ing, factor, listId, buyLine(ing, factor).plan)
     if (isStaple(stocked, ing)) {
       skipped.push(line)
       continue

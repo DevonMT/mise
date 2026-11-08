@@ -15,6 +15,7 @@ import {
   shopperLine,
   REFINE_SCHEMA,
   refineSystem,
+  refineLines,
   STANDARDIZE_SCHEMA,
   STANDARDIZE_SYSTEM,
   standardizePrompt,
@@ -332,23 +333,20 @@ app.post('/api/prices', async (c) => {
 
 /**
  * POST /api/refine
- * body: { store: string, area?: string, items: [{canonicalKey, displayName, unit?}] }
+ * body: { store: string, area?: string, items: [{canonicalKey, displayName, unit?, quantity?}] }
+ *   quantity (#811): what a recipe needs, so the counts cover it.
  * -> { items: [{canonicalKey, options: [{label, count, sizeAmount, sizeUnit, packaging, price, section}]}] }
  */
 app.post('/api/refine', async (c) => {
-  let body: { store?: string; area?: string; items?: Array<{ canonicalKey: string; displayName: string; unit?: string }> }
+  let body: { store?: string; area?: string; items?: unknown }
   try {
     body = await c.req.json()
   } catch {
     return c.json({ error: 'Invalid JSON body.' }, 400)
   }
   const shopper = shopperLine(body.store, body.area)
-  const items = (body.items ?? []).slice(0, 100)
-  if (items.length === 0) return c.json({ items: [] })
-
-  const list = items
-    .map((i) => `- ${i.canonicalKey}: ${i.displayName}${i.unit ? ` (${i.unit})` : ''}`)
-    .join('\n')
+  const { keys, text: list } = refineLines(body.items)
+  if (keys.length === 0) return c.json({ items: [] })
 
   const capped = overCap(c)
   if (capped) return capped

@@ -1342,6 +1342,59 @@
   color: var(--muted);
   font-size: 0.85rem;
 }
+/* ½× 1× 2× 3× beside the stepper (#811). */
+.mult-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mult-chips .chip {
+  padding: 7px 11px;
+  min-width: 44px;
+}
+/* The add-to-list review (#811): what the recipe says, then what to buy. */
+.buy-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  font-size: 0.9rem;
+}
+.buy-label {
+  display: inline-block;
+  min-width: 4.5em;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.buy-line:last-child {
+  font-weight: 700;
+  color: var(--accent);
+}
+.buy-line:last-child .buy-label {
+  color: var(--muted);
+}
+.buy-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.buy-chips .chip {
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+.buy-refine {
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1.5px dashed var(--accent);
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
 .ing-list {
   max-height: 40vh;
   overflow-y: auto;
