@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, liveLists, type Item, type List, type Section, type Schedule } from './db'
+import { db, liveLists, listTree, subListParent, type Item, type List, type Section, type Schedule } from './db'
 import { SECTIONS, SECTION_META } from './sections'
 import {
   addItem,
@@ -56,6 +56,8 @@ import { startAutoSync, syncEnabled } from './sync'
 import { useBackLayer } from './back'
 import { usePointer } from './ds/usePointer'
 import { RecipePickSheet } from './RecipePick'
+import { MoveSheet, type MovePick } from './MoveSheet'
+import { createSubList, dropIfEmpty, moveItems } from './move'
 import { addSkipped, shopTheWeek, skippedMessage, type Skipped } from './recipes'
 
 type ListView = 'list' | 'backlog'
@@ -111,6 +113,7 @@ export default function App() {
   const [importLinkOpen, setImportLinkOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [moveOpen, setMoveOpen] = useState(false)
   const [toast, setToast] = useState<{
     msg: string
     undo?: () => void
@@ -478,6 +481,52 @@ export default function App() {
     await removeWithUndo(rows, `Removed ${rows.length}`)
     exitSelect()
   }
+  /** The rows on screen right now: this trip's list, or Next time. */
+  const shown = view === 'list' ? active : backlog
+  const allShown = shown.length > 0 && shown.every((i) => selected.has(i.id!))
+  const selectAll = () => setSelected(allShown ? new Set() : new Set(shown.map((i) => i.id!)))
+
+  /**
+   * Move rows to Next time, to another list of this kind, or to a new
+   * sub-list (#808). Rows keep their identity; one whose ingredient is
+   * already there merges. Undo puts every row back, and takes away a sub-list
+   * this made if it is empty again.
+   */
+  const moveRows = async (ids: number[], pick: MovePick) => {
+    if (!ids.length) return
+    let made: number | null = null
+    let to: { listId: number; backlog: boolean }
+    let label: string
+    try {
+      if ('newSubList' in pick) {
+        made = await createSubList(pick.parent, pick.newSubList)
+        to = { listId: made, backlog: false }
+        label = `“${pick.newSubList}”`
+      } else {
+        to = pick.to
+        label = pick.label
+      }
+      const r = await moveItems(ids, to)
+      const n = r.moved + r.merged
+      const msg =
+        `Moved ${n} to ${label}` +
+        (r.merged ? `. ${r.merged === 1 ? '1 was' : `${r.merged} were`} already there and merged.` : '')
+      showToast(msg, async () => {
+        await r.undo()
+        if (made != null) await dropIfEmpty(made)
+        setToast(null)
+      })
+    } catch (e) {
+      if (made != null) await dropIfEmpty(made)
+      showToast(e instanceof Error ? e.message : 'Could not move those.')
+    }
+  }
+  const moveSelected = async (pick: MovePick) => {
+    const ids = shown.filter((i) => selected.has(i.id!)).map((i) => i.id!)
+    setMoveOpen(false)
+    exitSelect()
+    await moveRows(ids, pick)
+  }
 
   const dismissHint = () => {
     localStorage.setItem('mise.swipeHint', '1')
@@ -499,6 +548,7 @@ export default function App() {
     setSelectMode(false)
     setSelected(new Set())
   })
+  useBackLayer(moveOpen, () => setMoveOpen(false))
   useBackLayer(menuOpen, () => setMenuOpen(false))
   useBackLayer(addMenuOpen, () => setAddMenuOpen(false))
   useBackLayer(switcherOpen, () => setSwitcherOpen(false))
@@ -558,6 +608,7 @@ export default function App() {
   if (activeId == null || !activeList) {
     return <div className="app" />
   }
+  const parentList = subListParent(activeList, lists)
 
   const isEmpty = groups.every((g) => g.items.length === 0)
 
@@ -670,6 +721,15 @@ export default function App() {
                 <span>Swipe a row → {kind.checkVerb.toLowerCase()} · ← delete</span>
                 <button className="hint-x" aria-label="Dismiss" onClick={dismissHint}>
                   <Icon name="x" size={16} />
+                </button>
+              </div>
+            )}
+
+            {selectMode && shown.length > 0 && (
+              <div className="select-head">
+                <span>{selected.size} selected</span>
+                <button className="ghost" onClick={selectAll}>
+                  {allShown ? 'Select None' : 'Select All'}
                 </button>
               </div>
             )}
@@ -854,6 +914,13 @@ export default function App() {
           <button className="ghost" onClick={exitSelect}>
             Cancel
           </button>
+          <button
+            className="move-btn"
+            onClick={() => setMoveOpen(true)}
+            disabled={selected.size === 0}
+          >
+            Move {selected.size || ''}
+          </button>
           <button className="danger-btn" onClick={deleteSelected} disabled={selected.size === 0}>
             Remove {selected.size || ''}
           </button>
@@ -900,7 +967,7 @@ export default function App() {
         onChange={pickTab}
         listIconName={listIcon(activeList)}
         listName={activeList.name}
-        lists={lists}
+        lists={listTree(lists).map(({ list, sub }) => ({ ...list, sub }))}
         activeListId={activeId}
         onPickList={(id) => {
           switchTo(id)
@@ -983,15 +1050,48 @@ export default function App() {
               Add what&apos;s out to groceries
             </button>
           )}
+          {parentList && active.length > 0 && (
+            <button
+              className="menu-item"
+              onClick={async () => {
+                setMenuOpen(false)
+                await moveRows(
+                  active.map((i) => i.id!),
+                  { to: { listId: parentList.id!, backlog: false }, label: `“${parentList.name}”` },
+                )
+                switchTo(parentList.id!)
+              }}
+            >
+              <Icon name="back" size={20} />
+              <span className="menu-item-body">
+                Move All Back to {parentList.name}
+                <span className="menu-item-sub">The list this one came from</span>
+              </span>
+            </button>
+          )}
           <button className="menu-item" onClick={enterSelect}>
             <Icon name="select" size={20} />
-            Select to remove
+            <span className="menu-item-body">
+              Select Items
+              <span className="menu-item-sub">To move or remove</span>
+            </span>
           </button>
           <button className="menu-item danger" onClick={clearAll}>
             <Icon name="trash" size={20} />
             Clear the list
           </button>
         </Sheet>
+      )}
+
+      {moveOpen && (
+        <MoveSheet
+          count={shown.filter((i) => selected.has(i.id!)).length}
+          list={activeList}
+          lists={lists}
+          view={view}
+          onPick={(p) => void moveSelected(p)}
+          onClose={() => setMoveOpen(false)}
+        />
       )}
 
       {editListOpen && <EditListSheet list={activeList} onClose={() => setEditListOpen(false)} />}

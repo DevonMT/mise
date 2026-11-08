@@ -23,7 +23,7 @@ export function BottomNav({
    * things. A rail has a column of empty space and no reason to hide them
    * behind a sheet — which is what a sidebar is for.
    */
-  lists?: { id?: number; name: string; icon?: string; kind: string }[]
+  lists?: { id?: number; name: string; icon?: string; kind: string; sub?: boolean }[]
   activeListId?: number | null
   onPickList?: (id: number) => void
   onManageLists?: () => void
@@ -92,7 +92,8 @@ export function BottomNav({
                 role="tab"
                 aria-selected={tab === 'list' && l.id === activeListId}
                 className={
-                  tab === 'list' && l.id === activeListId ? 'navbtn on' : 'navbtn'
+                  (tab === 'list' && l.id === activeListId ? 'navbtn on' : 'navbtn') +
+                  (l.sub ? ' navbtn-sub' : '')
                 }
                 onClick={() => l.id != null && onPickList?.(l.id)}
               >

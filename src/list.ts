@@ -183,8 +183,9 @@ export async function addItem(input: NewItem): Promise<number> {
   })
 }
 
-/** The merge half of addItem: a second line folded into one already there. */
-async function mergeInto(existing: Item, input: Pick<NewItem, 'quantity' | 'buyCount' | 'sizeAmount' | 'sizeUnit' | 'packaging'>) {
+/** The merge half of addItem: a second line folded into one already there.
+ *  Exported for moves between lists (move.ts), which merge the same way. */
+export async function mergeInto(existing: Item, input: Pick<NewItem, 'quantity' | 'buyCount' | 'sizeAmount' | 'sizeUnit' | 'packaging'>) {
   const merged = (existing.quantity ?? 0) + (input.quantity ?? 0)
   const quantity = input.quantity != null ? merged || undefined : existing.quantity
   await db.items.update(existing.id!, {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, liveLists, type Item, type List, type ListKind } from './db'
+import { db, liveLists, listTree, type Item, type List, type ListKind } from './db'
 import { KINDS, KIND_LIST, listIcon } from './kinds'
 import * as people from './people'
 import { createList, deleteList, mergeInto, renameList } from './lists'
@@ -117,10 +117,10 @@ export function ListSwitcher({
       </div>
 
       <div className="list-rows">
-        {lists.map((l) => (
+        {listTree(lists).map(({ list: l, sub }) => (
           <button
             key={l.id}
-            className={l.id === activeId ? 'list-row on' : 'list-row'}
+            className={(l.id === activeId ? 'list-row on' : 'list-row') + (sub ? ' list-row-sub' : '')}
             onClick={() => onPick(l.id!)}
           >
             <span className="list-icon">
@@ -129,7 +129,7 @@ export function ListSwitcher({
             <span className="list-body">
               <span className="list-name">{l.name}</span>
               <span className="list-sub">
-                {KINDS[l.kind].label}
+                {sub ? 'Sub-list' : KINDS[l.kind].label}
                 {/* Whose list this is, when it is not only yours. A subscribed
                     list syncs into the switcher looking exactly like your own,
                     and finding somebody else's groceries in your app without

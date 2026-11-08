@@ -1570,6 +1570,33 @@
 .danger-btn:disabled {
   opacity: 0.5;
 }
+/* Select mode (#808): Move sits between Cancel and Remove. */
+.move-btn {
+  flex: 2;
+  padding: 15px;
+  border-radius: 14px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+.move-btn:disabled {
+  opacity: 0.5;
+}
+.select-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 460px;
+  margin: 0 0 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.select-head .ghost {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+}
 
 /* ---- Recipes head + steps ---- */
 .recipes-head {
@@ -1985,6 +2012,10 @@
 }
 .list-row:disabled {
   opacity: 0.5;
+}
+/* A sub-list sits indented under the list it came from (#808). */
+.list-row-sub {
+  margin-left: 28px;
 }
 .list-icon {
   flex: 0 0 auto;
@@ -2606,6 +2637,7 @@
   }
   .navbtn.on { background: var(--accent-soft); }
   .navbtn.on .navbtn-icon { background: none; }
+  .navbtn.navbtn-sub { padding-left: 34px; }
 
   .group { margin-bottom: 22px; }
   .tabs, .hint-banner { max-width: 460px; }

@@ -73,10 +73,43 @@ export interface List {
    * everywhere a list is shown or picked (liveLists).
    */
   foldedInto?: string
+  /**
+   * A sub-list: the uid of the list it was split off from (#808), so the
+   * switcher shows it under that list and "Back to <parent>" is the way home.
+   * A uid, not the local id, because it syncs. Always a top-level list of the
+   * same kind; a parent that is gone, hidden or of another kind is ignored and
+   * the sub-list simply shows as a list of its own (see subListParent).
+   * Optional and unindexed: no Dexie migration.
+   */
+  parentUid?: string
 }
 
 /** Every list the app opens on or adds to: all but the folded leftovers. */
 export const isLive = (l: List): boolean => !l.foldedInto
+
+/** The list a sub-list hangs under, when that list is still there to go back to. */
+export function subListParent(list: List, lists: List[]): List | undefined {
+  if (!list.parentUid || list.parentUid === list.uid) return undefined
+  const p = lists.find((l) => l.uid === list.parentUid)
+  return p && isLive(p) && p.kind === list.kind && !subListParent(p, lists) ? p : undefined
+}
+
+/** Lists in switcher order: each sub-list straight after its parent, indented. */
+export function listTree(lists: List[]): Array<{ list: List; sub: boolean }> {
+  const out: Array<{ list: List; sub: boolean }> = []
+  const children = new Map<string, List[]>()
+  const top: List[] = []
+  for (const l of lists) {
+    const p = subListParent(l, lists)
+    if (p?.uid) children.set(p.uid, [...(children.get(p.uid) ?? []), l])
+    else top.push(l)
+  }
+  for (const l of top) {
+    out.push({ list: l, sub: false })
+    for (const c of (l.uid && children.get(l.uid)) || []) out.push({ list: c, sub: true })
+  }
+  return out
+}
 
 /** Every list a person can see: the live ones, plus a folded leftover that
  *  still holds rows. Normally that is only for the moment between a sync and
