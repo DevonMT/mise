@@ -102,3 +102,9 @@ test('parse marks ranges and stated soup cans (#811)', () => {
   assert.match(SYSTEM_PROMPT, /quantity is the LOW end and quantityMax the high end/)
   assert.match(SYSTEM_PROMPT, /"soup can"/)
 })
+
+test('parse asks for plain names and keeps household names (#818)', () => {
+  assert.match(SYSTEM_PROMPT, /PLAIN NAMES/)
+  for (const keep of ['Velveeta', 'Cheez Whiz', 'Rotel']) assert.ok(SYSTEM_PROMPT.includes(keep), keep)
+  assert.match(SYSTEM_PROMPT, /"Original Bisquick mix" -> "baking mix"/)
+})

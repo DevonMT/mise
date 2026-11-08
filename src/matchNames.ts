@@ -18,20 +18,26 @@
  *     purpose, like match.ts's spice list: "chicken broth" is not "chicken",
  *     "cream cheese" is not "cheese", "unsalted butter" stays the baker's call.
  *
+ * Plain names (#818) come first: a line that names a brand ("Veg-All",
+ * "Hormel chili") gets its plain name (plainNames.ts), or his own name for
+ * that plain product when he keeps one. Brands are Refine's job.
+ *
  * Nothing here writes until a card is accepted. An accepted card changes the
  * line's name, canonicalKey and aisle; the amount and the pack stay the
  * recipe's.
  */
 import { canonicalize, db, isLive, type Recipe, type RecipeIngredient, type Section } from './db'
 import { itemKeys, sameIngredient } from './match'
+import { plainName } from './plainNames'
 
 /** One of Devon's own names a recipe line can take. */
 export interface NameSource {
   displayName: string
   canonicalKey: string
   section: Section
-  /** Pantry rows first: they are what the recipe-add skip reads. */
-  from: 'pantry' | 'favorite'
+  /** Pantry rows first: they are what the recipe-add skip reads. 'plain' is a
+   *  plain name for a brand (#818), not one of his rows. */
+  from: 'pantry' | 'favorite' | 'plain'
   quantity?: number
   unit?: string
 }
@@ -42,7 +48,8 @@ export interface NameCard {
   /** The line's name when the card was made; a save checks it is still that. */
   was: string
   to: NameSource
-  how: 'same' | 'close'
+  /** 'plain': the line names a brand, and this is its plain name (#818). */
+  how: 'same' | 'close' | 'plain'
 }
 
 /** Words that describe the same product on the shelf. Compared after
@@ -108,12 +115,27 @@ export function closeness(a: Keyed, b: Keyed): number {
  * A line that already says one of his names gets no card.
  */
 export function nameCards(ingredients: RecipeIngredient[], sources: NameSource[]): NameCard[] {
-  const usable = sources.filter((s) => s.displayName.trim())
+  // A branded name of his is not offered as a target: recipes say plain words
+  // and brands are Refine's (#818). His household names (Velveeta) still are.
+  const usable = sources.filter((s) => s.displayName.trim() && !plainName(s.displayName))
   const known = new Set(usable.map((s) => norm(s.displayName)))
   const cards: NameCard[] = []
   ingredients.forEach((line, index) => {
     const name = norm(line.displayName)
-    if (!name || known.has(name)) return
+    if (!name) return
+    // A brand first: its plain name, or his own name for that plain product.
+    const plain = plainName(line.displayName)
+    if (plain) {
+      // Keep the line's key when it names no brand: the parser keyed "Hormel
+      // turkey chili no beans" as "turkey chili", broader than the new name's.
+      const key = line.canonicalKey?.trim()
+      const asPlain = { displayName: plain, canonicalKey: key && !plainName(key) ? key : canonicalize(plain) }
+      const his = usable.find((s) => sameIngredient(asPlain, s))
+      const to: NameSource = his ?? { ...asPlain, section: line.section, from: 'plain' }
+      cards.push({ index, was: line.displayName, to, how: 'plain' })
+      return
+    }
+    if (known.has(name)) return
     const same = usable.find((s) => sameIngredient(line, s))
     if (same) {
       cards.push({ index, was: line.displayName, to: same, how: 'same' })

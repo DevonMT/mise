@@ -94,7 +94,8 @@ test('nameCards: one card per line, same beats close, pantry beats favorite', ()
       [0, 'Green onions', 'same'],
       // "Boneless chicken breast" is one word closer than "Chicken breast".
       [1, 'Boneless chicken breast', 'close'],
-      [2, 'Bisquick', 'close'],
+      // A brand takes its plain name now (#818), not his branded favorite.
+      [2, 'baking mix', 'plain'],
     ],
   )
 })
@@ -162,15 +163,16 @@ test('loadNameSources: live pantry rows, then favorites, no repeats, no pending'
 test('acceptCards: accepted lines change and get stamped; skipped lines do not', async () => {
   const id = await seedRecipe()
   const before = (await db.recipes.get(id))!
-  const sources = [src('Bisquick', 'bisquick', 'baking', 'favorite'), src('Chicken breast', 'chicken breast', 'meat')]
+  // His plain favorite is what a Bisquick line takes (#818).
+  const sources = [src('Baking mix', 'baking mix', 'baking', 'favorite'), src('Chicken breast', 'chicken breast', 'meat')]
   const cards = nameCards(before.ingredients, sources)
   assert.equal(cards.length, 2)
-  // Accept the Bisquick card, skip the chicken one.
-  const n = await acceptCards(id, cards.filter((c) => c.to.displayName === 'Bisquick'))
+  // Accept the baking mix card, skip the chicken one.
+  const n = await acceptCards(id, cards.filter((c) => c.to.displayName === 'Baking mix'))
   assert.equal(n, 1)
   const after = (await db.recipes.get(id))!
-  assert.equal(after.ingredients[0].displayName, 'Bisquick')
-  assert.equal(after.ingredients[0].canonicalKey, 'bisquick')
+  assert.equal(after.ingredients[0].displayName, 'Baking mix')
+  assert.equal(after.ingredients[0].canonicalKey, 'baking mix')
   assert.equal(after.ingredients[0].section, 'baking')
   assert.equal(after.ingredients[0].quantity, 2)
   assert.equal(after.ingredients[0].unit, 'cup')
@@ -200,4 +202,31 @@ test('acceptCards: a card for a line that changed since is dropped', async () =>
   await db.recipes.update(id, { ingredients: edited })
   assert.equal(await acceptCards(id, cards), 0)
   assert.equal((await db.recipes.get(id))!.ingredients[0].displayName, 'Self-rising flour')
+})
+
+test('plain name cards (#818): a brand gets its plain name, or his own name for it', () => {
+  const lines = [line('Veg-All mixed vegetables', 'veg-all mixed vegetable'), line('Original Bisquick mix', 'original bisquick mix', { section: 'baking' }), line('Velveeta', 'velveeta')]
+  // No rows of his: the plain name itself, in the line's own aisle.
+  const bare = nameCards(lines, [])
+  assert.deepEqual(bare.map((c) => [c.index, c.how, c.to.displayName, c.to.from]), [
+    [0, 'plain', 'canned mixed vegetables', 'plain'],
+    [1, 'plain', 'baking mix', 'plain'],
+  ])
+  assert.equal(bare[1].to.section, 'baking')
+  // A favorite "Baking mix" of his wins for the Bisquick line; his branded
+  // "Bisquick" favorite is never offered; Velveeta stays.
+  const mine = nameCards(lines, [src('Bisquick', 'bisquick', 'baking', 'favorite'), src('Baking mix', 'baking mix', 'baking', 'favorite')])
+  assert.deepEqual(mine.map((c) => [c.index, c.to.displayName, c.to.from]), [
+    [0, 'canned mixed vegetables', 'plain'],
+    [1, 'Baking mix', 'favorite'],
+  ])
+  // Accepting renames and re-keys; amount and pack stay.
+  const r = renamed({ ...lines[0], quantity: 1, unit: 'can', buyCount: 1, sizeAmount: 15, sizeUnit: 'oz', packaging: 'can' }, bare[0].to)
+  assert.equal(r.displayName, 'canned mixed vegetables')
+  assert.equal(r.canonicalKey, 'canned mixed vegetable')
+  assert.equal(r.sizeAmount, 15)
+  // A key with no brand in it is kept: it was broader than the new name.
+  const [chili] = nameCards([line('Hormel turkey chili no beans', 'turkey chili')], [])
+  assert.equal(chili.to.displayName, 'turkey chili no beans')
+  assert.equal(chili.to.canonicalKey, 'turkey chili')
 })

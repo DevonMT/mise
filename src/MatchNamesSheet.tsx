@@ -28,13 +28,18 @@ export function MatchNames({ recipe, onToast }: { recipe: Recipe; onToast: (msg:
   useBackLayer(open, () => setOpen(false))
 
   if (!open && cards.length === 0) return null
+  const brands = cards.filter((c) => c.how === 'plain').length
+  const yours = cards.length - brands
+  // Say which kind is waiting: "2 lines can use your names. 1 names a brand."
+  const note = [
+    yours ? `${lines(yours)} can use a name from your pantry or favorites.` : '',
+    brands ? `${lines(brands)} ${brands === 1 ? 'names a brand' : 'name brands'}.` : '',
+  ].join(' ').trim()
   return (
     <>
       {cards.length > 0 && (
         <div className="std-row">
-          <p className="std-note">
-            {lines(cards.length)} can use a name from your pantry or favorites.
-          </p>
+          <p className="std-note">{note}</p>
           <button className="ghost std-btn" onClick={() => setOpen(true)}>
             Match My Names
           </button>
@@ -117,7 +122,10 @@ function MatchNamesSheet({
       <h3 className="sheet-title">
         <Icon name="pantry" size={20} /> Match My Names
       </h3>
-      <p className="mn-sub">Rename recipe lines to what you already keep. Amounts stay the same.</p>
+      <p className="mn-sub">
+        Rename recipe lines to what you already keep, and brands to plain names. Amounts stay the same.
+        Refine still shows brands when you shop.
+      </p>
       <ul className="mn-cards">
         {shown.map((c) => {
           const moves = recipe.ingredients[c.index]?.section !== c.to.section
@@ -130,7 +138,10 @@ function MatchNamesSheet({
                 <Icon name="chevronRight" size={16} /> {c.to.displayName}
               </p>
               <div className="rev-meta">
-                <span className="rev-tag">{c.to.from === 'pantry' ? 'In Pantry' : 'Favorite'}</span>
+                {c.how === 'plain' && <span className="rev-tag">Plain Name</span>}
+                {c.to.from !== 'plain' && (
+                  <span className="rev-tag">{c.to.from === 'pantry' ? 'In Pantry' : 'Favorite'}</span>
+                )}
                 {c.how === 'close' && <span className="rev-tag">Close Match</span>}
                 {moves && <span className="rev-tag">Moves to {aisle(c.to.section)}</span>}
               </div>
