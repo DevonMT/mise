@@ -66,6 +66,7 @@ function MatchNamesSheet({
   const [skipped, setSkipped] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const renamedCount = useRef(0)
+  const staleCount = useRef(0)
   const shown = cards.filter((c) => !skipped.has(cardId(c)))
 
   // The parent passes fresh closures each render; the close effect reads them
@@ -89,7 +90,7 @@ function MatchNamesSheet({
           for (const c of picked) next.add(cardId(c))
           return next
         })
-        toastRef.current('A recipe line changed since this opened, so it kept its name. Open Match My Names again to check it.')
+        staleCount.current += picked.length - n
       }
     } finally {
       setBusy(false)
@@ -102,7 +103,12 @@ function MatchNamesSheet({
   useEffect(() => {
     if (!done) return
     const n = renamedCount.current
-    if (n) toastRef.current(`Renamed ${lines(n)}.`)
+    const stale = staleCount.current
+    const said = [
+      n ? `Renamed ${lines(n)}.` : '',
+      stale ? `${lines(stale)} changed since this opened and kept ${stale === 1 ? 'its name' : 'their names'}.` : '',
+    ].join(' ').trim()
+    if (said) toastRef.current(said)
     closeRef.current()
   }, [done])
 
