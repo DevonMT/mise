@@ -307,9 +307,10 @@ export interface RefineRequestItem {
  * amount says "need 2 cup", which the system prompt's AMOUNT NEEDED rule reads.
  * Exported for the tests.
  */
-export function refineLines(items: unknown): { keys: string[]; text: string } {
+export function refineLines(items: unknown): { keys: string[]; names: string[]; text: string } {
   const out: string[] = []
   const keys: string[] = []
+  const names: string[] = []
   for (const raw of Array.isArray(items) ? items.slice(0, 100) : []) {
     if (!raw || typeof raw !== 'object') continue
     const i = raw as { canonicalKey?: unknown; displayName?: unknown; unit?: unknown; quantity?: unknown }
@@ -320,9 +321,50 @@ export function refineLines(items: unknown): { keys: string[]; text: string } {
     const q = typeof i.quantity === 'number' && Number.isFinite(i.quantity) && i.quantity > 0 && i.quantity < 10000 ? i.quantity : null
     const need = q != null ? `need ${Math.round(q * 100) / 100}${unit ? ' ' + unit : ''}` : unit
     keys.push(key)
+    names.push(name)
     out.push(`- ${key}: ${name}${need ? ` (${need})` : ''}`)
   }
-  return { keys, text: out.join('\n') }
+  return { keys, names, text: out.join('\n') }
+}
+
+/** For matching a returned key loosely: lowercase, letters and digits, no trailing plural s. */
+const loose = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/s\b/g, '')
+
+/**
+ * Put the keys the model returned back onto the keys the client sent. The
+ * client files options by its own canonicalKey, so an answer keyed "canned
+ * mixed vegetables" (the name) for "canned mixed vegetable" (the key) showed
+ * "No options suggested" on every row (11/08). Tried in order: the exact key,
+ * the key or the name loosely, then position when the counts agree. Each sent
+ * key is used once; an answer that matches nothing is dropped. Exported for
+ * the tests; `realigned` counts answers that needed help, for the journal.
+ */
+export function alignRefine(
+  data: unknown,
+  sent: { keys: string[]; names: string[] },
+): { items: Array<{ canonicalKey: string; options: unknown[] }>; realigned: number } {
+  const got = (data && typeof data === 'object' && Array.isArray((data as { items?: unknown }).items)
+    ? (data as { items: unknown[] }).items
+    : []) as Array<{ canonicalKey?: unknown; options?: unknown }>
+  const used = new Set<number>()
+  const out: Array<{ canonicalKey: string; options: unknown[] }> = []
+  let realigned = 0
+  got.forEach((r, pos) => {
+    const options = Array.isArray(r?.options) ? r.options : []
+    const key = typeof r?.canonicalKey === 'string' ? r.canonicalKey.trim() : ''
+    let at = sent.keys.findIndex((k, i) => !used.has(i) && k === key)
+    if (at < 0 && key) {
+      const l = loose(key)
+      at = sent.keys.findIndex((k, i) => !used.has(i) && (loose(k) === l || loose(sent.names[i] ?? '') === l))
+    }
+    if (at < 0 && got.length === sent.keys.length && !used.has(pos)) at = pos
+    if (at < 0) return
+    if (sent.keys[at] !== key) realigned++
+    used.add(at)
+    out.push({ canonicalKey: sent.keys[at], options })
+  })
+  return { items: out, realigned }
 }
 
 export function pricesSystem(store: string): string {

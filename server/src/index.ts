@@ -16,6 +16,7 @@ import {
   REFINE_SCHEMA,
   refineSystem,
   refineLines,
+  alignRefine,
   STANDARDIZE_SCHEMA,
   STANDARDIZE_SYSTEM,
   standardizePrompt,
@@ -345,7 +346,7 @@ app.post('/api/refine', async (c) => {
     return c.json({ error: 'Invalid JSON body.' }, 400)
   }
   const shopper = shopperLine(body.store, body.area)
-  const { keys, text: list } = refineLines(body.items)
+  const { keys, names, text: list } = refineLines(body.items)
   if (keys.length === 0) return c.json({ items: [] })
 
   const capped = overCap(c)
@@ -358,7 +359,12 @@ app.post('/api/refine', async (c) => {
       schema: REFINE_SCHEMA,
       system: refineSystem(STORE_REF) + PLACE_RULE,
     })
-    return c.json(data)
+    // The client files options under its own keys: map the answer back onto them.
+    const { items, realigned } = alignRefine(data, { keys, names })
+    if (realigned || items.length < keys.length) {
+      console.warn(`refine: ${realigned} answer(s) realigned, ${items.length}/${keys.length} matched`)
+    }
+    return c.json({ items })
   } catch (e) {
     console.error('refine error:', e)
     // Keep the broker's status. A refusal (422) and an exhausted budget (429)

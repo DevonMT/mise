@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { authorize } from './guard.js'
-import { PARSE_SCHEMA, SYSTEM_PROMPT, parseReply, parseSystem, refineLines, refineSystem, standardizePrompt, standardizeReply, standardizeRequest } from './parseContract.js'
+import { PARSE_SCHEMA, SYSTEM_PROMPT, parseReply, parseSystem, alignRefine, refineLines, refineSystem, standardizePrompt, standardizeReply, standardizeRequest } from './parseContract.js'
 
 test('standardize: lines are cleaned, capped and checked before they reach a prompt', () => {
   const req = standardizeRequest({
@@ -107,4 +107,30 @@ test('parse asks for plain names and keeps household names (#818)', () => {
   assert.match(SYSTEM_PROMPT, /PLAIN NAMES/)
   for (const keep of ['Velveeta', 'Cheez Whiz', 'Rotel']) assert.ok(SYSTEM_PROMPT.includes(keep), keep)
   assert.match(SYSTEM_PROMPT, /"Original Bisquick mix" -> "baking mix"/)
+})
+
+test('refine answers are put back on the keys the client sent (11/08)', () => {
+  const sent = { keys: ['canned mixed vegetable', 'chicken broth', 'milk'], names: ['canned mixed vegetables', 'low-sodium chicken broth', 'milk'] }
+  const opt = [{ label: 'x' }]
+  // Exact keys pass through untouched.
+  const exact = alignRefine({ items: sent.keys.map((k) => ({ canonicalKey: k, options: opt })) }, sent)
+  assert.deepEqual(exact.items.map((i) => i.canonicalKey), sent.keys)
+  assert.equal(exact.realigned, 0)
+  // Keyed by the name, a plural, or a capital: still the client's key.
+  const loose = alignRefine({ items: [
+    { canonicalKey: 'canned mixed vegetables', options: opt },
+    { canonicalKey: 'Low-Sodium Chicken Broth', options: opt },
+    { canonicalKey: 'Milk', options: opt },
+  ] }, sent)
+  assert.deepEqual(loose.items.map((i) => i.canonicalKey), sent.keys)
+  assert.equal(loose.realigned, 3)
+  // Nothing matches by name but the counts agree: by position.
+  const pos = alignRefine({ items: [{ canonicalKey: 'a', options: opt }, { canonicalKey: 'b', options: opt }, { canonicalKey: 'c', options: opt }] }, sent)
+  assert.deepEqual(pos.items.map((i) => i.canonicalKey), sent.keys)
+  // An extra answer that matches nothing is dropped; a key is used once.
+  const extra = alignRefine({ items: [{ canonicalKey: 'milk', options: opt }, { canonicalKey: 'milk', options: opt }, { canonicalKey: 'zzz', options: opt }, { canonicalKey: 'yyy', options: opt }] }, sent)
+  assert.deepEqual(extra.items.map((i) => i.canonicalKey), ['milk'])
+  // Junk in, nothing out.
+  assert.deepEqual(alignRefine(null, sent).items, [])
+  assert.deepEqual(alignRefine({ items: 'no' }, sent).items, [])
 })

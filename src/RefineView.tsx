@@ -67,7 +67,14 @@ export function RefineSheet({ listId, onClose }: { listId: number; onClose: () =
           area,
         )
         if (cancelled) return
-        setOptions(new Map(res.map((r) => [r.canonicalKey, r.options])))
+        const map = new Map(res.map((r) => [r.canonicalKey, r.options]))
+        // Nothing lined up with this list: say so, not "No options suggested" on every row.
+        if (!active.some((i) => (map.get(i.canonicalKey) ?? []).length > 0)) {
+          setError('Refine came back without options for this list. Close it and try again.')
+          setStage('error')
+          return
+        }
+        setOptions(map)
         setStage('ready')
       } catch (e) {
         if (cancelled) return
