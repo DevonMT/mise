@@ -3169,3 +3169,59 @@
 .cook-foot .primary {
   margin: 0;
 }
+
+/* ---- Match My Names (#812): approval cards in recipe detail ---- */
+.mn-sub {
+  margin: 4px 0 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.mn-cards {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mn-card {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  min-width: 0;
+}
+.mn-was {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+.mn-label {
+  font-weight: 700;
+}
+.mn-to {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 0 0;
+  font-weight: 700;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+.mn-to .icon {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+.mn-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.mn-actions .ghost {
+  padding: 10px;
+}
+.mn-yes {
+  border-color: var(--accent);
+  color: var(--accent);
+}
