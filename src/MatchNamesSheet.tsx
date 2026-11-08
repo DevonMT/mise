@@ -68,10 +68,29 @@ function MatchNamesSheet({
   const renamedCount = useRef(0)
   const shown = cards.filter((c) => !skipped.has(cardId(c)))
 
+  // The parent passes fresh closures each render; the close effect reads them
+  // through refs so it runs once, when the last card goes.
+  const closeRef = useRef(onClose)
+  const toastRef = useRef(onToast)
+  useEffect(() => {
+    closeRef.current = onClose
+    toastRef.current = onToast
+  })
+
   const accept = async (picked: NameCard[]) => {
     setBusy(true)
     try {
-      renamedCount.current += await acceptCards(recipe.id!, picked)
+      const n = await acceptCards(recipe.id!, picked)
+      renamedCount.current += n
+      // A line edited since the sheet opened is not renamed: its card goes too.
+      if (n < picked.length) {
+        setSkipped((s) => {
+          const next = new Set(s)
+          for (const c of picked) next.add(cardId(c))
+          return next
+        })
+        toastRef.current('A recipe line changed since this opened, so it kept its name. Open Match My Names again to check it.')
+      }
     } finally {
       setBusy(false)
     }
@@ -83,9 +102,9 @@ function MatchNamesSheet({
   useEffect(() => {
     if (!done) return
     const n = renamedCount.current
-    if (n) onToast(`Renamed ${lines(n)}.`)
-    onClose()
-  }, [done, onClose, onToast])
+    if (n) toastRef.current(`Renamed ${lines(n)}.`)
+    closeRef.current()
+  }, [done])
 
   return (
     <Sheet className="match-names" label="Match My Names" onClose={onClose}>

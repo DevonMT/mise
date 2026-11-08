@@ -40,6 +40,8 @@ test('close matches: the words left over only describe the same product', () => 
   assert.ok(closeness(line('boneless skinless chicken breasts', 'boneless skinless chicken breast'), src('Chicken breast', 'chicken breast')) > 0)
   assert.ok(closeness(line('condensed cream of chicken soup', 'condensed cream of chicken soup'), src('Cream of chicken soup', 'cream of chicken soup')) > 0)
   assert.ok(closeness(line('taco seasoning mix', 'taco seasoning mix'), src('Taco seasoning', 'taco seasoning')) > 0)
+  assert.ok(closeness(line('extra lean ground beef', 'extra lean ground beef'), src('Ground beef', 'ground beef')) > 0)
+  assert.ok(closeness(line('reduced sodium soy sauce', 'reduced sodium soy sauce'), src('Soy sauce', 'soy sauce')) > 0)
   assert.ok(closeness(line('low sodium chicken broth', 'low sodium chicken broth'), src('Chicken broth', 'chicken broth')) > 0)
   // Either way round: the recipe can be the short one.
   assert.ok(closeness(line('Bisquick', 'bisquick'), src('Original Bisquick mix', 'original bisquick mix')) > 0)
@@ -57,7 +59,14 @@ test('must stay apart: a leftover word that names another product', () => {
     ['ranch dressing mix', 'ranch dressing'],
     ['onion soup mix', 'onion soup'],
     ['cake mix', 'cake'],
+    ['rice mix', 'rice'],
+    ['cocoa mix', 'cocoa'],
+    ['pudding mix', 'pudding'],
+    ['reduced sugar ketchup', 'ketchup'],
+    ['low fat milk', 'milk'],
+    ['extra oil', 'oil'],
     ['extra firm tofu', 'tofu'],
+    ['sodium bicarbonate', 'bicarbonate'],
   ]
   for (const [a, b] of apart) assert.equal(closeness(line(a, a), src(b, b)), -1, `${a} vs ${b}`)
 })

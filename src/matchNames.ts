@@ -49,13 +49,27 @@ export interface NameCard {
  *  matchKey has singularized and dropped prep words. */
 const DESCRIBES = new Set([
   'boneless', 'skinless', 'original', 'classic', 'regular', 'organic', 'natural',
-  'condensed', 'homestyle', 'traditional', 'uncooked', 'lean', 'extra', 'low', 'sodium',
-  'reduced', 'mix', 'brand', 'name', 'store', 'bought', 'storebought',
+  'condensed', 'homestyle', 'traditional', 'uncooked', 'brand', 'name', 'store', 'bought', 'storebought',
 ])
+/** Two-word describers. Alone, "low", "reduced" or "extra" could mean
+ *  anything ("reduced sugar", "extra firm"); only these pairs are safe. */
+const DESCRIBE_PAIRS = ['low sodium', 'reduced sodium', 'extra lean']
 
-/** "mix" after one of these is a packet of a different thing: "ranch dressing
- *  mix" is not the bottle, "onion soup mix" is not the soup, "cake mix" is not a cake. */
-const MADE = new Set(['dressing', 'sauce', 'gravy', 'soup', 'dip', 'cake', 'pancake', 'muffin', 'brownie', 'cornbread', 'cookie', 'bread'])
+/** "mix" is a different product by default: "rice mix" is not rice, "cocoa
+ *  mix" is not cocoa, "ranch dressing mix" is not the bottle. It describes only
+ *  after these: "taco seasoning mix", "Original Bisquick mix". */
+const MIX_OK = new Set(['seasoning', 'bisquick', 'jiffy'])
+
+/** Do the leftover words only describe? Pairs first, then single words, and
+ *  "mix" only after a MIX_OK word. */
+function onlyDescribes(extra: string[], small: string[]): boolean {
+  let rest = ` ${extra.join(' ')} `
+  for (const p of DESCRIBE_PAIRS) rest = rest.replace(` ${p} `, ' ')
+  return rest
+    .split(' ')
+    .filter(Boolean)
+    .every((w) => DESCRIBES.has(w) || (w === 'mix' && MIX_OK.has(small[small.length - 1])))
+}
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
 
@@ -81,8 +95,7 @@ export function closeness(a: Keyed, b: Keyed): number {
         }
         pool.splice(at, 1)
       }
-      if (!ok || !pool.every((w) => DESCRIBES.has(w))) continue
-      if (pool.includes('mix') && MADE.has(small[small.length - 1])) continue
+      if (!ok || !onlyDescribes(pool, small)) continue
       if (best < 0 || pool.length < best) best = pool.length
     }
   }
