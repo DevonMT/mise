@@ -11,6 +11,8 @@ import { legacyThemeOnce } from './legacyTheme'
 import { applyTheme, configureTheme, cookieThemeStore, readTheme, startTheme } from './ds/theme'
 import { migrateStaples } from './db'
 import { hydrateSettings, migrateSettings, readSetting } from './prefs'
+import { openLayers } from './back'
+import { pageBusy, reloadWhenIdle } from './update'
 
 /*
  * The theme is the estate's now: the ds_theme cookie, set from the bar's own
@@ -93,7 +95,19 @@ if ('serviceWorker' in navigator) {
     // Skip the very first claim on an uncontrolled first visit — nothing to update.
     if (reloading || !hadController) return
     reloading = true
-    window.location.reload()
+    // Not under someone's thumb: wait until nothing is open (update.ts).
+    reloadWhenIdle({
+      busy: () => pageBusy(openLayers),
+      reload: () => window.location.reload(),
+      onHidden: (fn) =>
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'hidden') fn()
+        }),
+      every: (fn, ms) => {
+        const t = window.setInterval(fn, ms)
+        return () => window.clearInterval(t)
+      },
+    })
   })
 
   const check = () =>

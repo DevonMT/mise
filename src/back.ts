@@ -57,6 +57,11 @@ if (typeof window !== 'undefined') {
   })
 }
 
+/** How many layers (sheets, a recipe, Refine, Cook Mode) are open right now. */
+export function openLayers(): number {
+  return stack.length
+}
+
 /** While `open`, back calls `close` instead of going further back. */
 export function useBackLayer(open: boolean, close: () => void): void {
   const closeRef = useRef(close)
