@@ -14,6 +14,7 @@ import { useAiEnabled } from './edition'
 import { RecipeEditor } from './RecipeEditor'
 import { CookMode } from './CookMode'
 import { IngredientSheet } from './IngredientSheet'
+import { MatchNames } from './MatchNamesSheet'
 
 /** Title or any ingredient, case- and accent-insensitive: "jack" finds the
  *  enchiladas by their cheese. Exported for the tests. */
@@ -338,6 +339,8 @@ ${url}`)
           )}
         </div>
       )}
+
+      <MatchNames recipe={recipe} onToast={onToast} />
 
       {recipe.instructions && (
         <div className="steps">
