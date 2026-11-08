@@ -4,7 +4,7 @@ import { db, liveLists, type Recipe } from './db'
 import { KINDS, listIcon } from './kinds'
 import { addItem, formatBuy, type NewItem } from './list'
 import { createList } from './lists'
-import { decodeShare, sharedPack, sharedToItem, type SharedItem, type SharePayload } from './share'
+import { decodeShare, shareHashIn, sharedPack, sharedToItem, type SharedItem, type SharePayload } from './share'
 import { Icon } from './Icon'
 import { Sheet } from './Sheet'
 
@@ -39,8 +39,8 @@ export function ImportLinkSheet({
 
   const go = async () => {
     const raw = text.trim()
-    const at = raw.indexOf('#i=')
-    const hash = at >= 0 ? raw.slice(at) : `#i=${raw.replace(/^#?i?=?/, '')}`
+    // Either link shape (the app's #i= or the reader's /r#), or a bare body.
+    const hash = shareHashIn(raw) ?? `#i=${raw.replace(/^#?i?=?/, '')}`
     const payload = await decodeShare(hash)
     if (payload) onDecoded(payload)
     else setErr("That doesn't look like a Mise share link.")

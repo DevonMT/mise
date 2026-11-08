@@ -21,7 +21,7 @@ Object.defineProperty(globalThis, 'window', {
 })
 ;(globalThis as unknown as { CustomEvent: unknown }).CustomEvent = class {}
 
-const { decodeShare, sharedPack, sharedToItem, shareRecipePayload } = await import('./share')
+const { decodeShare, sharedPack, sharedToItem, shareRecipePayload, shareHashIn } = await import('./share')
 const { recipeText } = await import('./recipeText')
 import type { Recipe } from './db'
 
@@ -67,6 +67,22 @@ test('an old link without pack keys still imports', async () => {
   assert.equal(back?.t, 'recipe')
   if (back?.t !== 'recipe') return
   assert.equal(sharedToItem(back.ingredients[0]).buyCount, undefined)
+})
+
+test('a pasted share link is spotted, in either shape', async () => {
+  const body = 'r.' + Buffer.from(JSON.stringify(shareRecipePayload(queso))).toString('base64url')
+  for (const pasted of [
+    `https://mise.devondoes.dev/#i=${body}`,
+    `  https://mise.devondoes.dev/r#${body}\n`,
+    `Here you go: https://devontroedel.com/mise/#i=${body}`,
+  ]) {
+    const hash = shareHashIn(pasted)
+    assert.equal(hash, '#i=' + body, pasted)
+    assert.equal((await decodeShare(hash!))?.t, 'recipe')
+  }
+  // A recipe site or a typed list goes to the parser as before.
+  assert.equal(shareHashIn('https://cookieandkate.com/best-lentil-soup-recipe/#recipe'), null)
+  assert.equal(shareHashIn('2 cans chicken broth\nmilk'), null)
 })
 
 test('the texted recipe names the pack and scales its count', () => {

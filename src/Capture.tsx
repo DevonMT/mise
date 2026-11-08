@@ -17,6 +17,21 @@ import { defaultGroceryListId, getInStockKeys } from './lists'
 import { Icon } from './Icon'
 import { Sheet } from './Sheet'
 import { useAiEnabled } from './edition'
+import { shareHashIn } from './share'
+
+/**
+ * A pasted Mise share link goes to the import screen, not the parser. App's
+ * hashchange listener decodes it and opens ImportSheet. replaceState, not
+ * `location.hash =`: a pushed entry would throw off back.ts, which keeps
+ * exactly one history entry per open layer. Returns true when it took the text.
+ */
+function openShareLink(text: string): boolean {
+  const hash = shareHashIn(text)
+  if (!hash) return false
+  history.replaceState(history.state, '', hash)
+  window.dispatchEvent(new HashChangeEvent('hashchange'))
+  return true
+}
 
 type Stage = 'input' | 'loading' | 'review' | 'error'
 export type CaptureMode = 'text' | 'url' | 'image'
@@ -82,6 +97,7 @@ export function CaptureSheet({
   /** Paste with no model: the same review step, filled by plainPaste.ts. */
   const runPlain = async () => {
     if (!content.trim()) return
+    if (openShareLink(content)) return onClose()
     setError('')
     try {
       const planned = await planPlainPaste(content)
@@ -118,6 +134,7 @@ export function CaptureSheet({
 
   const run = async () => {
     if (!content.trim()) return
+    if (mode !== 'image' && openShareLink(content)) return onClose()
     setPlain(false)
     setStage('loading')
     setError('')

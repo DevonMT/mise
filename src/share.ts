@@ -107,6 +107,18 @@ export async function recipePageUrl(payload: SharePayload): Promise<string> {
   return location.origin + import.meta.env.BASE_URL + 'r#' + (await encodeBody(payload))
 }
 
+/**
+ * The `#i=` hash inside pasted text, when the text is a Mise share link: the
+ * app's own import link (`…/#i=g.…`) or the public reader's (`…/r#g.…`).
+ * Null for anything else. Capture checks this first, because a share link's
+ * payload is in the fragment, which the parse server never receives: it would
+ * fetch the bare page and find nothing.
+ */
+export function shareHashIn(text: string): string | null {
+  const m = /(?:#i=|\/r#)([gr]\.[A-Za-z0-9_-]+)/.exec(text.trim())
+  return m ? PREFIX + m[1] : null
+}
+
 /** Pull a payload out of a URL hash, or null if there isn't a valid one. */
 export async function decodeShare(hash: string): Promise<SharePayload | null> {
   if (!hash.startsWith(PREFIX)) return null
