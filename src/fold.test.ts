@@ -824,3 +824,16 @@ test('#684: the restore is stamped one past the delete, so a later real edit sti
   await sync.applyRemote({ records: [], tombstones: [{ kind: 'list', uid: LEGACY, deletedAt }] })
   assert.equal((await db.lists.get(old))?.updatedAt, deletedAt + 1)
 })
+
+test('a sub-list of the folded list hangs under the shared list afterwards (#808)', async () => {
+  const { keep, old } = await legacyAccount()
+  const sub = (await db.lists.add({ name: 'Later', kind: 'grocery', createdAt: Date.now(), parentUid: LEGACY })) as number
+  const before = (await db.lists.get(sub))!
+  assert.equal((await sync.sync()).ok, true) // folds
+  const after = (await db.lists.get(sub))!
+  assert.equal(after.parentUid, 'default:list')
+  assert.equal(after.updatedAt, before.updatedAt! + 1, 'loses to any real edit')
+  assert.equal((await db.lists.get(old))?.foldedInto, 'default:list')
+  const { subListParent } = await import('./db')
+  assert.equal(subListParent(after, await liveLists())?.id, keep)
+})

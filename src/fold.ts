@@ -232,6 +232,12 @@ export async function foldLegacyLists(): Promise<FoldResult> {
         })
         out.folded.push(l.name)
         rememberFolded([{ ...l, foldedInto: k.uid }])
+        // Its sub-lists (#808) now hang under the list its items went to,
+        // stamped one past their own version like every other fold write.
+        for (const s of lists) {
+          if (s.id == null || s.parentUid !== l.uid) continue
+          await db.lists.put({ ...s, parentUid: k.uid, updatedAt: (s.updatedAt ?? 0) + 1 })
+        }
       }
       if (to?.id == null) continue
       moveActive.push([l.id, to.id])

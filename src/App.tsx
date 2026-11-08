@@ -477,12 +477,14 @@ export default function App() {
       return next
     })
   const deleteSelected = async () => {
-    const rows = items.filter((i) => selected.has(i.id!))
+    // Only what is on screen: a pick on the other tab is not what Remove says.
+    const rows = (view === 'list' ? active : backlog).filter((i) => selected.has(i.id!))
     await removeWithUndo(rows, `Removed ${rows.length}`)
     exitSelect()
   }
   /** The rows on screen right now: this trip's list, or Next time. */
   const shown = view === 'list' ? active : backlog
+  const pickedCount = shown.filter((i) => selected.has(i.id!)).length
   const allShown = shown.length > 0 && shown.every((i) => selected.has(i.id!))
   const selectAll = () => setSelected(allShown ? new Set() : new Set(shown.map((i) => i.id!)))
 
@@ -492,8 +494,8 @@ export default function App() {
    * already there merges. Undo puts every row back, and takes away a sub-list
    * this made if it is empty again.
    */
-  const moveRows = async (ids: number[], pick: MovePick) => {
-    if (!ids.length) return
+  const moveRows = async (ids: number[], pick: MovePick): Promise<boolean> => {
+    if (!ids.length) return false
     let made: number | null = null
     let to: { listId: number; backlog: boolean }
     let label: string
@@ -516,9 +518,11 @@ export default function App() {
         if (made != null) await dropIfEmpty(made)
         setToast(null)
       })
+      return n > 0
     } catch (e) {
       if (made != null) await dropIfEmpty(made)
       showToast(e instanceof Error ? e.message : 'Could not move those.')
+      return false
     }
   }
   const moveSelected = async (pick: MovePick) => {
@@ -727,7 +731,7 @@ export default function App() {
 
             {selectMode && shown.length > 0 && (
               <div className="select-head">
-                <span>{selected.size} selected</span>
+                <span>{pickedCount} selected</span>
                 <button className="ghost" onClick={selectAll}>
                   {allShown ? 'Select None' : 'Select All'}
                 </button>
@@ -917,12 +921,12 @@ export default function App() {
           <button
             className="move-btn"
             onClick={() => setMoveOpen(true)}
-            disabled={selected.size === 0}
+            disabled={pickedCount === 0}
           >
-            Move {selected.size || ''}
+            Move {pickedCount || ''}
           </button>
-          <button className="danger-btn" onClick={deleteSelected} disabled={selected.size === 0}>
-            Remove {selected.size || ''}
+          <button className="danger-btn" onClick={deleteSelected} disabled={pickedCount === 0}>
+            Remove {pickedCount || ''}
           </button>
         </div>
       )}
@@ -1055,11 +1059,11 @@ export default function App() {
               className="menu-item"
               onClick={async () => {
                 setMenuOpen(false)
-                await moveRows(
+                const ok = await moveRows(
                   active.map((i) => i.id!),
                   { to: { listId: parentList.id!, backlog: false }, label: `“${parentList.name}”` },
                 )
-                switchTo(parentList.id!)
+                if (ok) switchTo(parentList.id!)
               }}
             >
               <Icon name="back" size={20} />
@@ -1085,7 +1089,7 @@ export default function App() {
 
       {moveOpen && (
         <MoveSheet
-          count={shown.filter((i) => selected.has(i.id!)).length}
+          count={pickedCount}
           list={activeList}
           lists={lists}
           view={view}

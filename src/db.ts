@@ -90,8 +90,11 @@ export const isLive = (l: List): boolean => !l.foldedInto
 /** The list a sub-list hangs under, when that list is still there to go back to. */
 export function subListParent(list: List, lists: List[]): List | undefined {
   if (!list.parentUid || list.parentUid === list.uid) return undefined
-  const p = lists.find((l) => l.uid === list.parentUid)
-  return p && isLive(p) && p.kind === list.kind && !subListParent(p, lists) ? p : undefined
+  let p = lists.find((l) => l.uid === list.parentUid)
+  // A parent folded into the shared list of its kind (fold.ts) forwards there.
+  if (p?.foldedInto) p = lists.find((l) => l.uid === p!.foldedInto)
+  if (!p || p.uid === list.uid) return undefined
+  return isLive(p) && p.kind === list.kind && !subListParent(p, lists) ? p : undefined
 }
 
 /** Lists in switcher order: each sub-list straight after its parent, indented. */

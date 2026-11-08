@@ -180,3 +180,13 @@ test('an undone sub-list that is empty goes; one with rows stays', async () => {
   await dropIfEmpty(full)
   assert.ok(await db.lists.get(full))
 })
+
+test('a sub-list whose parent was folded follows it to the shared list', async () => {
+  const legacy = await db.lists.add({ name: 'My list', kind: 'grocery', createdAt: 0, uid: 'old-random' })
+  const sub = (await db.lists.get(await createSubList((await db.lists.get(legacy))!, 'Later')))!
+  await db.lists.update(legacy, { foldedInto: 'default:list', name: 'My list (moved)' })
+  const lists = await db.lists.toArray()
+  assert.equal(subListParent(sub, lists)?.id, main)
+  assert.deepEqual(listTree(lists).map((x) => [x.list.name, x.sub]).filter(([n]) => n !== 'My list (moved)'),
+    [['My list', false], ['Later', true]])
+})
