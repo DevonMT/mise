@@ -248,6 +248,7 @@ export function ManageLists({
             {editing === l.id ? (
               <input
                 className="field"
+                aria-label="List name"
                 value={draft}
                 autoFocus
                 onChange={(e) => setDraft(e.target.value)}

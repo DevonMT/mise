@@ -3,6 +3,7 @@ import { db, type List } from './db'
 import { KINDS } from './kinds'
 import { Icon, LIST_ICON_KEYS } from './Icon'
 import { Sheet } from './Sheet'
+import { Field } from './Field'
 
 /** A grid of pickable list icons — reused by the create-list and edit-list flows. */
 export function IconGrid({
@@ -41,13 +42,18 @@ export function EditListSheet({ list, onClose }: { list: List; onClose: () => vo
   return (
     <Sheet className="editlist" label="Rename list" onClose={onClose}>
       <h3 className="sheet-title">Edit List</h3>
-      <input
-        className="field name-field"
-        value={name}
-        autoFocus
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && save()}
-      />
+      <Field id="editlist-name" label="List name">
+        {(p) => (
+          <input
+            {...p}
+            className="field name-field"
+            value={name}
+            autoFocus
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && save()}
+          />
+        )}
+      </Field>
       <p className="form-label">Icon</p>
       <IconGrid value={icon} onChange={setIcon} />
       <button className="primary" onClick={save} style={{ marginTop: 16 }}>

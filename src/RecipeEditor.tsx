@@ -192,14 +192,14 @@ export function RecipeEditor({ recipe, onClose }: { recipe: Recipe; onClose: () 
           <Icon name="plus" size={16} /> Add optional
         </button>
 
-        <label className="form-label" htmlFor="ed-steps">Steps — one per line</label>
+        <label className="form-label" htmlFor="ed-steps">Steps, one per line</label>
         <textarea
           id="ed-steps"
           className="field textarea ed-steps"
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
         />
-        <label className="form-label" htmlFor="ed-tips">Tips — one per line</label>
+        <label className="form-label" htmlFor="ed-tips">Tips, one per line</label>
         <textarea id="ed-tips" className="field textarea" value={tips} onChange={(e) => setTips(e.target.value)} />
       </div>
 
