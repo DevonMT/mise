@@ -7,6 +7,7 @@ import { createList } from './lists'
 import { decodeShare, shareHashIn, sharedPack, sharedToItem, type SharedItem, type SharePayload } from './share'
 import { Icon } from './Icon'
 import { Sheet } from './Sheet'
+import { Field } from './Field'
 import { recipeAmount } from './buy'
 
 /** A shared line as addItem takes it, pack and brand included. */
@@ -54,16 +55,20 @@ export function ImportLinkSheet({
         Paste a Mise list or recipe link someone sent you — you’ll get to review it before anything’s
         added.
       </p>
-      <textarea
-        className="field textarea"
-        placeholder="https://devontroedel.com/mise/#i=…"
-        value={text}
-        autoFocus
-        onChange={(e) => {
-          setText(e.target.value)
-          setErr('')
-        }}
-      />
+      <Field id="import-link" label="Share link">
+        {(p) => (
+          <textarea
+            {...p}
+            className="field textarea"
+            value={text}
+            autoFocus
+            onChange={(e) => {
+              setText(e.target.value)
+              setErr('')
+            }}
+          />
+        )}
+      </Field>
       {err && <p className="err-text">{err}</p>}
       <button className="primary" onClick={go} disabled={!text.trim()}>
         Open

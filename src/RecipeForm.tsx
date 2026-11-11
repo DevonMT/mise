@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { db } from './db'
 import { parseManualIngredients } from './recipes'
 import { Sheet } from './Sheet'
+import { Field } from './Field'
 
 export function RecipeForm({ onClose }: { onClose: () => void }) {
   const [title, setTitle] = useState('')
@@ -26,35 +27,53 @@ export function RecipeForm({ onClose }: { onClose: () => void }) {
   return (
     <Sheet className="recipe-form" label="Recipe" onClose={onClose}>
       <h3 className="sheet-title">New Recipe</h3>
-      <input
-        className="field name-field"
-        placeholder="Recipe name"
-        autoFocus
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-      />
-      <input
-        className="field"
-        placeholder="Servings (optional)"
-        inputMode="numeric"
-        value={servings}
-        onChange={(e) => setServings(e.target.value)}
-        style={{ marginTop: 10 }}
-      />
-      <label className="form-label">Ingredients — one per line</label>
-      <textarea
-        className="field textarea"
-        placeholder={'2 cup flour\n1 tsp salt\n3 eggs'}
-        value={ingredients}
-        onChange={(e) => setIngredients(e.target.value)}
-      />
-      <label className="form-label">Instructions (optional)</label>
-      <textarea
-        className="field textarea"
-        placeholder={'1. Mix the dry ingredients…'}
-        value={instructions}
-        onChange={(e) => setInstructions(e.target.value)}
-      />
+      <Field id="rf-title" label="Name">
+        {(p) => (
+          <input
+            {...p}
+            className="field name-field"
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        )}
+      </Field>
+      <Field id="rf-servings" label="Servings (optional)" className="rf-gap">
+        {(p) => (
+          <input
+            {...p}
+            className="field"
+            inputMode="numeric"
+            value={servings}
+            onChange={(e) => setServings(e.target.value)}
+          />
+        )}
+      </Field>
+      <Field
+        id="rf-ingredients"
+        label="Ingredients, one per line"
+        hint="Example: 2 cup flour"
+        className="rf-gap"
+      >
+        {(p) => (
+          <textarea
+            {...p}
+            className="field textarea"
+            value={ingredients}
+            onChange={(e) => setIngredients(e.target.value)}
+          />
+        )}
+      </Field>
+      <Field id="rf-steps" label="Instructions (optional)" className="rf-gap">
+        {(p) => (
+          <textarea
+            {...p}
+            className="field textarea"
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+          />
+        )}
+      </Field>
       <button className="primary" onClick={save} disabled={!canSave} style={{ marginTop: 12 }}>
         Save Recipe
       </button>

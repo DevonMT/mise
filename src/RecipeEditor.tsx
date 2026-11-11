@@ -95,28 +95,31 @@ export function RecipeEditor({ recipe, onClose }: { recipe: Recipe; onClose: () 
 
   const rowEditor = (r: Row) => (
     <div key={r.key} className="ed-row">
-      <input
-        className="field ed-qty"
-        inputMode="decimal"
-        placeholder="qty"
-        aria-label="Amount"
-        value={r.qtyText}
-        onChange={(e) => patch(r.key, { qtyText: e.target.value })}
-      />
-      <input
-        className="field ed-unit"
-        placeholder="unit"
-        aria-label="Unit"
-        value={r.unit ?? ''}
-        onChange={(e) => patch(r.key, { unit: e.target.value })}
-      />
-      <input
-        className="field ed-name"
-        placeholder="ingredient"
-        aria-label="Ingredient"
-        value={r.displayName}
-        onChange={(e) => patch(r.key, { displayName: e.target.value })}
-      />
+      <label className="cell ed-qty">
+        <span className="cell-cap">Amount</span>
+        <input
+          className="field"
+          inputMode="decimal"
+          value={r.qtyText}
+          onChange={(e) => patch(r.key, { qtyText: e.target.value })}
+        />
+      </label>
+      <label className="cell ed-unit">
+        <span className="cell-cap">Unit</span>
+        <input
+          className="field"
+          value={r.unit ?? ''}
+          onChange={(e) => patch(r.key, { unit: e.target.value })}
+        />
+      </label>
+      <label className="cell ed-name">
+        <span className="cell-cap">Ingredient</span>
+        <input
+          className="field"
+          value={r.displayName}
+          onChange={(e) => patch(r.key, { displayName: e.target.value })}
+        />
+      </label>
       <select
         className="field ed-section"
         aria-label="Aisle"
@@ -166,13 +169,13 @@ export function RecipeEditor({ recipe, onClose }: { recipe: Recipe; onClose: () 
       </div>
 
       <div className="fullview-body">
-        <label className="form-label">Name</label>
-        <input className="field name-field" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <label className="form-label">Servings</label>
+        <label className="form-label" htmlFor="ed-title">Name</label>
+        <input id="ed-title" className="field name-field" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <label className="form-label" htmlFor="ed-servings">Servings (optional)</label>
         <input
+          id="ed-servings"
           className="field"
           inputMode="numeric"
-          placeholder="optional"
           value={servings}
           onChange={(e) => setServings(e.target.value)}
         />
@@ -189,14 +192,15 @@ export function RecipeEditor({ recipe, onClose }: { recipe: Recipe; onClose: () 
           <Icon name="plus" size={16} /> Add optional
         </button>
 
-        <label className="form-label">Steps — one per line</label>
+        <label className="form-label" htmlFor="ed-steps">Steps — one per line</label>
         <textarea
+          id="ed-steps"
           className="field textarea ed-steps"
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
         />
-        <label className="form-label">Tips — one per line</label>
-        <textarea className="field textarea" value={tips} onChange={(e) => setTips(e.target.value)} />
+        <label className="form-label" htmlFor="ed-tips">Tips — one per line</label>
+        <textarea id="ed-tips" className="field textarea" value={tips} onChange={(e) => setTips(e.target.value)} />
       </div>
 
       <div className="fullview-foot">

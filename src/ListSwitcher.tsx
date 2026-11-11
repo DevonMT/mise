@@ -7,6 +7,7 @@ import { createList, deleteList, mergeInto, renameList } from './lists'
 import { Icon } from './Icon'
 import { IconGrid } from './EditListSheet'
 import { Sheet } from './Sheet'
+import { Field } from './Field'
 
 /** Switch lists, or make a new one. The kind is chosen once, up front —
  *  it decides which of Mise's smarts the list gets. */
@@ -69,14 +70,18 @@ export function ListSwitcher({
     return (
       <Sheet className="lists" label="Your lists" onClose={() => setCreating(false)}>
         <h3 className="sheet-title">New List</h3>
-        <input
-          className="field name-field"
-          placeholder="Name it — Costco, Weeknight, Chores…"
-          value={name}
-          autoFocus
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && create()}
-        />
+        <Field id="list-name" label="List name">
+          {(p) => (
+            <input
+              {...p}
+              className="field name-field"
+              value={name}
+              autoFocus
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && create()}
+            />
+          )}
+        </Field>
         <p className="form-label">What kind? (can’t change later)</p>
         <div className="kind-picker">
           {KIND_LIST.map((k) => (

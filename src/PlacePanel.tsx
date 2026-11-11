@@ -63,6 +63,7 @@ export function PlacePanel({
   return (
     <div className="place-panel">
       {first && <h3 className="place-title">Where Do You Shop?</h3>}
+      <div className="ds-field place-area">
       <label className="place-label" htmlFor="place-area">
         Your area
       </label>
@@ -70,7 +71,7 @@ export function PlacePanel({
         <input
           id="place-area"
           className="field"
-          placeholder="ZIP or town, e.g. 72701"
+          aria-describedby="place-area-hint"
           value={areaDraft}
           maxLength={60}
           onChange={(e) => setAreaDraft(e.target.value)}
@@ -78,6 +79,10 @@ export function PlacePanel({
         <button className="ghost" type="button" onClick={locate} disabled={locBusy}>
           {locBusy ? 'Locating…' : 'Use My Location'}
         </button>
+      </div>
+      <p className="ds-hint" id="place-area-hint">
+        ZIP or town. Example: 72701
+      </p>
       </div>
       {locMsg && <p className="group-hint">{locMsg}</p>}
 
@@ -87,7 +92,6 @@ export function PlacePanel({
       <input
         id="place-store"
         className="field"
-        placeholder="Store name, or pick one"
         value={storeDraft}
         maxLength={60}
         onChange={(e) => setStoreDraft(e.target.value)}

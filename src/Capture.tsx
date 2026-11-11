@@ -16,6 +16,7 @@ import { planPlainPaste } from './plainPaste'
 import { defaultGroceryListId, getInStockKeys } from './lists'
 import { Icon } from './Icon'
 import { Sheet } from './Sheet'
+import { Field } from './Field'
 import { useAiEnabled } from './edition'
 import { shareHashIn } from './share'
 
@@ -243,29 +244,43 @@ export function CaptureSheet({
             </h3>
 
             {mode === 'url' && (
-              <input
-                className="field"
-                placeholder="https://…"
-                inputMode="url"
-                autoFocus
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && run()}
-              />
+              <Field id="capture-url" label="Recipe link">
+                {(p) => (
+                  <input
+                    {...p}
+                    className="field"
+                    inputMode="url"
+                    autoFocus
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && run()}
+                  />
+                )}
+              </Field>
             )}
 
             {mode === 'text' && (
-              <textarea
-                className="field textarea"
-                placeholder={
-                  textOnly
-                    ? 'e.g.\n2 lb ground beef\nmilk\n3 cans black beans'
-                    : 'e.g.\n2 onions\nmilk\nchicken breast\n…or a whole recipe'
+              <Field
+                id="capture-text"
+                label={forRecipe ? 'Recipe' : 'Items'}
+                hint={
+                  forRecipe
+                    ? undefined
+                    : textOnly
+                      ? 'One item per line. Example: 2 lb ground beef'
+                      : 'One item per line, or a whole recipe. Example: 2 lb ground beef'
                 }
-                autoFocus
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-              />
+              >
+                {(p) => (
+                  <textarea
+                    {...p}
+                    className="field textarea"
+                    autoFocus
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                  />
+                )}
+              </Field>
             )}
 
             {mode === 'image' && (
@@ -362,19 +377,23 @@ export function CaptureSheet({
                       )}
                     </div>
                     <div className="rev-meta">
-                      <input
-                        className="rev-qty"
-                        placeholder="qty"
-                        inputMode="decimal"
-                        value={r.quantityStr}
-                        onChange={(e) => patch(i, { quantityStr: e.target.value, amountEstimated: false })}
-                      />
-                      <input
-                        className="rev-unit"
-                        placeholder="unit"
-                        value={r.unit ?? ''}
-                        onChange={(e) => patch(i, { unit: e.target.value || null, amountEstimated: false })}
-                      />
+                      <label className="cell">
+                        <span className="cell-cap">Amount</span>
+                        <input
+                          className="rev-qty"
+                          inputMode="decimal"
+                          value={r.quantityStr}
+                          onChange={(e) => patch(i, { quantityStr: e.target.value, amountEstimated: false })}
+                        />
+                      </label>
+                      <label className="cell">
+                        <span className="cell-cap">Unit</span>
+                        <input
+                          className="rev-unit"
+                          value={r.unit ?? ''}
+                          onChange={(e) => patch(i, { unit: e.target.value || null, amountEstimated: false })}
+                        />
+                      </label>
                       <select
                         className="rev-sec"
                         value={r.section}

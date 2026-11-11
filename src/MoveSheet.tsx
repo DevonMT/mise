@@ -4,6 +4,7 @@ import { KINDS, listIcon } from './kinds'
 import { subListRoot, type MoveDest } from './move'
 import { Icon } from './Icon'
 import { Sheet } from './Sheet'
+import { Field } from './Field'
 import { useBackLayer } from './back'
 
 /** Where the picked rows go: a list (and which side of its backlog), or a new
@@ -52,14 +53,18 @@ export function MoveSheet({
       <Sheet className="lists move-sheet" label={title} onClose={() => setNaming(false)}>
         <h3 className="sheet-title">New Sub-list</h3>
         <p className="group-hint">Shows under {root.name} in your lists.</p>
-        <input
-          className="field name-field"
-          placeholder="Saved for later"
-          value={name}
-          autoFocus
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && create()}
-        />
+        <Field id="sublist-name" label="Sub-list name" hint="Blank is named Saved for Later.">
+          {(p) => (
+            <input
+              {...p}
+              className="field name-field"
+              value={name}
+              autoFocus
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && create()}
+            />
+          )}
+        </Field>
         <button className="primary" onClick={create}>
           Create and Move {count}
         </button>

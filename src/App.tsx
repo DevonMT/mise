@@ -57,6 +57,7 @@ import { useBackLayer } from './back'
 import { usePointer } from './ds/usePointer'
 import { RecipePickSheet } from './RecipePick'
 import { MoveSheet, type MovePick } from './MoveSheet'
+import { Field } from './Field'
 import { createSubList, dropIfEmpty, moveItems } from './move'
 import { addSkipped, shopTheWeek, skippedMessage, type Skipped } from './recipes'
 
@@ -1425,14 +1426,18 @@ function ItemSheet({
 
   return (
     <Sheet label="Item details" onClose={onClose}>
-      <input
-        className="field name-field"
-        placeholder={kind.due ? 'What needs doing?' : 'What do you need?'}
-        value={name}
-        autoFocus
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && save()}
-      />
+      <Field id="item-name" label={kind.due ? 'Task' : 'Item'}>
+        {(p) => (
+          <input
+            {...p}
+            className="field name-field"
+            value={name}
+            autoFocus
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && save()}
+          />
+        )}
+      </Field>
 
       {editing && initial?.detail && (
         <p className="detail-note">
@@ -1444,53 +1449,72 @@ function ItemSheet({
         <>
           {/* The "Need" — how much the recipe/you call for (a measure). */}
           <div className="qty-row">
-            <input
-              className="field"
-              placeholder="Amount needed"
-              inputMode="decimal"
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-            />
-            <input
-              className="field"
-              placeholder="Unit (cup, lb…)"
-              value={unit}
-              onChange={(e) => setUnit(e.target.value)}
-            />
+            <Field id="item-qty" label="Amount needed">
+              {(p) => (
+                <input
+                  {...p}
+                  className="field"
+                  inputMode="decimal"
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                />
+              )}
+            </Field>
+            <Field id="item-unit" label="Unit" hint="Example: cup, lb">
+              {(p) => (
+                <input {...p} className="field" value={unit} onChange={(e) => setUnit(e.target.value)} />
+              )}
+            </Field>
           </div>
           {/* The "Buy" — the specific package: count × size + packaging. Usually
               set by Refine; editable here. Auto-opens when already populated. */}
           <details className="buy-edit" open={initial != null && hasBuySpec(initial)}>
             <summary>What you buy</summary>
             <div className="qty-row">
-              <input
-                className="field"
-                placeholder="Count (e.g. 2)"
-                inputMode="decimal"
-                value={buyCount}
-                onChange={(e) => setBuyCount(e.target.value)}
-              />
-              <input
-                className="field"
-                placeholder="Package (jar, can, dozen…)"
-                value={packaging}
-                onChange={(e) => setPackaging(e.target.value)}
-              />
+              <Field id="item-count" label="Count">
+                {(p) => (
+                  <input
+                    {...p}
+                    className="field"
+                    inputMode="decimal"
+                    value={buyCount}
+                    onChange={(e) => setBuyCount(e.target.value)}
+                  />
+                )}
+              </Field>
+              <Field id="item-package" label="Package" hint="Example: jar, can, dozen">
+                {(p) => (
+                  <input
+                    {...p}
+                    className="field"
+                    value={packaging}
+                    onChange={(e) => setPackaging(e.target.value)}
+                  />
+                )}
+              </Field>
             </div>
             <div className="qty-row">
-              <input
-                className="field"
-                placeholder="Size (e.g. 16)"
-                inputMode="decimal"
-                value={sizeAmount}
-                onChange={(e) => setSizeAmount(e.target.value)}
-              />
-              <input
-                className="field"
-                placeholder="Size unit (oz, ct…)"
-                value={sizeUnit}
-                onChange={(e) => setSizeUnit(e.target.value)}
-              />
+              <Field id="item-size" label="Size">
+                {(p) => (
+                  <input
+                    {...p}
+                    className="field"
+                    inputMode="decimal"
+                    value={sizeAmount}
+                    onChange={(e) => setSizeAmount(e.target.value)}
+                  />
+                )}
+              </Field>
+              <Field id="item-size-unit" label="Size unit" hint="Example: oz, ct">
+                {(p) => (
+                  <input
+                    {...p}
+                    className="field"
+                    value={sizeUnit}
+                    onChange={(e) => setSizeUnit(e.target.value)}
+                  />
+                )}
+              </Field>
             </div>
           </details>
         </>
@@ -1563,39 +1587,50 @@ function ItemSheet({
             </div>
           )}
 
-          <textarea
-            className="field textarea notes-field"
-            placeholder={
-              kind.fromRecipes ? 'Notes — sides, who is cooking…' : 'What it involves…'
-            }
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-          />
+          <Field id="item-notes" label="Notes" className="notes-wrap">
+            {(p) => (
+              <textarea
+                {...p}
+                className="field textarea notes-field"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+              />
+            )}
+          </Field>
         </>
       )}
 
       {kind.due && (
         <>
           <div className="due-row">
-            <input
-              className="field"
-              type="date"
-              value={dueStr}
-              onChange={(e) => setDueStr(e.target.value)}
-            />
+            <Field id="item-due" label="Due date">
+              {(p) => (
+                <input
+                  {...p}
+                  className="field"
+                  type="date"
+                  value={dueStr}
+                  onChange={(e) => setDueStr(e.target.value)}
+                />
+              )}
+            </Field>
             {dueStr && (
               <button className="ghost" onClick={() => setDueStr('')}>
                 Clear
               </button>
             )}
           </div>
-          <textarea
-            className="field textarea notes-field"
-            placeholder="Notes (optional)"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
+          <Field id="item-notes" label="Notes (optional)" className="notes-wrap">
+            {(p) => (
+              <textarea
+                {...p}
+                className="field textarea notes-field"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            )}
+          </Field>
         </>
       )}
 
@@ -1632,10 +1667,12 @@ function ItemSheet({
 
       {editing && kind.prices && (
         <div className="price-row">
-          <span className="price-label">Price $</span>
+          <label className="price-label" htmlFor="item-price">
+            Price $
+          </label>
           <input
+            id="item-price"
             className="field"
-            placeholder="e.g. 3.49"
             inputMode="decimal"
             value={priceStr}
             onChange={(e) => setPriceStr(e.target.value)}

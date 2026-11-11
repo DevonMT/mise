@@ -934,6 +934,24 @@
 .name-field {
   font-weight: 600;
 }
+/* A labelled field (#837): visible label above, optional focus-only hint below. */
+.field-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.field-label {
+  margin: 0 2px 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.rf-gap {
+  margin-top: 12px;
+}
+.field-wrap .ds-hint {
+  margin: 4px 2px 0;
+}
 .detail-note {
   margin: 8px 2px 0;
   padding: 8px 12px;
@@ -948,7 +966,10 @@
   gap: 10px;
   margin-top: 10px;
 }
-.qty-row .field:first-child {
+.qty-row > .field-wrap {
+  flex: 1 1 0;
+}
+.qty-row > .field-wrap:first-child {
   flex: 0 0 34%;
 }
 .buy-edit {
@@ -1160,8 +1181,21 @@
 }
 .rev-meta {
   display: flex;
+  align-items: flex-end;
   gap: 6px;
   margin-top: 6px;
+}
+/* A small caption over a dense-row input (#837): the label stays visible. */
+.cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cell-cap {
+  margin: 0 2px 2px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
 }
 .rev-qty,
 .rev-unit,
@@ -1917,6 +1951,11 @@
   font-weight: 700;
   color: var(--muted);
 }
+.place-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .place-row {
   display: flex;
   flex-wrap: wrap;
@@ -2274,15 +2313,21 @@
 }
 .due-row {
   display: flex;
+  align-items: flex-end;
   gap: 10px;
   margin-top: 10px;
+}
+.due-row > .field-wrap {
+  flex: 1 1 auto;
 }
 .due-row .ghost {
   flex: 0 0 auto;
   padding: 0 16px;
 }
-.notes-field {
+.notes-wrap {
   margin-top: 10px;
+}
+.notes-field {
   min-height: 80px;
 }
 
@@ -3091,7 +3136,7 @@
   .ed-row {
     grid-template-columns: 64px 80px 1fr 170px auto 36px;
     grid-template-areas: 'qty unit name aisle opt del';
-    align-items: center;
+    align-items: end;
   }
   .ed-opt { grid-area: opt; }
   .ed-del { grid-area: del; }
