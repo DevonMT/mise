@@ -1,7 +1,8 @@
 import type { CatalogEntry, LearnedSize, RecipeIngredient } from './db'
 import { packCount } from './list'
-import { itemKeys } from './match'
+import { itemKeys, sameIngredient } from './match'
 import { unitInfo } from './fit'
+import { closeness } from './matchNames'
 
 /**
  * Standard amounts and pack sizes for a recipe (#774).
@@ -256,32 +257,51 @@ const tableClaims = (l: Line): boolean => PACKS.some((r) => claims(l, r.match, r
  * from the catalog (on boot, after every change, and before each parse or
  * Standardize). Empty until then, which is the table alone.
  */
-let learned: { exact: Map<string, LearnedSize[]>; loose: Map<string, LearnedSize[]> } = { exact: new Map(), loose: new Map() }
+interface Learned {
+  /** The catalog key the sizes were learned under. */
+  key: string
+  sizes: LearnedSize[]
+}
+let learned: { exact: Map<string, Learned>; loose: Map<string, Learned> } = { exact: new Map(), loose: new Map() }
 
 export function setLearnedSizes(entries: Array<Pick<CatalogEntry, 'canonicalKey' | 'learnedSizes'>>): void {
-  const exact = new Map<string, LearnedSize[]>()
-  const loose = new Map<string, LearnedSize[]>()
+  const exact = new Map<string, Learned>()
+  const loose = new Map<string, Learned>()
   for (const e of entries) {
     const key = e.canonicalKey.trim().toLowerCase()
     if (!key || !e.learnedSizes?.length) continue
-    exact.set(key, e.learnedSizes)
+    const hit = { key, sizes: e.learnedSizes }
+    exact.set(key, hit)
     // Indexed by the key only, never the row's display name: Refine can rename
     // a catalog row to a brand's product string, which must not widen the match.
-    for (const k of itemKeys({ displayName: key, canonicalKey: key })) if (!loose.has(k)) loose.set(k, e.learnedSizes)
+    for (const k of itemKeys({ displayName: key, canonicalKey: key })) if (!loose.has(k)) loose.set(k, hit)
   }
   learned = { exact, loose }
 }
 
-/** The learned sizes for this line's product, or null. Its own key first, then the matcher's. */
+/**
+ * The learned sizes for this line's product, or null. Found through the
+ * line's keys (itemKeys, which keeps the raw key behind its pepper and
+ * coriander guards), then checked against what the line SAYS: its name must
+ * be the learned product or a described version of it (matchNames'
+ * closeness), so a merge key alone never carries a size onto another product.
+ * A spice or herb the amount table claims, counted in no container ("thyme",
+ * "salt"), is an amount to fill, not a package: no learned size for it.
+ */
 function learnedFor(l: Line): LearnedSize[] | null {
   if (!learned.exact.size || tableClaims(l)) return null
-  const raw = l.canonicalKey?.trim().toLowerCase()
-  if (raw && learned.exact.has(raw)) return learned.exact.get(raw)!
+  if (!CONTAINERS[unitOf(l)] && lookupAmount(l)) return null
   for (const k of itemKeys(l)) {
     const hit = learned.exact.get(k) ?? learned.loose.get(k)
-    if (hit) return hit
+    if (hit && nameAgrees(l, hit.key)) return hit.sizes
   }
   return null
+}
+
+function nameAgrees(l: Line, key: string): boolean {
+  const said = { displayName: l.displayName, canonicalKey: '', quantity: l.quantity, unit: l.unit }
+  const learnedAs = { displayName: key, canonicalKey: key }
+  return sameIngredient(said, learnedAs) || closeness(said, learnedAs) >= 0
 }
 
 /** The learned pack for the container the line names (or the first one, when it names none). */
@@ -302,6 +322,8 @@ function learnedPack(l: Line): PackSize | null {
  */
 export function sizeToLearn(l: Line): Omit<LearnedSize, 'at' | 'estimated'> | null {
   if (!l.sizeEstimated || l.sizeAmount == null || !l.sizeUnit || !l.packaging) return null
+  // "6 hamburger buns" counts pieces: its pack is the whole order, not one package.
+  if (!countedLine(l)) return null
   if (soldLoose(l) || tableClaims(l) || lookupPack(l)) return null
   if (!goodNum(l.sizeAmount, 1000) || !unitInfo(l.sizeUnit) || !goodWord(l.packaging)) return null
   // Filed under the container the line names ("1 jar harissa"), so the next

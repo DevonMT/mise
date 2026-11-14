@@ -189,3 +189,52 @@ test('a delete or an edit is final: sizes already on a recipe never teach it bac
   assert.equal(calls.length, 0)
   assert.equal((await learnedRow())?.learnedSizes, undefined)
 })
+
+/** A learned size from a counted line, as Standardize or a parse would leave it. */
+const teach = (displayName: string, unit: string, size: number, sizeUnit: string, packaging: string, rest: Partial<RecipeIngredient> = {}) =>
+  L.learnSizes([ing(displayName, { quantity: 1, unit, sizeAmount: size, sizeUnit, packaging, buyCount: 1, sizeEstimated: true, ...rest })])
+
+test('buy math: a corrected learned size wins over the copy on the line, and pieces are not packages', async () => {
+  await teach('harissa', 'jar', 10, 'oz', 'jar')
+  const id = (await learnedRow())!.id!
+  // The recipe line was filled at ≈10 oz; the learned size is then corrected to 9.8.
+  const jar = ing('harissa', { quantity: 1, unit: 'jar', buyCount: 1, sizeAmount: 10, sizeUnit: 'oz', packaging: 'jar', sizeEstimated: true })
+  await L.editLearnedSize(id, 'jar', { size: 9.8, unit: 'oz', packaging: 'jar' })
+  assert.deepEqual(buyLine(jar).plan, { buyCount: 1, sizeAmount: 9.8, sizeUnit: 'oz', packaging: 'jar' })
+
+  // "6 hamburger buns" with ≈ an 8 ct package: six buns fit one package.
+  const buns = ing('hamburger buns', { canonicalKey: 'hamburger bun', section: 'bakery', quantity: 6, unit: 'whole', buyCount: 1, sizeAmount: 8, sizeUnit: 'ct', packaging: 'package', sizeEstimated: true })
+  assert.equal(sizeToLearn(buns), null, 'a piece count never teaches a size')
+  await teach('hamburger buns', 'package', 8, 'ct', 'package', { canonicalKey: 'hamburger bun', section: 'bakery' })
+  assert.deepEqual(buyLine(buns).plan, { buyCount: 1, sizeAmount: 8, sizeUnit: 'ct', packaging: 'package' })
+  assert.deepEqual(buyLine({ ...buns, quantity: 12 }).plan, { buyCount: 2, sizeAmount: 8, sizeUnit: 'ct', packaging: 'package' })
+})
+
+test('must stay apart: thyme, salt and pepper keep their spoon amounts; a merge key alone carries nothing', async () => {
+  // A package of fresh thyme, keyed plain "thyme" by the model.
+  await teach('fresh thyme', 'package', 0.75, 'oz', 'package', { canonicalKey: 'thyme', section: 'produce' })
+  await teach('kosher salt', 'box', 48, 'oz', 'box')
+  await teach('black pepper', 'jar', 4, 'oz', 'jar')
+  // Bare, they are the amount table's: a spoonful, no package.
+  const thyme = fillFromTable(ing('thyme', { section: 'pantry' }))
+  assert.deepEqual([thyme.quantity, thyme.unit, thyme.sizeAmount], [1, 'tsp', undefined])
+  const salt = fillFromTable(ing('salt'))
+  assert.deepEqual([salt.quantity, salt.unit, salt.sizeAmount], [0.5, 'tsp', undefined])
+  const pepper = fillFromTable(ing('pepper'))
+  assert.deepEqual([pepper.quantity, pepper.unit, pepper.sizeAmount], [0.25, 'tsp', undefined])
+  assert.equal(soldSizes(ing('kosher salt', { quantity: 1, unit: 'tsp' })), null)
+  // Counted in their container, they get it.
+  assert.equal(lookupPack(ing('thyme', { quantity: 1, unit: 'package' }))?.size, 0.75)
+  assert.equal(lookupPack(ing('kosher salt', { quantity: 1, unit: 'box' }))?.size, 48)
+  assert.equal(lookupPack(ing('black pepper', { quantity: 1, unit: 'jar' }))?.size, 4)
+  // Other products with the same words stay apart.
+  assert.equal(lookupPack(ing('salt pork', { section: 'other', quantity: 1, unit: 'package' })), null)
+  assert.equal(lookupPack(ing('peppers', { section: 'other', quantity: 2, unit: 'whole' })), null)
+  assert.equal(lookupPack(ing('bell pepper', { section: 'other', quantity: 1, unit: 'jar' })), null)
+  assert.equal(lookupPack(ing('thyme honey', { quantity: 1, unit: 'jar' })), null)
+  // The merge key says harissa, the line says something else: no size.
+  await teach('harissa', 'jar', 10, 'oz', 'jar')
+  assert.equal(lookupPack(ing('harissa chicken thighs', { canonicalKey: 'harissa', section: 'other', quantity: 1, unit: 'jar' })), null)
+  // A described version of the learned product still matches.
+  assert.equal(lookupPack(ing('organic harissa', { canonicalKey: 'harissa', quantity: 1, unit: 'jar' }))?.size, 10)
+})

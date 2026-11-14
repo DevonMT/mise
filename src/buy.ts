@@ -2,7 +2,7 @@ import type { RecipeIngredient } from './db'
 import { liquidProduct, unitInfo } from './fit'
 import { formatBuy, packCount } from './list'
 import { kitchenNumber } from './recipeText'
-import { lookupPack, soldSizes, type PackSize } from './packSizes'
+import { countedLine, lookupPack, soldSizes, type PackSize } from './packSizes'
 
 /**
  * What to buy for a recipe line (#811): the layer between a recipe and a list.
@@ -88,8 +88,18 @@ function needIn(
   else if (CONTAINER_UNITS.has(u) || u === '' || u === 'whole' || u === 'each') {
     // Counted in packages: each one is the line's own size, or the table's size
     // for the container it names. A bare count with neither is not a measure.
+    // A stated size is the package, always. An estimated one is only a copy of
+    // what the table or a learned size said when it was filled, so the lookup
+    // now wins (a learned size corrected from 10 to 9.8 oz must not make "1 jar"
+    // need two), and it counts packages only on a line counted in them: "6
+    // hamburger buns" with ≈ an 8 ct package is six buns, not six packages.
     const own = l.sizeAmount != null && l.sizeUnit ? { size: l.sizeAmount, unit: l.sizeUnit } : null
-    const table = own ?? (CONTAINER_UNITS.has(u) ? lookupPack(l) : null)
+    const table =
+      own && !l.sizeEstimated
+        ? own
+        : own
+          ? countedLine(l) ? (lookupPack(l) ?? own) : null
+          : CONTAINER_UNITS.has(u) ? lookupPack(l) : null
     const info = table && unitInfo(table.unit)
     if (table && info) have = { family: info.family, base: q * table.size * info.factor }
     // "2 eggs", "10 tortillas": pieces, against a package sized in pieces (12 ct).
