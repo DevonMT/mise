@@ -123,11 +123,7 @@ export async function standardizeRecipe(recipe: Recipe, ai: boolean): Promise<St
   // One call asks about at most 60 lines (the server's STANDARDIZE_MAX_LINES);
   // the rest wait for the next tap, unmarked.
   const gaps = ai ? openGaps(lines).slice(0, STANDARDIZE_MAX_LINES) : []
-  if (!gaps.length) {
-    // A recipe estimated before #814 still teaches what its model sizes were.
-    await learnSizes(lines)
-    return { filled: filledCount(before, lines) }
-  }
+  if (!gaps.length) return { filled: filledCount(before, lines) }
   try {
     const { answers, asked: seen } = await standardizeLines(
       { title: recipe.title, servings: recipe.servings },
@@ -155,7 +151,10 @@ export async function standardizeRecipe(recipe: Recipe, ai: boolean): Promise<St
     if (!now) return { filled: 0 }
     const merged = now.ingredients.map((l, i) => (l.displayName === lines[i]?.displayName ? tried(l, i) : l))
     if (changedCount(now.ingredients, merged) > 0) await db.recipes.update(recipe.id, { ingredients: merged })
-    await learnSizes(merged)
+    // Only what the model answered just now teaches a size (#814). A size
+    // already on the recipe may have come from a learned size the person has
+    // since deleted or edited, and must not bring it back.
+    await learnSizes([...asked].filter((i) => merged[i]?.displayName === lines[i]?.displayName).map((i) => merged[i]))
     return { filled: filledCount(before, lines) }
   } catch (e) {
     return { filled: filledCount(before, lines), error: e instanceof Error ? e.message : String(e) }

@@ -176,3 +176,16 @@ test('confirm, edit and delete', async () => {
   assert.equal(calls.length, 1)
   assert.equal(await L.deleteLearnedSize(id, 'tube'), 'That size is gone. It may have been deleted on another device.')
 })
+
+test('a delete or an edit is final: sizes already on a recipe never teach it back', async () => {
+  const r = await recipe('Shakshuka', [ing('harissa', { quantity: 1, unit: 'jar' })])
+  await standardizeRecipe(r, true)
+  const id = (await learnedRow())!.id!
+  // The recipe line now carries the 10 oz jar, marked estimated. Delete the learned size.
+  assert.equal(await L.deleteLearnedSize(id, 'jar'), null)
+  // Standardize again: the line has its size, so nothing is asked, and nothing is re-learned.
+  calls = []
+  await standardizeRecipe((await db.recipes.get(r.id!))!, true)
+  assert.equal(calls.length, 0)
+  assert.equal((await learnedRow())?.learnedSizes, undefined)
+})
