@@ -4,6 +4,7 @@ import { buyLine, type BuyPlan } from './buy'
 import { getInStockKeys } from './lists'
 import { getStapleKeys, isStaple, standardizeLines, type ParseResult } from './parse'
 import { changedCount, fillFromTable, filledCount, listAmount, mergeEstimate, openGaps } from './packSizes'
+import { learnSizes, refreshLearnedSizes } from './learnedSizes'
 
 const KNOWN_UNITS = new Set([
   'cup', 'cups', 'tbsp', 'tsp', 'oz', 'lb', 'lbs', 'g', 'kg', 'ml', 'l',
@@ -80,11 +81,14 @@ export async function saveRecipeFromParse(result: ParseResult): Promise<number |
   }
 
   const existing = await db.recipes.where('title').equals(recipe.title).first()
+  let id: number
   if (existing?.id != null) {
     await db.recipes.update(existing.id, recipe)
-    return existing.id
-  }
-  return db.recipes.add(recipe as Recipe)
+    id = existing.id
+  } else id = await db.recipes.add(recipe as Recipe)
+  // The sizes the model estimated for products Mise didn't know (#814).
+  await learnSizes(recipe.ingredients)
+  return id
 }
 
 /** Lines one Standardize call may send; matches STANDARDIZE_MAX_LINES in server/src/parseContract.ts. */
@@ -100,12 +104,16 @@ export interface Standardized {
 /**
  * Standardize a saved recipe (#774): fill in the pack sizes and amounts it left
  * out, gaps only, so a size or amount already there (stated, edited, or an
- * earlier estimate) never changes. The table first, saved at once; then, only
- * with AI, the model for what the table did not know. Without AI it is the
- * table alone and nothing errors.
+ * earlier estimate) never changes. The table and the learned sizes (#814)
+ * first, saved at once; then, only with AI, the model for what neither knew,
+ * and its sizes are learned. Without AI it is the table and learned sizes
+ * alone, and nothing errors.
  */
 export async function standardizeRecipe(recipe: Recipe, ai: boolean): Promise<Standardized> {
   if (recipe.id == null) return { filled: 0 }
+  // Learned sizes (#814) fill before the model is asked, so a product Mise
+  // already knows is never sent again.
+  await refreshLearnedSizes().catch(() => {})
   const before = recipe.ingredients
   let lines = before.map(fillFromTable)
   const save = async () => {
@@ -115,7 +123,11 @@ export async function standardizeRecipe(recipe: Recipe, ai: boolean): Promise<St
   // One call asks about at most 60 lines (the server's STANDARDIZE_MAX_LINES);
   // the rest wait for the next tap, unmarked.
   const gaps = ai ? openGaps(lines).slice(0, STANDARDIZE_MAX_LINES) : []
-  if (!gaps.length) return { filled: filledCount(before, lines) }
+  if (!gaps.length) {
+    // A recipe estimated before #814 still teaches what its model sizes were.
+    await learnSizes(lines)
+    return { filled: filledCount(before, lines) }
+  }
   try {
     const { answers, asked: seen } = await standardizeLines(
       { title: recipe.title, servings: recipe.servings },
@@ -143,6 +155,7 @@ export async function standardizeRecipe(recipe: Recipe, ai: boolean): Promise<St
     if (!now) return { filled: 0 }
     const merged = now.ingredients.map((l, i) => (l.displayName === lines[i]?.displayName ? tried(l, i) : l))
     if (changedCount(now.ingredients, merged) > 0) await db.recipes.update(recipe.id, { ingredients: merged })
+    await learnSizes(merged)
     return { filled: filledCount(before, lines) }
   } catch (e) {
     return { filled: filledCount(before, lines), error: e instanceof Error ? e.message : String(e) }

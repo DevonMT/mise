@@ -568,6 +568,76 @@
 .two-btn .field {
   flex: 1;
 }
+/* Learned Sizes (#814): one row per learned package size, actions on the right
+   (under the name on a narrow phone). */
+.learned-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.learned-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+}
+.learned-row:first-child {
+  border-top: none;
+}
+.learned-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 12ch;
+}
+.learned-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+.learned-size {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.learned-est {
+  color: var(--accent);
+  font-weight: 700;
+}
+.learned-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ghost.learned-btn {
+  flex: none;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+}
+.learned-row.editing {
+  display: block;
+}
+.learned-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+.learned-fields .field {
+  padding: 11px 10px;
+  font-size: 1rem;
+}
+.ghost.learned-save {
+  color: var(--accent);
+}
 /* Aisle-order editor — reorder store sections to match your store's layout. */
 .aisle-editor {
   list-style: none;

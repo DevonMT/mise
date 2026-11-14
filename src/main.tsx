@@ -10,6 +10,7 @@ import { EstateBar } from './EstateBar.tsx'
 import { legacyThemeOnce } from './legacyTheme'
 import { applyTheme, configureTheme, cookieThemeStore, readTheme, startTheme } from './ds/theme'
 import { migrateStaples } from './db'
+import { watchLearnedSizes } from './learnedSizes'
 import { hydrateSettings, migrateSettings, readSetting } from './prefs'
 import { openLayers } from './back'
 import { pageBusy, reloadWhenIdle } from './update'
@@ -38,6 +39,10 @@ startTheme()
 void migrateStaples().catch(() => {
   /* it will be retried on the next open */
 })
+
+// Learned pack sizes (#814) feed the size lookup, which is synchronous (the
+// buy math runs in render). Kept current for the life of the page.
+watchLearnedSizes()
 
 /**
  * Preferences: lift whatever this device already had into rows, then bring the

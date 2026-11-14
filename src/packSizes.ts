@@ -1,5 +1,7 @@
-import type { RecipeIngredient } from './db'
+import type { CatalogEntry, LearnedSize, RecipeIngredient } from './db'
 import { packCount } from './list'
+import { itemKeys } from './match'
+import { unitInfo } from './fit'
 
 /**
  * Standard amounts and pack sizes for a recipe (#774).
@@ -24,6 +26,14 @@ import { packCount } from './list'
  *   measure: "8 oz Velveeta" is an amount, and "1 cup salsa" is the buy math's job (buy.ts, #811).
  * - Every filled field is flagged (`sizeEstimated`, `amountEstimated`) so the
  *   UI can mark it, and so editing the amount by hand can clear the mark.
+ *
+ * LEARNED SIZES (#814). A pack the model estimated for a product this table
+ * doesn't know is saved on the account's catalog row (learnedSizes.ts) and
+ * answers after the table from then on: table, then learned, then the model.
+ * So a product Mise has met once is never sent to the model again. Learned
+ * sizes pass the same gates as the table (produce and meat need a container,
+ * a line the table claims never reaches them) and match by ingredient key, not
+ * by substring, so "harissa" never fills "harissa chicken thighs".
  */
 
 export interface PackSize {
@@ -234,7 +244,71 @@ export function lookupPack(l: Line): PackSize | null {
     const size = (said ? r.alt?.[said] : undefined) ?? r.size
     return { size, unit: r.unit, packaging: said && said !== 'container' ? said : r.packaging }
   }
+  return learnedPack(l)
+}
+
+/** Any table rule claims this line, a buy-only one included: then learned sizes never answer for it. */
+const tableClaims = (l: Line): boolean => PACKS.some((r) => claims(l, r.match, r.not))
+
+/**
+ * Learned sizes (#814), by ingredient key. Kept here so lookupPack and
+ * soldSizes stay the one place a size is decided; learnedSizes.ts loads it
+ * from the catalog (on boot, after every change, and before each parse or
+ * Standardize). Empty until then, which is the table alone.
+ */
+let learned: { exact: Map<string, LearnedSize[]>; loose: Map<string, LearnedSize[]> } = { exact: new Map(), loose: new Map() }
+
+export function setLearnedSizes(entries: Array<Pick<CatalogEntry, 'canonicalKey' | 'learnedSizes'>>): void {
+  const exact = new Map<string, LearnedSize[]>()
+  const loose = new Map<string, LearnedSize[]>()
+  for (const e of entries) {
+    const key = e.canonicalKey.trim().toLowerCase()
+    if (!key || !e.learnedSizes?.length) continue
+    exact.set(key, e.learnedSizes)
+    // Indexed by the key only, never the row's display name: Refine can rename
+    // a catalog row to a brand's product string, which must not widen the match.
+    for (const k of itemKeys({ displayName: key, canonicalKey: key })) if (!loose.has(k)) loose.set(k, e.learnedSizes)
+  }
+  learned = { exact, loose }
+}
+
+/** The learned sizes for this line's product, or null. Its own key first, then the matcher's. */
+function learnedFor(l: Line): LearnedSize[] | null {
+  if (!learned.exact.size || tableClaims(l)) return null
+  const raw = l.canonicalKey?.trim().toLowerCase()
+  if (raw && learned.exact.has(raw)) return learned.exact.get(raw)!
+  for (const k of itemKeys(l)) {
+    const hit = learned.exact.get(k) ?? learned.loose.get(k)
+    if (hit) return hit
+  }
   return null
+}
+
+/** The learned pack for the container the line names (or the first one, when it names none). */
+function learnedPack(l: Line): PackSize | null {
+  if (soldLoose(l)) return null
+  const sizes = learnedFor(l)
+  if (!sizes) return null
+  const said = CONTAINERS[unitOf(l)]
+  const pick = said && said !== 'container' ? sizes.find((s) => s.packaging === said) : sizes[0]
+  return pick ? { size: pick.size, unit: pick.unit, packaging: pick.packaging } : null
+}
+
+/**
+ * The size this line would teach (#814): a pack the model estimated, for a
+ * product neither the table nor the learned sizes know, that the buy math can
+ * read (a real number, a unit fit.ts knows, a plain packaging word). A size
+ * the recipe stated is never learned, and nothing sold loose is.
+ */
+export function sizeToLearn(l: Line): Omit<LearnedSize, 'at' | 'estimated'> | null {
+  if (!l.sizeEstimated || l.sizeAmount == null || !l.sizeUnit || !l.packaging) return null
+  if (soldLoose(l) || tableClaims(l) || lookupPack(l)) return null
+  if (!goodNum(l.sizeAmount, 1000) || !unitInfo(l.sizeUnit) || !goodWord(l.packaging)) return null
+  // Filed under the container the line names ("1 jar harissa"), so the next
+  // "1 jar" finds it, whatever word the model used.
+  const said = CONTAINERS[unitOf(l)]
+  const packaging = said && said !== 'container' ? said : l.packaging.trim().toLowerCase()
+  return { size: l.sizeAmount, unit: l.sizeUnit.trim(), packaging }
 }
 
 /** What the table knows about buying a product: every size it is sold in, and its weight per cup. */
@@ -259,7 +333,9 @@ export function soldSizes(l: Line): SoldInfo | null {
     ]
     return { sizes: pairs.map(([size, packaging]) => ({ size, unit: r.unit, packaging })), perCup: r.perCup }
   }
-  return null
+  // Every size Mise learned for it (#814). No weight per cup: that is the table's alone.
+  const sizes = learnedFor(l)
+  return sizes ? { sizes: sizes.map((s) => ({ size: s.size, unit: s.unit, packaging: s.packaging })) } : null
 }
 
 /** The table's estimated amount for a spice or herb with none, or null. */

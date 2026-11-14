@@ -6,6 +6,7 @@ import { downloadBackup, importAll } from './backup'
 import { Icon } from './Icon'
 import { EDITION, useAiEnabled } from './edition'
 import { readSetting } from './prefs'
+import { LearnedSizes } from './LearnedSizesSection'
 import {
   lastSyncedAt, setSyncEnabled, sync, syncAvailable, syncEnabled,
   type Availability, type SyncResult,
@@ -299,6 +300,8 @@ export function SettingsView() {
           )}
         </section>
       )}
+
+      <LearnedSizes aiOn={aiOn} />
 
       <p className="endpoint-note">Build {__BUILD__}</p>
     </div>

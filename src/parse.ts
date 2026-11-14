@@ -1,6 +1,7 @@
 import { db, type Section } from './db'
 import { itemKeys } from './match'
 import { standardizeParsed, type Estimate } from './packSizes'
+import { refreshLearnedSizes } from './learnedSizes'
 
 /**
  * Where the parse endpoint lives.
@@ -138,6 +139,8 @@ export async function parseCapture(input: {
   // `estimates`: this client stores sizeEstimated/amountEstimated, so the
   // server may estimate. A client that would drop the flags never sends it (#774).
   const result = await postJson<ParseResult>('/api/parse', { ...input, estimates: true }, 'Parse')
+  // A size Mise has learned (#814) beats the estimate the model just made, as the table does.
+  await refreshLearnedSizes().catch(() => {})
   return standardizeResult(result)
 }
 

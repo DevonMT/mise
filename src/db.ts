@@ -332,6 +332,26 @@ export interface CatalogEntry {
   sizeAmount?: number
   sizeUnit?: string
   packaging?: string
+  /**
+   * Package sizes Mise learned for this product (#814): what the model
+   * estimated when the pack table (packSizes.ts) didn't know it, kept so the
+   * next recipe that names it is filled from here and the model is not asked
+   * again. One per packaging ("jar", "tube"). Unindexed, rides the catalog
+   * row's sync body: per account, no migration.
+   */
+  learnedSizes?: LearnedSize[]
+}
+
+/** One learned package size (#814). */
+export interface LearnedSize {
+  /** One package: 10 + "oz" in a "jar". */
+  size: number
+  unit: string
+  packaging: string
+  /** Still the model's estimate (shown with ≈). Cleared when the person confirms or edits it. */
+  estimated?: boolean
+  /** Epoch ms it was learned or last changed. */
+  at: number
 }
 
 /** The record kinds that sync. Matches the server's allow-list. */
