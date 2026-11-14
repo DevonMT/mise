@@ -27,7 +27,7 @@ Object.defineProperty(globalThis, 'window', {
 const { db } = await import('./db')
 const { standardizeRecipe, saveRecipeFromParse } = await import('./recipes')
 const { standardizeResult } = await import('./parse')
-const { fillFromTable, lookupPack, soldSizes, sizeToLearn, setLearnedSizes } = await import('./packSizes')
+const { countedLine, fillFromTable, lookupPack, soldSizes, sizeToLearn, setLearnedSizes } = await import('./packSizes')
 const { buyLine } = await import('./buy')
 const L = await import('./learnedSizes')
 import type { Recipe, RecipeIngredient } from './db'
@@ -237,4 +237,31 @@ test('must stay apart: thyme, salt and pepper keep their spoon amounts; a merge 
   assert.equal(lookupPack(ing('harissa chicken thighs', { canonicalKey: 'harissa', section: 'other', quantity: 1, unit: 'jar' })), null)
   // A described version of the learned product still matches.
   assert.equal(lookupPack(ing('organic harissa', { canonicalKey: 'harissa', quantity: 1, unit: 'jar' }))?.size, 10)
+})
+
+test('learned sizes in mixed units: the buy math compares them in one unit', async () => {
+  const corn = (rest: Partial<RecipeIngredient>) => ing('frozen corn', { section: 'frozen', ...rest })
+  for (const order of [['box', 'bag'], ['bag', 'box']]) {
+    await db.catalog.clear()
+    setLearnedSizes([])
+    for (const pk of order) {
+      if (pk === 'box') await teach('frozen corn', 'box', 10, 'oz', 'box', { section: 'frozen' })
+      else await teach('frozen corn', 'bag', 1, 'lb', 'bag', { section: 'frozen' })
+    }
+    assert.deepEqual(buyLine(corn({ quantity: 2, unit: 'bags' })).plan, { buyCount: 2, sizeAmount: 1, sizeUnit: 'lb', packaging: 'bag' }, order.join(' then '))
+    assert.deepEqual(buyLine(corn({ quantity: 12, unit: 'oz' })).plan, { buyCount: 1, sizeAmount: 1, sizeUnit: 'lb', packaging: 'bag' }, order.join(' then '))
+    assert.deepEqual(buyLine(corn({ quantity: 1, unit: 'box' })).plan, { buyCount: 1, sizeAmount: 10, sizeUnit: 'oz', packaging: 'box' }, order.join(' then '))
+  }
+  // oz beside g: a tube edited to 130 g and a 10 oz jar.
+  await teach('harissa', 'jar', 10, 'oz', 'jar')
+  await teach('harissa', 'tube', 4.5, 'oz', 'tube')
+  const id = (await learnedRow())!.id!
+  assert.equal(await L.editLearnedSize(id, 'tube', { size: 130, unit: 'g', packaging: 'tube' }), null)
+  assert.deepEqual(buyLine(ing('harissa', { quantity: 1, unit: 'jar' })).plan, { buyCount: 1, sizeAmount: 10, sizeUnit: 'oz', packaging: 'jar' })
+  // 8 oz (227 g): two 130 g tubes (260 g) beat one 10 oz jar (283 g).
+  assert.deepEqual(buyLine(ing('harissa', { quantity: 8, unit: 'oz' })).plan, { buyCount: 2, sizeAmount: 130, sizeUnit: 'g', packaging: 'tube' })
+})
+
+test('"2 packs ramen" counts packages', () => {
+  assert.equal(countedLine({ quantity: 2, unit: 'packs' }), true)
 })

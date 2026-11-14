@@ -131,7 +131,7 @@ const PACKS: PackRule[] = [
 /** Container words a recipe counts in. "1 block Velveeta", "2 cans". */
 const CONTAINERS: Record<string, string> = {
   can: 'can', cans: 'can', jar: 'jar', jars: 'jar', block: 'block', blocks: 'block',
-  package: 'package', packages: 'package', pkg: 'package', pkgs: 'package', pack: 'package',
+  package: 'package', packages: 'package', pkg: 'package', pkgs: 'package', pack: 'package', packs: 'package',
   box: 'box', boxes: 'box', bag: 'bag', bags: 'bag', bottle: 'bottle', bottles: 'bottle',
   carton: 'carton', cartons: 'carton', tub: 'tub', tubs: 'tub', packet: 'packet', packets: 'packet',
   envelope: 'packet', envelopes: 'packet', container: 'container', containers: 'container',

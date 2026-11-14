@@ -121,13 +121,20 @@ function needIn(
   return null
 }
 
-/** Least left over; ties go to fewer packages, then the smaller package. */
-function leastLeftOver(need: number, sizes: Array<{ size: PackSize; base: number }>): BuyPlan | null {
+/**
+ * Least left over; ties go to fewer packages, then the smaller package. Each
+ * entry's `need` is in its own size's unit (needIn), and totals compare in the
+ * family's base (oz, fl oz, one): learned sizes can mix units (#814), a 10 oz
+ * box beside a 1 lb bag, where the table's rules never do.
+ */
+function leastLeftOver(entries: Array<{ size: PackSize; need: number }>): BuyPlan | null {
   let best: { plan: BuyPlan; total: number; count: number; base: number } | null = null
-  for (const { size, base } of sizes) {
-    if (!(base > 0)) continue
+  for (const { size, need } of entries) {
+    const factor = unitInfo(size.unit)?.factor
+    if (!factor || !(size.size > 0)) continue
+    const base = size.size * factor
     // Half a percent of slack, so 2 × 10.5 oz against 21 oz is exactly 2.
-    const count = packCount(need / base - 0.005)
+    const count = packCount(need / size.size - 0.005)
     const total = count * base
     const better =
       !best ||
@@ -167,9 +174,7 @@ export function buyLine(l: RecipeIngredient, factor = 1, size?: PackSize): BuyLi
       })
       .filter((x): x is { size: PackSize; need: number } => x != null)
     if (pool.length) {
-      // Every size shares the rule's unit, so one need fits all of them.
-      const need = pool[0].need
-      const plan = leastLeftOver(need, pool.map((p) => ({ size: p.size, base: p.size.size })))
+      const plan = leastLeftOver(pool)
       if (plan) return { plan, sizes }
     }
   }
