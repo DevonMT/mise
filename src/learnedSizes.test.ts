@@ -239,6 +239,25 @@ test('must stay apart: thyme, salt and pepper keep their spoon amounts; a merge 
   assert.equal(lookupPack(ing('organic harissa', { canonicalKey: 'harissa', quantity: 1, unit: 'jar' }))?.size, 10)
 })
 
+test('a line typed by hand (aisle "other") is gated on its name: "1 can tomatoes" never sizes a bare tomato (#871)', async () => {
+  const other = (name: string, rest: Partial<RecipeIngredient> = {}) => ing(name, { section: 'other', ...rest })
+  await teach('tomatoes', 'can', 14.5, 'oz', 'can', { section: 'other' })
+  assert.equal(lookupPack(other('tomato', { quantity: 1 })), null, 'a fresh tomato, counted loose')
+  assert.equal(lookupPack(other('tomatoes', { quantity: 1, unit: '' })), null)
+  assert.equal(soldSizes(other('tomato', { quantity: 1 })), null)
+  assert.equal(lookupPack(other('tomatoes', { quantity: 1, unit: 'can' }))?.size, 14.5, 'the can still reads its own size')
+  // Nor does a loose line teach.
+  assert.equal(sizeToLearn(other('chicken breasts', { quantity: 1, sizeAmount: 16, sizeUnit: 'oz', packaging: 'package', sizeEstimated: true })), null)
+  assert.equal(sizeToLearn(other('onion', { quantity: 1, sizeAmount: 8, sizeUnit: 'oz', packaging: 'each', sizeEstimated: true })), null)
+  // A packaged product with a produce or meat word is not loose.
+  await teach('sun-dried tomatoes', 'jar', 8.5, 'oz', 'jar', { section: 'other' })
+  assert.equal(lookupPack(other('sun-dried tomatoes', { quantity: 1 }))?.size, 8.5)
+  await teach('smoked salmon', 'package', 4, 'oz', 'package', { section: 'other' })
+  assert.equal(lookupPack(other('smoked salmon'))?.size, 4)
+  // A parsed line keeps its aisle's verdict: "other" is only the hand-typed case.
+  assert.equal(lookupPack(ing('tomatoes', { section: 'pantry', quantity: 1 }))?.size, 14.5)
+})
+
 test('learned sizes in mixed units: the buy math compares them in one unit', async () => {
   const corn = (rest: Partial<RecipeIngredient>) => ing('frozen corn', { section: 'frozen', ...rest })
   for (const order of [['box', 'bag'], ['bag', 'box']]) {

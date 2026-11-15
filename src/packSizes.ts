@@ -198,9 +198,28 @@ export function claims(l: Pick<Line, 'displayName' | 'canonicalKey'>, match: Reg
   return !!key && match.test(key) && !not?.test(key)
 }
 
-/** Produce and meat are sold loose: a line filed there takes a pack only when its own unit names a container. */
-function soldLoose(l: Pick<Line, 'section' | 'unit'>): boolean {
-  return (l.section === 'produce' || l.section === 'meat') && !CONTAINERS[unitOf(l)]
+/**
+ * Produce and meat are sold loose: a line filed there takes a pack only when
+ * its own unit names a container. A line typed by hand has no aisle yet
+ * (section "other"), so there the name decides (#871): otherwise "1 can
+ * tomatoes" teaches a can size that a bare "1 tomato" then reads back.
+ */
+function soldLoose(l: Pick<Line, 'section' | 'unit' | 'displayName'>): boolean {
+  if (CONTAINERS[unitOf(l)]) return false
+  if (l.section === 'produce' || l.section === 'meat') return true
+  return (!l.section || l.section === 'other') && looseByName(l.displayName)
+}
+
+/** Fresh produce and raw meat, by name: the common ones a recipe counts loose. */
+const LOOSE_PRODUCE = /\b(tomato(es)?|onions?|shallots?|potato(es)?|sweet potato(es)?|carrots?|celery|lettuce|cabbage|apples?|bananas?|lemons?|limes?|oranges?|avocados?|cucumbers?|zucchinis?|squash|bell peppers?|jalape\w*|poblanos?|serranos?|habaneros?|garlic|ginger root|fresh ginger|leeks?|scallions?|green onions?|spinach|kale|broccoli|cauliflower|mushrooms?|eggplants?|corn on the cob|ears? of corn|peach(es)?|pears?|plums?|mangos?|mangoes|pineapples?|grapes|strawberr(y|ies)|blueberr(y|ies)|raspberr(y|ies)|watermelons?|cantaloupes?|cilantro|parsley|basil|mint|dill|chives|beets?|radish(es)?|turnips?|asparagus|green beans|brussels sprouts|artichokes?)\b/
+const LOOSE_MEAT = /\b(chicken (breasts?|thighs?|wings?|drumsticks?|legs?|tenders?|tenderloins?)|whole chicken|ground (beef|turkey|pork|chicken|lamb)|steaks?|sirloin|ribeye|flank|brisket|chuck roast|pot roast|pork (chops?|loin|tenderloin|shoulder|butt)|lamb (chops?|shank|leg)|salmon|cod|tilapia|halibut|fish fillets?|shrimp|turkey breast)\b/
+/** A word that makes it a packaged product, not the fresh thing ("tomato paste", "canned salmon"). */
+const PACKAGED = /\b(canned|can of|jarred|frozen|dried|dry|sun[- ]?dried|powder(ed)?|paste|sauce|puree|juice|soup|broth|stock|bouillon|seasoning|mix|chips|ketchup|salsa|jam|jelly|preserves|extract|flakes|oil|vinegar|pickled|crushed|diced|stewed|smoked|pesto|spread|dip|dressing)\b/
+
+function looseByName(name: string): boolean {
+  const n = norm(name)
+  if (PACKAGED.test(n)) return false
+  return LOOSE_MEAT.test(n) || (LOOSE_PRODUCE.test(n) && !/\bground\b/.test(n))
 }
 const unitOf = (l: Pick<Line, 'unit'>) => norm(l.unit ?? '')
 
