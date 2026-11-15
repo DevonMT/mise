@@ -8,8 +8,10 @@ import type { SyncResult } from './sync'
 export function describeSync(r: SyncResult): string {
   if (!r.ok) return r.message
   const { added, updated, removed, sent, failed = 0 } = r
-  const missed = failed ? ` ${failed} couldn't be saved on this device. Mise tries again next sync.` : ''
-  if (!added && !updated && !removed) return failed ? `Synced.${missed}` : `Up to date. Checked ${sent} records.`
+  const missed = failed
+    ? ` ${failed} ${failed === 1 ? 'record' : 'records'} couldn't be saved on this device. Mise tries again next sync.`
+    : ''
+  if (!added && !updated && !removed) return failed ? missed.trim() : `Up to date. Checked ${sent} records.`
   const parts = []
   if (added) parts.push(`${added} added`)
   if (updated) parts.push(`${updated} updated`)
