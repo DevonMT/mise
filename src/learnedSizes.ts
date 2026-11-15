@@ -1,5 +1,5 @@
 import { liveQuery } from 'dexie'
-import { canonicalize, db, type CatalogEntry, type LearnedSize, type Section } from './db'
+import { canonicalize, db, type CatalogEntry, type LearnedGone, type LearnedSize, type Section } from './db'
 import { setLearnedSizes, sizeToLearn } from './packSizes'
 import { unitInfo } from './fit'
 
@@ -62,7 +62,8 @@ export async function learnSizes(lines: Array<Teaching & { section: Section }>):
         const have = row?.learnedSizes ?? []
         if (have.some((s) => s.packaging === size.packaging)) continue
         const learnedSizes = [...have, { ...size, estimated: true, at: now }]
-        if (row?.id != null) await db.catalog.update(row.id, { learnedSizes })
+        // Learned again after a delete: the size is newer than its marker (#870).
+        if (row?.id != null) await db.catalog.update(row.id, { learnedSizes, learnedGone: without(row.learnedGone, size.packaging) })
         else
           await db.catalog.add({
             canonicalKey: key,
@@ -89,7 +90,19 @@ export const PACKAGINGS = [
   'bag', 'block', 'bottle', 'box', 'can', 'carton', 'container', 'jar', 'packet', 'package', 'pouch', 'tub', 'tube',
 ] as const
 
-/** Change one learned size (picked by its packaging) with `fn`, then reload the lookup. */
+/** A row's delete markers less one packaging's; undefined when none are left. */
+function without(gone: LearnedGone[] | undefined, packaging: string): LearnedGone[] | undefined {
+  const out = (gone ?? []).filter((g) => g.packaging !== packaging)
+  return out.length ? out : undefined
+}
+
+/**
+ * Change one learned size (picked by its packaging) with `fn`, then reload the
+ * lookup. A packaging that is no longer there afterwards (deleted, or edited to
+ * another packaging) leaves a delete marker (#870), so a sync with a device
+ * that still holds the old size does not bring it back; one that is there
+ * loses its marker.
+ */
 async function changeSize(id: number, packaging: string, fn: (sizes: LearnedSize[], i: number) => LearnedSize[] | string): Promise<string | null> {
   let err: string | null = null
   await db.transaction('rw', db.catalog, async () => {
@@ -105,7 +118,12 @@ async function changeSize(id: number, packaging: string, fn: (sizes: LearnedSize
       err = next
       return
     }
-    await db.catalog.update(id, { learnedSizes: next.length ? next : undefined })
+    let learnedGone = row.learnedGone
+    for (const s of next) learnedGone = without(learnedGone, s.packaging)
+    if (!next.some((s) => s.packaging === packaging)) {
+      learnedGone = [...(learnedGone ?? []), { packaging, at: Date.now() }]
+    }
+    await db.catalog.update(id, { learnedSizes: next.length ? next : undefined, learnedGone })
   })
   await refreshLearnedSizes()
   return err

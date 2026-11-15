@@ -1,4 +1,4 @@
-import type { LearnedSize } from './db'
+import type { LearnedGone, LearnedSize } from './db'
 
 /**
  * Two catalog rows for one product (#876).
@@ -21,21 +21,64 @@ type Row = Record<string, unknown> & { uid?: string; updatedAt?: number; id?: nu
 const byUid = (a: Row, b: Row) => (a.uid! < b.uid! ? -1 : a.uid! > b.uid! ? 1 : 0)
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
 
+/** A copy without its undefined fields, which the wire drops anyway: a row
+ *  written here must equal the same row as another device reads it. */
+const defined = (r: Row): Row => Object.fromEntries(Object.entries(r).filter(([, v]) => v !== undefined))
+
+type Learned = { learnedSizes?: LearnedSize[]; learnedGone?: LearnedGone[] }
+
 /**
- * Learned sizes from several copies of one product, one per packaging: the
- * newest (`at`) wins, ties to the first copy given. Order is the first copy's,
- * then each new packaging where it first appears, so `sizes[0]` (the pick for
- * a line that names no container) is stable.
+ * Learned sizes from several copies of one product, merged per packaging
+ * (#870): for each packaging the newest event wins, a size (`at`) or its
+ * delete marker (`learnedGone`), and a delete wins a tie, as a tombstone does.
+ * Equal sizes tie to the first copy given. Order is the first copy's, then
+ * each new packaging where it first appears, so `sizes[0]` (the pick for a
+ * line that names no container) is stable. Empty fields come back undefined.
  */
-export function mergeLearned(lists: Array<LearnedSize[] | undefined>): LearnedSize[] {
-  const out = new Map<string, LearnedSize>()
-  for (const sizes of lists) {
-    for (const s of sizes ?? []) {
-      const have = out.get(s.packaging)
-      if (!have || num(s.at) > num(have.at)) out.set(s.packaging, s)
+export function mergeLearned(rows: Learned[]): Learned {
+  const live = new Map<string, LearnedSize>()
+  const gone = new Map<string, LearnedGone>()
+  for (const r of rows) {
+    for (const s of r.learnedSizes ?? []) {
+      const have = live.get(s.packaging)
+      if (!have || num(s.at) > num(have.at)) live.set(s.packaging, s)
+    }
+    for (const g of r.learnedGone ?? []) {
+      const have = gone.get(g.packaging)
+      if (!have || num(g.at) > num(have.at)) gone.set(g.packaging, g)
     }
   }
-  return [...out.values()]
+  for (const [pk, g] of gone) {
+    const s = live.get(pk)
+    if (s && num(s.at) > num(g.at)) gone.delete(pk)
+    else live.delete(pk)
+  }
+  return {
+    learnedSizes: live.size ? [...live.values()] : undefined,
+    learnedGone: gone.size ? [...gone.values()] : undefined,
+  }
+}
+
+/**
+ * The newer of two copies of one catalog row (same uid), with its learned
+ * sizes merged entry by entry instead of taken whole (#870), or null when
+ * `mine` should stand as it is. Last-write-wins on the whole row lost a size
+ * edited or deleted offline whenever the other device's row was newer.
+ *
+ * The result keeps the server's stamp when it IS the server's row; when the
+ * merge added anything, it is stamped one past both, so the push that follows
+ * beats the server's copy and the other device learns it too.
+ */
+export function mergeSameRow<T extends Row>(mine: T, theirs: T): T | null {
+  const theirsNewer = num(theirs.updatedAt) > num(mine.updatedAt)
+  const [newer, older] = theirsNewer ? [theirs, mine] : [mine, theirs]
+  // The newer copy's order first, so both devices write the same order: an
+  // order that depended on which copy is local would never settle.
+  const merged = defined({ ...newer, ...mergeLearned([newer as Learned, older as Learned]) }) as T
+  if (theirsNewer && sameRow(merged, theirs)) return theirs
+  if (!theirsNewer && sameRow(merged, mine)) return null
+  merged.updatedAt = Math.max(num(mine.updatedAt), num(theirs.updatedAt)) + 1
+  return merged
 }
 
 /** Field-by-field equality, ignoring the local id and the stamp. */
@@ -77,10 +120,9 @@ export function mergeDuplicates<T extends Row>(rows: T[]): { winner: T; losers: 
   merged.count = Math.max(...rows.map((r) => num(r.count)))
   merged.lastAdded = Math.max(...rows.map((r) => num(r.lastAdded)))
   merged.favorite = rows.some((r) => r.favorite === true)
-  const learned = mergeLearned(sorted.map((r) => r.learnedSizes as LearnedSize[] | undefined))
-  merged.learnedSizes = learned.length ? learned : undefined
+  Object.assign(merged, mergeLearned(sorted as Learned[]))
 
-  const winner = { ...merged } as T
+  const winner = defined(merged) as T
   delete winner.id
   winner.updatedAt = sameRow(winner, first)
     ? first.updatedAt

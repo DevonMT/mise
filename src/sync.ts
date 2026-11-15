@@ -42,7 +42,7 @@ import { hydrateSettings } from './prefs'
 import { filePending } from './list'
 import { asForwarding, foldLegacyLists, rememberFolded } from './fold'
 import { bindAccount, boundAccount } from './account'
-import { mergeDuplicates, sameRow } from './catalogMerge'
+import { mergeDuplicates, mergeSameRow, sameRow } from './catalogMerge'
 
 /**
  * Sync is a devondoes.dev feature: it needs the platform session cookie, which
@@ -382,7 +382,7 @@ export async function applyRemote(
         updated += c.updated
         removed += c.removed
         failed += c.failed
-        if (c.retired) restored = true
+        if (c.push) restored = true
         continue
       }
 
@@ -459,20 +459,25 @@ export async function applyRemote(
 async function applyCatalog(
   table: Dexie.Table<AnyRow, number>,
   incoming: WireRecord[],
-): Promise<{ added: number; updated: number; removed: number; failed: number; retired: number }> {
-  const out = { added: 0, updated: 0, removed: 0, failed: 0, retired: 0 }
+): Promise<{ added: number; updated: number; removed: number; failed: number; push: boolean }> {
+  const out = { added: 0, updated: 0, removed: 0, failed: 0, push: false }
   const local = await table.toArray()
   const localByUid = new Map<string, AnyRow>()
   for (const r of local) if (r.uid) localByUid.set(r.uid, r)
 
-  // What each uid holds after this pull: the newer of ours and the server's.
+  // What each uid holds after this pull: the newer of ours and the server's,
+  // with the learned sizes of both merged entry by entry (#870).
   const next = new Map<string, AnyRow>(localByUid)
   const changed = new Set<string>()
+  let pushBack = false
   for (const rec of incoming) {
+    const theirs = fromWire(rec, new Map())
+    if (!theirs) continue
     const cur = next.get(rec.uid)
-    if (cur && (cur.updatedAt ?? 0) >= rec.updatedAt) continue
-    const row = fromWire(rec, new Map())
+    const row = cur ? mergeSameRow(cur, theirs) : theirs
     if (!row) continue
+    // Stamped past the server's copy: this device holds something it lacks.
+    if (row !== theirs) pushBack = true
     next.set(rec.uid, row)
     changed.add(rec.uid)
   }
@@ -497,7 +502,7 @@ async function applyCatalog(
             out.removed++
           }
           await retire('catalog', l.uid!, retiredAt(l.updatedAt ?? 0))
-          out.retired++
+          out.push = true
         }
         const mine = localByUid.get(winner.uid!)
         if (mine?.id != null) {
@@ -515,6 +520,7 @@ async function applyCatalog(
       console.warn(`sync: catalog ${String(rows[0].canonicalKey)} not applied`, err)
     }
   }
+  if (pushBack) out.push = true
   return out
 }
 

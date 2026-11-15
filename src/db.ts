@@ -340,6 +340,20 @@ export interface CatalogEntry {
    * row's sync body: per account, no migration.
    */
   learnedSizes?: LearnedSize[]
+  /**
+   * Learned sizes deleted here, one marker per packaging (#870), so a sync
+   * merges sizes entry by entry: a delete made offline beats the older size
+   * another device still holds, and a size learned after it beats the delete.
+   * A separate field, not a flag on the size, so a build from before it
+   * never reads a deleted size as a live one.
+   */
+  learnedGone?: LearnedGone[]
+}
+
+/** A learned size that was deleted (#870): the packaging, and when. */
+export interface LearnedGone {
+  packaging: string
+  at: number
 }
 
 /** One learned package size (#814). */

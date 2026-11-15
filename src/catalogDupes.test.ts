@@ -133,7 +133,103 @@ test('folding a retired copy in again changes nothing, so it cannot ping-pong', 
 test('learned sizes from both copies: one per packaging, the newest wins', () => {
   const tube = { ...jar, packaging: 'tube', size: 4.5 }
   const newerJar = { ...jar, size: 12, at: 2_000 }
-  assert.deepEqual(mergeLearned([[jar], [tube, newerJar]]), [newerJar, tube])
+  assert.deepEqual(mergeLearned([{ learnedSizes: [jar] }, { learnedSizes: [tube, newerJar] }]),
+    { learnedSizes: [newerJar, tube], learnedGone: undefined })
+})
+
+// ---- #870: learned sizes merge entry by entry, deletes included -------------------
+
+test('a delete marker beats an older size and loses to a newer one; a tie goes to the delete', () => {
+  const tube = { ...jar, packaging: 'tube', size: 4.5, at: 3_000 }
+  const gone = (packaging: string, at: number) => ({ packaging, at })
+  assert.deepEqual(mergeLearned([{ learnedGone: [gone('jar', 1_500)] }, { learnedSizes: [jar, tube] }]),
+    { learnedSizes: [tube], learnedGone: [gone('jar', 1_500)] }, 'deleted after it was learned')
+  assert.deepEqual(mergeLearned([{ learnedGone: [gone('tube', 2_000)] }, { learnedSizes: [jar, tube] }]),
+    { learnedSizes: [jar, tube], learnedGone: undefined }, 'learned again after the delete')
+  assert.deepEqual(mergeLearned([{ learnedGone: [gone('jar', 1_000)] }, { learnedSizes: [jar] }]),
+    { learnedSizes: undefined, learnedGone: [gone('jar', 1_000)] })
+})
+
+const L = await import('./learnedSizes')
+
+/** One product both devices already hold under one uid, with a jar and a tube size. */
+async function shared() {
+  await reset()
+  await db.catalog.add(entry('a-harissa', { learnedSizes: [jar, { ...jar, packaging: 'tube', size: 4.5 }] }))
+  await sync.sync()
+  return snapshot()
+}
+const harissaRow = async () => (await db.catalog.where('canonicalKey').equals('harissa').first())!
+const sizes = async () => (await harissaRow()).learnedSizes?.map((s) => `${s.size} ${s.packaging}`) ?? []
+
+test('a size deleted offline stays deleted when the other device edited the row later', async () => {
+  const laptop = await shared()
+  // The phone, offline, deletes the jar size.
+  assert.equal(await L.deleteLearnedSize((await harissaRow()).id!, 'jar'), null)
+  const phone = await snapshot()
+
+  // Later, the laptop edits the tube size and syncs first: its row is newer.
+  await become(laptop)
+  await new Promise((r) => setTimeout(r, 5))
+  assert.equal(await L.editLearnedSize((await harissaRow()).id!, 'tube', { size: 5, unit: 'oz', packaging: 'tube' }), null)
+  await sync.sync()
+  const laptopAfter = await snapshot()
+
+  await become(phone)
+  await sync.sync()
+  await sync.sync() // pushes what the merge added
+  assert.deepEqual(await sizes(), ['5 tube'], "the laptop's edit, without the jar the phone deleted")
+
+  await become(laptopAfter)
+  await sync.sync()
+  assert.deepEqual(await sizes(), ['5 tube'], 'and the laptop agrees')
+
+  // Settled: more syncs on either device change nothing.
+  const stamp = server.records.get('catalog|a-harissa')!.updatedAt
+  const laptopSettled = await snapshot()
+  await sync.sync()
+  await become(phone)
+  await sync.sync()
+  await sync.sync()
+  await become(laptopSettled)
+  await sync.sync()
+  assert.equal(server.records.get('catalog|a-harissa')!.updatedAt, stamp, 'no ping-pong')
+})
+
+test('a size edited offline survives a newer edit to another field of the row', async () => {
+  const laptop = await shared()
+  assert.equal(await L.editLearnedSize((await harissaRow()).id!, 'jar', { size: 12, unit: 'oz', packaging: 'jar' }), null)
+  const phone = await snapshot()
+
+  await become(laptop)
+  await new Promise((r) => setTimeout(r, 5))
+  await db.catalog.update((await harissaRow()).id!, { price: 3.49 })
+  await sync.sync()
+  const laptopAfter = await snapshot()
+
+  await become(phone)
+  await sync.sync()
+  await sync.sync()
+  assert.deepEqual(await sizes(), ['12 jar', '4.5 tube'])
+  assert.equal((await harissaRow()).price, 3.49, 'the newer row still wins its other fields')
+
+  await become(laptopAfter)
+  await sync.sync()
+  assert.deepEqual(await sizes(), ['12 jar', '4.5 tube'])
+})
+
+test('a size learned again after a delete comes back on every device', async () => {
+  const laptop = await shared()
+  await L.deleteLearnedSize((await harissaRow()).id!, 'jar')
+  await sync.sync()
+  await new Promise((r) => setTimeout(r, 5))
+  await L.learnSizes([{ displayName: 'harissa', canonicalKey: 'harissa', section: 'condiments', quantity: 1, unit: 'jar',
+                        sizeAmount: 9, sizeUnit: 'oz', packaging: 'jar', buyCount: 1, sizeEstimated: true }])
+  assert.equal((await harissaRow()).learnedGone, undefined, 'the marker goes when the size is back')
+  await sync.sync()
+  await become(laptop)
+  await sync.sync()
+  assert.deepEqual(await sizes(), ['4.5 tube', '9 jar'])
 })
 
 // ---- Two devices, one account --------------------------------------------------
