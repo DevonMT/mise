@@ -258,6 +258,30 @@ test('a line typed by hand (aisle "other") is gated on its name: "1 can tomatoes
   assert.equal(lookupPack(ing('tomatoes', { section: 'pantry', quantity: 1 }))?.size, 14.5)
 })
 
+test('a size filed under a broader key reads back for the name that taught it (#878)', async () => {
+  const kalamata = (rest: Partial<RecipeIngredient> = {}) => ing('Kalamata olives', { canonicalKey: 'olives', section: 'pantry', quantity: 1, unit: 'jar', ...rest })
+  await teach('Kalamata olives', 'jar', 9.5, 'oz', 'jar', { canonicalKey: 'olives', section: 'pantry' })
+  const row = await db.catalog.where('canonicalKey').equals('olives').first()
+  assert.equal(row?.learnedSizes?.[0].nameKey, 'kalamata olive')
+  assert.equal(lookupPack(kalamata())?.size, 9.5, 'its own size, without asking the model again')
+  assert.equal(lookupPack(kalamata({ canonicalKey: 'kalamata olives' }))?.size, 9.5, 'whatever key the next parse gives it')
+  // Other olives under the same key still need their own answer.
+  assert.equal(lookupPack(ing('Castelvetrano olives', { canonicalKey: 'olives', quantity: 1, unit: 'jar' })), null)
+  // Refine renaming the row to a brand's string widens nothing: only the teaching line's name counts.
+  await db.catalog.update(row!.id!, { displayName: 'Mezzetta Kalamata Olives 9.5 oz' })
+  await L.refreshLearnedSizes()
+  assert.equal(lookupPack(ing('Mezzetta Kalamata Olives', { canonicalKey: 'olives', quantity: 1, unit: 'jar' })), null)
+  // An edit keeps the name it was taught by.
+  assert.equal(await L.editLearnedSize(row!.id!, 'jar', { size: 10, unit: 'oz', packaging: 'jar' }), null)
+  assert.equal(lookupPack(kalamata())?.size, 10)
+
+  // Through Standardize: a second recipe naming it makes no model call.
+  calls = []
+  const r = await recipe('Greek salad', [kalamata()])
+  await standardizeRecipe(r, true)
+  assert.equal(calls.length, 0)
+})
+
 test('learned sizes in mixed units: the buy math compares them in one unit', async () => {
   const corn = (rest: Partial<RecipeIngredient>) => ing('frozen corn', { section: 'frozen', ...rest })
   for (const order of [['box', 'bag'], ['bag', 'box']]) {

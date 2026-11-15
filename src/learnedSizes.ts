@@ -2,6 +2,7 @@ import { liveQuery } from 'dexie'
 import { canonicalize, db, type CatalogEntry, type LearnedGone, type LearnedSize, type Section } from './db'
 import { setLearnedSizes, sizeToLearn } from './packSizes'
 import { unitInfo } from './fit'
+import { matchKey } from './match'
 
 /**
  * Learned package sizes (#814): the reading and writing side. The lookup
@@ -61,7 +62,8 @@ export async function learnSizes(lines: Array<Teaching & { section: Section }>):
         const row = await db.catalog.where('canonicalKey').equals(key).first()
         const have = row?.learnedSizes ?? []
         if (have.some((s) => s.packaging === size.packaging)) continue
-        const learnedSizes = [...have, { ...size, estimated: true, at: now }]
+        const nameKey = matchKey(line.displayName) || undefined
+        const learnedSizes = [...have, { ...size, estimated: true, at: now, ...(nameKey ? { nameKey } : {}) }]
         // Learned again after a delete: the size is newer than its marker (#870).
         if (row?.id != null) await db.catalog.update(row.id, { learnedSizes, learnedGone: without(row.learnedGone, size.packaging) })
         else
@@ -154,7 +156,8 @@ export function editLearnedSize(
     if (pkg !== packaging && sizes.some((s) => s.packaging === pkg)) {
       return `This already has a ${pkg} size. Edit that one instead.`
     }
-    return sizes.map((s, j) => (j === i ? { size: next.size, unit, packaging: pkg, at: Date.now() } : s))
+    return sizes.map((s, j) =>
+      j === i ? { size: next.size, unit, packaging: pkg, at: Date.now(), ...(s.nameKey ? { nameKey: s.nameKey } : {}) } : s)
   })
 }
 

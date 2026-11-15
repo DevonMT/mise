@@ -1,6 +1,6 @@
 import type { CatalogEntry, LearnedSize, RecipeIngredient } from './db'
 import { packCount } from './list'
-import { itemKeys, sameIngredient } from './match'
+import { itemKeys, matchKey, sameIngredient } from './match'
 import { unitInfo } from './fit'
 import { closeness } from './matchNames'
 
@@ -280,6 +280,8 @@ interface Learned {
   /** The catalog key the sizes were learned under. */
   key: string
   sizes: LearnedSize[]
+  /** matchKeys of the lines that taught them (#878). */
+  names: Set<string>
 }
 let learned: { exact: Map<string, Learned>; loose: Map<string, Learned> } = { exact: new Map(), loose: new Map() }
 
@@ -289,11 +291,14 @@ export function setLearnedSizes(entries: Array<Pick<CatalogEntry, 'canonicalKey'
   for (const e of entries) {
     const key = e.canonicalKey.trim().toLowerCase()
     if (!key || !e.learnedSizes?.length) continue
-    const hit = { key, sizes: e.learnedSizes }
+    const names = new Set(e.learnedSizes.map((s) => s.nameKey).filter((n): n is string => !!n))
+    const hit = { key, sizes: e.learnedSizes, names }
     exact.set(key, hit)
-    // Indexed by the key only, never the row's display name: Refine can rename
-    // a catalog row to a brand's product string, which must not widen the match.
+    // Indexed by the key and the teaching lines' names (#878), never the row's
+    // display name: Refine can rename a catalog row to a brand's product
+    // string, which must not widen the match.
     for (const k of itemKeys({ displayName: key, canonicalKey: key })) if (!loose.has(k)) loose.set(k, hit)
+    for (const n of names) if (!loose.has(n)) loose.set(n, hit)
   }
   learned = { exact, loose }
 }
@@ -312,14 +317,16 @@ function learnedFor(l: Line): LearnedSize[] | null {
   if (!CONTAINERS[unitOf(l)] && lookupAmount(l)) return null
   for (const k of itemKeys(l)) {
     const hit = learned.exact.get(k) ?? learned.loose.get(k)
-    if (hit && nameAgrees(l, hit.key)) return hit.sizes
+    if (hit && nameAgrees(l, hit)) return hit.sizes
   }
   return null
 }
 
-function nameAgrees(l: Line, key: string): boolean {
+/** What the line says is the learned product: its key, a described version of it, or the name a size was taught by (#878). */
+function nameAgrees(l: Line, hit: Learned): boolean {
+  if (hit.names.size && hit.names.has(matchKey(l.displayName))) return true
   const said = { displayName: l.displayName, canonicalKey: '', quantity: l.quantity, unit: l.unit }
-  const learnedAs = { displayName: key, canonicalKey: key }
+  const learnedAs = { displayName: hit.key, canonicalKey: hit.key }
   return sameIngredient(said, learnedAs) || closeness(said, learnedAs) >= 0
 }
 

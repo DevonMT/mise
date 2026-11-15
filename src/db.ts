@@ -366,6 +366,13 @@ export interface LearnedSize {
   estimated?: boolean
   /** Epoch ms it was learned or last changed. */
   at: number
+  /**
+   * matchKey of the name on the line that taught it (#878): "kalamata olive"
+   * for a size filed under the key "olives". The row's key alone did not
+   * agree with that name, so the line never read its own size back. Not the
+   * catalog row's display name, which Refine can rename to a brand's string.
+   */
+  nameKey?: string
 }
 
 /** The record kinds that sync. Matches the server's allow-list. */
