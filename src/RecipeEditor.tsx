@@ -38,17 +38,26 @@ export function fromRow(r: Row): RecipeIngredient | null {
   const name = rest.displayName.trim()
   if (!name) return null
   const q = qtyText.trim() === '' ? undefined : Number(qtyText.trim().replace(',', '.'))
+  // A pack Mise estimated was sized for the old amount ("1 Velveeta" is one
+  // block; edited to 2 it still planned one), so it goes, and the line is a
+  // new question: Standardize refills it from the table, a learned size or
+  // the model (#877). A pack the recipe stated stays: it says what to buy.
+  const amountChanged = amountText(qtyText, rest.unit) !== origAmount
+  const repack = amountChanged && rest.sizeEstimated
+    ? { buyCount: undefined, sizeAmount: undefined, sizeUnit: undefined, packaging: undefined, sizeEstimated: undefined, estimateAsked: undefined }
+    : {}
   return {
     ...rest,
+    ...repack,
     displayName: name,
     canonicalKey: name === origName.trim() && rest.canonicalKey ? rest.canonicalKey : canonicalize(name),
     quantity: q != null && Number.isFinite(q) && q > 0 ? q : undefined,
     unit: rest.unit?.trim() || undefined,
     optional: rest.optional || undefined,
     // An amount typed by hand is the cook's, not Mise's estimate (#774).
-    amountEstimated: rest.amountEstimated && amountText(qtyText, rest.unit) === origAmount ? true : undefined,
-    // A renamed line is a new question for Standardize.
-    estimateAsked: rest.estimateAsked && name === origName.trim() ? true : undefined,
+    amountEstimated: rest.amountEstimated && !amountChanged ? true : undefined,
+    // A renamed line is a new question for Standardize, as is a dropped pack.
+    estimateAsked: rest.estimateAsked && name === origName.trim() && !('estimateAsked' in repack) ? true : undefined,
   }
 }
 

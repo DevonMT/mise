@@ -24,6 +24,7 @@ Object.defineProperty(globalThis, 'window', {
 const { splitSteps } = await import('./CookMode')
 const { matchesRecipe } = await import('./RecipesView')
 const { fromRow, toRow } = await import('./RecipeEditor')
+const { fillFromTable } = await import('./packSizes')
 
 test('numbered lines become steps without their numbers', () => {
   assert.deepEqual(splitSteps('1. Heat oven to 400°F.\n2. Cook chicken.\n\n3. Bake.'),
@@ -97,6 +98,21 @@ test('editing an estimated amount makes it the cook\'s: the ≈ mark goes (#774)
   assert.equal(fromRow(toRow(cumin))?.amountEstimated, true, 'untouched keeps the mark')
   assert.equal(fromRow({ ...toRow(cumin), qtyText: '2' })?.amountEstimated, undefined)
   assert.equal(fromRow({ ...toRow(cumin), unit: 'tbsp' })?.amountEstimated, undefined)
+})
+
+test('an estimated pack goes when the amount changes, so Standardize refills it (#877)', () => {
+  const velveeta = { displayName: 'Velveeta', canonicalKey: 'velveeta', quantity: 1, unit: 'block', section: 'dairy' as const,
+                     buyCount: 1, sizeAmount: 32, sizeUnit: 'oz', packaging: 'block', sizeEstimated: true, estimateAsked: true }
+  const kept = fromRow(toRow(velveeta))
+  assert.deepEqual([kept?.buyCount, kept?.sizeAmount, kept?.sizeEstimated, kept?.estimateAsked], [1, 32, true, true], 'untouched keeps it')
+  for (const edit of [{ qtyText: '2' }, { unit: 'blocks' }]) {
+    const out = fromRow({ ...toRow(velveeta), ...edit })
+    assert.deepEqual([out?.buyCount, out?.sizeAmount, out?.sizeUnit, out?.packaging, out?.sizeEstimated], [undefined, undefined, undefined, undefined, undefined], JSON.stringify(edit))
+    assert.equal(out?.estimateAsked, undefined, 'a new question for Standardize')
+  }
+  // Standardize then sizes it for the new amount: two blocks.
+  const refilled = fillFromTable(fromRow({ ...toRow(velveeta), qtyText: '2' })!)
+  assert.deepEqual([refilled.buyCount, refilled.sizeAmount, refilled.packaging], [2, 32, 'block'])
 })
 
 test('renaming a line makes it a new question for Standardize; editing its amount does not', () => {
