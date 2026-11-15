@@ -27,6 +27,12 @@ const defined = (r: Row): Row => Object.fromEntries(Object.entries(r).filter(([,
 
 type Learned = { learnedSizes?: LearnedSize[]; learnedGone?: LearnedGone[] }
 
+/** The well-formed entries of a learned-size field: objects with a packaging. */
+function entries<T extends { packaging: string }>(v: unknown): T[] {
+  if (!Array.isArray(v)) return []
+  return v.filter((e): e is T => !!e && typeof e === 'object' && typeof (e as T).packaging === 'string')
+}
+
 /**
  * Learned sizes from several copies of one product, merged per packaging
  * (#870): for each packaging the newest event wins, a size (`at`) or its
@@ -39,11 +45,13 @@ export function mergeLearned(rows: Learned[]): Learned {
   const live = new Map<string, LearnedSize>()
   const gone = new Map<string, LearnedGone>()
   for (const r of rows) {
-    for (const s of r.learnedSizes ?? []) {
+    // A row off the wire is whatever some build wrote: anything that is not a
+    // list of entries with a packaging is skipped, never thrown on.
+    for (const s of entries<LearnedSize>(r.learnedSizes)) {
       const have = live.get(s.packaging)
       if (!have || num(s.at) > num(have.at)) live.set(s.packaging, s)
     }
-    for (const g of r.learnedGone ?? []) {
+    for (const g of entries<LearnedGone>(r.learnedGone)) {
       const have = gone.get(g.packaging)
       if (!have || num(g.at) > num(have.at)) gone.set(g.packaging, g)
     }
@@ -65,30 +73,43 @@ export function mergeLearned(rows: Learned[]): Learned {
  * `mine` should stand as it is. Last-write-wins on the whole row lost a size
  * edited or deleted offline whenever the other device's row was newer.
  *
- * The result keeps the server's stamp when it IS the server's row; when the
- * merge added anything, it is stamped one past both, so the push that follows
- * beats the server's copy and the other device learns it too.
+ * A tie on the stamp goes to the server's copy, as the server itself settles
+ * one (the incumbent stays), so every device lands on the same fields. The
+ * result is the server's row when the merge adds nothing to it, and is
+ * restamped (one past both) only when the merge adds to a server copy that
+ * won; a local copy that won is already newer and keeps its stamp.
  */
 export function mergeSameRow<T extends Row>(mine: T, theirs: T): T | null {
-  const theirsNewer = num(theirs.updatedAt) > num(mine.updatedAt)
-  const [newer, older] = theirsNewer ? [theirs, mine] : [mine, theirs]
-  // The newer copy's order first, so both devices write the same order: an
-  // order that depended on which copy is local would never settle.
-  const merged = defined({ ...newer, ...mergeLearned([newer as Learned, older as Learned]) }) as T
-  if (theirsNewer && sameRow(merged, theirs)) return theirs
-  if (!theirsNewer && sameRow(merged, mine)) return null
+  if (sameRow(mine, theirs)) return null
+  const theirsWin = num(theirs.updatedAt) >= num(mine.updatedAt)
+  const [winner, loser] = theirsWin ? [theirs, mine] : [mine, theirs]
+  // The winner's order first, so both devices write the same order: an order
+  // that depended on which copy is local would never settle.
+  const merged = defined({ ...winner, ...mergeLearned([winner as Learned, loser as Learned]) }) as T
+  if (sameRow(merged, theirs)) return theirs
+  if (!theirsWin) return sameRow(merged, mine) ? null : merged
   merged.updatedAt = Math.max(num(mine.updatedAt), num(theirs.updatedAt)) + 1
   return merged
 }
 
-/** Field-by-field equality, ignoring the local id and the stamp. */
+/** JSON with every object's keys sorted: Postgres jsonb hands rows back with its own key order. */
+function stable(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>
+    return `{${Object.keys(o).filter((k) => o[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${stable(o[k])}`).join(',')}}`
+  }
+  return JSON.stringify(v) ?? 'null'
+}
+
+/** Field-by-field equality, ignoring the local id, the stamp and key order. */
 export function sameRow(a: Row, b: Row): boolean {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)])
   keys.delete('id')
   keys.delete('updatedAt')
   for (const k of keys) {
     if (a[k] === undefined && b[k] === undefined) continue
-    if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) return false
+    if (stable(a[k]) !== stable(b[k])) return false
   }
   return true
 }

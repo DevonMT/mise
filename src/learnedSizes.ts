@@ -63,7 +63,9 @@ export async function learnSizes(lines: Array<Teaching & { section: Section }>):
         const have = row?.learnedSizes ?? []
         if (have.some((s) => s.packaging === size.packaging)) continue
         const nameKey = matchKey(line.displayName) || undefined
-        const learnedSizes = [...have, { ...size, estimated: true, at: now, ...(nameKey ? { nameKey } : {}) }]
+        // After its own delete marker, even on a clock that has gone back.
+        const at = later(row?.learnedGone?.find((g) => g.packaging === size.packaging)?.at)
+        const learnedSizes = [...have, { ...size, estimated: true, at, ...(nameKey ? { nameKey } : {}) }]
         // Learned again after a delete: the size is newer than its marker (#870).
         if (row?.id != null) await db.catalog.update(row.id, { learnedSizes, learnedGone: without(row.learnedGone, size.packaging) })
         else
@@ -92,6 +94,16 @@ export const PACKAGINGS = [
   'bag', 'block', 'bottle', 'box', 'can', 'carton', 'container', 'jar', 'packet', 'package', 'pouch', 'tub', 'tube',
 ] as const
 
+/**
+ * A stamp for a change to a learned size: now, but always past every earlier
+ * stamp it supersedes. The merge picks the newest `at` per packaging (#870), so
+ * a device whose clock is behind must not write an edit or a delete that loses
+ * to the very size it replaces.
+ */
+function later(...prior: Array<number | undefined>): number {
+  return Math.max(Date.now(), ...prior.filter((a): a is number => Number.isFinite(a)).map((a) => a + 1))
+}
+
 /** A row's delete markers less one packaging's; undefined when none are left. */
 function without(gone: LearnedGone[] | undefined, packaging: string): LearnedGone[] | undefined {
   const out = (gone ?? []).filter((g) => g.packaging !== packaging)
@@ -105,7 +117,11 @@ function without(gone: LearnedGone[] | undefined, packaging: string): LearnedGon
  * that still holds the old size does not bring it back; one that is there
  * loses its marker.
  */
-async function changeSize(id: number, packaging: string, fn: (sizes: LearnedSize[], i: number) => LearnedSize[] | string): Promise<string | null> {
+async function changeSize(
+  id: number,
+  packaging: string,
+  fn: (sizes: LearnedSize[], i: number, stamp: (pk: string) => number) => LearnedSize[] | string,
+): Promise<string | null> {
   let err: string | null = null
   await db.transaction('rw', db.catalog, async () => {
     const row = await db.catalog.get(id)
@@ -115,7 +131,10 @@ async function changeSize(id: number, packaging: string, fn: (sizes: LearnedSize
       err = 'That size is gone. It may have been deleted on another device.'
       return
     }
-    const next = fn(sizes, i)
+    // Past the size being changed, and past whatever the target packaging held or was deleted at.
+    const goneAt = (pk: string) => row.learnedGone?.find((g) => g.packaging === pk)?.at
+    const stamp = (pk: string) => later(sizes[i].at, sizes.find((s) => s.packaging === pk)?.at, goneAt(pk))
+    const next = fn(sizes, i, stamp)
     if (typeof next === 'string') {
       err = next
       return
@@ -123,7 +142,7 @@ async function changeSize(id: number, packaging: string, fn: (sizes: LearnedSize
     let learnedGone = row.learnedGone
     for (const s of next) learnedGone = without(learnedGone, s.packaging)
     if (!next.some((s) => s.packaging === packaging)) {
-      learnedGone = [...(learnedGone ?? []), { packaging, at: Date.now() }]
+      learnedGone = [...(learnedGone ?? []), { packaging, at: stamp(packaging) }]
     }
     await db.catalog.update(id, { learnedSizes: next.length ? next : undefined, learnedGone })
   })
@@ -133,8 +152,8 @@ async function changeSize(id: number, packaging: string, fn: (sizes: LearnedSize
 
 /** Mark a learned size as checked: it keeps its numbers and loses the ≈. */
 export function confirmLearnedSize(id: number, packaging: string): Promise<string | null> {
-  return changeSize(id, packaging, (sizes, i) =>
-    sizes.map((s, j) => (j === i ? { ...s, estimated: undefined, at: Date.now() } : s)),
+  return changeSize(id, packaging, (sizes, i, stamp) =>
+    sizes.map((s, j) => (j === i ? { ...s, estimated: undefined, at: stamp(packaging) } : s)),
   )
 }
 
@@ -152,12 +171,12 @@ export function editLearnedSize(
   if (!Number.isFinite(next.size) || next.size <= 0 || next.size > 1000) return Promise.resolve('Enter a size between 0 and 1000.')
   if (!unitInfo(unit)) return Promise.resolve('Pick a unit from the list.')
   if (!pkg || pkg.length > 20 || /[\p{Cc}<>{}]/u.test(pkg)) return Promise.resolve('Pick a package from the list.')
-  return changeSize(id, packaging, (sizes, i) => {
+  return changeSize(id, packaging, (sizes, i, stamp) => {
     if (pkg !== packaging && sizes.some((s) => s.packaging === pkg)) {
       return `This already has a ${pkg} size. Edit that one instead.`
     }
     return sizes.map((s, j) =>
-      j === i ? { size: next.size, unit, packaging: pkg, at: Date.now(), ...(s.nameKey ? { nameKey: s.nameKey } : {}) } : s)
+      j === i ? { size: next.size, unit, packaging: pkg, at: stamp(pkg), ...(s.nameKey ? { nameKey: s.nameKey } : {}) } : s)
   })
 }
 

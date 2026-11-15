@@ -308,3 +308,50 @@ test('learned sizes in mixed units: the buy math compares them in one unit', asy
 test('"2 packs ramen" counts packages', () => {
   assert.equal(countedLine({ quantity: 2, unit: 'packs' }), true)
 })
+
+// ---- Hardening (#876 architect review) ----------------------------------------------
+
+test('an edit, a confirm, a delete and a re-learn are always stamped past what they replace, even on a clock behind', async () => {
+  const ahead = Date.now() + 3_600_000 // learned on a device whose clock ran an hour fast
+  await db.catalog.add({ canonicalKey: 'harissa', displayName: 'harissa', section: 'condiments', count: 0, favorite: false, lastAdded: 1,
+    learnedSizes: [{ size: 10, unit: 'oz', packaging: 'jar', estimated: true, at: ahead }, { size: 4.5, unit: 'oz', packaging: 'tube', estimated: true, at: ahead }] })
+  const id = (await learnedRow())!.id!
+  const at = async (pk: string) => (await learnedRow())!.learnedSizes!.find((s) => s.packaging === pk)!.at
+  await L.confirmLearnedSize(id, 'jar')
+  assert.ok((await at('jar')) > ahead, 'confirm')
+  const confirmed = await at('jar')
+  await L.editLearnedSize(id, 'jar', { size: 12, unit: 'oz', packaging: 'jar' })
+  assert.ok((await at('jar')) > confirmed, 'edit')
+  // Edited onto another packaging: past the size it was, and its old packaging is marked gone past that too.
+  await L.editLearnedSize(id, 'tube', { size: 5, unit: 'oz', packaging: 'tub' })
+  assert.ok((await at('tub')) > ahead)
+  assert.ok((await learnedRow())!.learnedGone!.find((g) => g.packaging === 'tube')!.at > ahead)
+  const jarAt = await at('jar')
+  await L.deleteLearnedSize(id, 'jar')
+  const marker = (await learnedRow())!.learnedGone!.find((g) => g.packaging === 'jar')!.at
+  assert.ok(marker > jarAt, 'delete marker')
+  await teach('harissa', 'jar', 9, 'oz', 'jar')
+  assert.ok((await at('jar')) > marker, 'learned again, past its own delete')
+})
+
+test('a table product with a produce or meat word keeps its table pack in aisle "other"', () => {
+  const other = (name: string) => ing(name, { section: 'other' })
+  assert.equal(lookupPack(other('whole peeled tomatoes'))?.size, 28)
+  assert.equal(lookupPack(other('San Marzano tomatoes'))?.size, 28)
+  assert.equal(lookupPack(other('fire roasted tomatoes'))?.size, 14.5)
+  assert.equal(lookupPack(other('cream of mushroom'))?.size, 10.5)
+  assert.deepEqual(lookupPack(other('jalapeño cream cheese')), { size: 8, unit: 'oz', packaging: 'block' })
+  // A fresh one is still loose.
+  assert.equal(lookupPack(other('tomatoes')), null)
+})
+
+test('a match on a teaching name alone answers only with the sizes that name taught', async () => {
+  await teach('olives', 'can', 6, 'oz', 'can', { canonicalKey: 'olives', section: 'pantry' })
+  await teach('Kalamata olives', 'jar', 9.5, 'oz', 'jar', { canonicalKey: 'olives', section: 'pantry' })
+  const kalamata = ing('Kalamata olives', { canonicalKey: 'olives', section: 'pantry' })
+  assert.deepEqual(lookupPack(kalamata), { size: 9.5, unit: 'oz', packaging: 'jar' }, "its jar, not the plain olives' can")
+  assert.deepEqual(soldSizes(kalamata)?.sizes.map((s) => s.packaging), ['jar'])
+  assert.equal(lookupPack({ ...kalamata, quantity: 1, unit: 'can' }), null)
+  // Plain olives agree with the key itself: every size on the row.
+  assert.deepEqual(soldSizes(ing('olives', { section: 'pantry' }))?.sizes.map((s) => s.packaging), ['can', 'jar'])
+})

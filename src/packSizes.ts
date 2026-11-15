@@ -204,10 +204,12 @@ export function claims(l: Pick<Line, 'displayName' | 'canonicalKey'>, match: Reg
  * (section "other"), so there the name decides (#871): otherwise "1 can
  * tomatoes" teaches a can size that a bare "1 tomato" then reads back.
  */
-function soldLoose(l: Pick<Line, 'section' | 'unit' | 'displayName'>): boolean {
+function soldLoose(l: Line): boolean {
   if (CONTAINERS[unitOf(l)]) return false
   if (l.section === 'produce' || l.section === 'meat') return true
-  return (!l.section || l.section === 'other') && looseByName(l.displayName)
+  // The table knows the product ("whole peeled tomatoes", "jalapeño cream
+  // cheese"): a produce word in its name does not make it loose.
+  return (!l.section || l.section === 'other') && looseByName(l.displayName) && !tableClaims(l)
 }
 
 /** Fresh produce and raw meat, by name: the common ones a recipe counts loose. */
@@ -317,17 +319,25 @@ function learnedFor(l: Line): LearnedSize[] | null {
   if (!CONTAINERS[unitOf(l)] && lookupAmount(l)) return null
   for (const k of itemKeys(l)) {
     const hit = learned.exact.get(k) ?? learned.loose.get(k)
-    if (hit && nameAgrees(l, hit)) return hit.sizes
+    const sizes = hit && agreeing(l, hit)
+    if (sizes?.length) return sizes
   }
   return null
 }
 
-/** What the line says is the learned product: its key, a described version of it, or the name a size was taught by (#878). */
-function nameAgrees(l: Line, hit: Learned): boolean {
-  if (hit.names.size && hit.names.has(matchKey(l.displayName))) return true
+/**
+ * The learned sizes this line's name agrees with. The row's key (the name is
+ * the learned product or a described version of it) answers for every size on
+ * the row. A match on a teaching line's name alone (#878) answers only for the
+ * sizes that name taught: "Kalamata olives" gets its own jar, not the can
+ * plain "olives" taught under the same key.
+ */
+function agreeing(l: Line, hit: Learned): LearnedSize[] | null {
   const said = { displayName: l.displayName, canonicalKey: '', quantity: l.quantity, unit: l.unit }
   const learnedAs = { displayName: hit.key, canonicalKey: hit.key }
-  return sameIngredient(said, learnedAs) || closeness(said, learnedAs) >= 0
+  if (sameIngredient(said, learnedAs) || closeness(said, learnedAs) >= 0) return hit.sizes
+  const name = matchKey(l.displayName)
+  return name && hit.names.has(name) ? hit.sizes.filter((s) => s.nameKey === name) : null
 }
 
 /** The learned pack for the container the line names (or the first one, when it names none). */

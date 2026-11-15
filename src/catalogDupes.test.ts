@@ -341,3 +341,73 @@ test('a record that will not write is skipped and the rest of the pull lands', a
   assert.equal((await db.settings.where('key').equals('mise.area').first())?.value, 'Austin, TX', 'the record after it landed')
   assert.equal((await db.settings.where('key').equals('mise.store').first())?.value, 'Kroger')
 })
+
+// ---- Hardening (#876 architect review) ----------------------------------------------
+
+const { mergeSameRow, sameRow } = await import('./catalogMerge')
+
+test('rows compare equal whatever order their keys come back in (Postgres jsonb reorders them)', () => {
+  const a = { uid: 'x', learnedSizes: [{ size: 10, unit: 'oz', packaging: 'jar', at: 1 }], price: 2 }
+  const b = { price: 2, learnedSizes: [{ at: 1, packaging: 'jar', unit: 'oz', size: 10 }], uid: 'x' }
+  assert.equal(sameRow(a, b), true)
+  assert.equal(sameRow(a, { ...b, learnedSizes: [{ ...b.learnedSizes[0], size: 12 }] }), false)
+})
+
+test('same uid: identical copies change nothing, and a tie on the stamp goes to the server copy', () => {
+  const mine = { ...entry('a-x', { price: 3 }), updatedAt: 500 }
+  assert.equal(mergeSameRow(mine, { ...mine, id: undefined }), null, 'identical')
+  assert.equal(mergeSameRow({ ...mine, id: 7 }, { ...mine, updatedAt: 900 }), null, 'identical but for the stamp')
+  const theirs = { ...entry('a-x', { price: 4 }), updatedAt: 500 }
+  assert.equal(mergeSameRow(mine, theirs), theirs, "the server's fields win the tie, and nothing is restamped")
+  // A newer local copy that the union adds nothing to keeps its own stamp.
+  const newer = { ...mine, updatedAt: 600, learnedSizes: [jar] }
+  assert.equal(mergeSameRow(newer, { ...theirs, learnedSizes: [jar] }), null)
+})
+
+test('same uid, same stamp, different price and sizes on two devices: all three copies end equal', async () => {
+  await reset()
+  const T = Date.now() - 60_000
+  const tube = { ...jar, packaging: 'tube', size: 4.5 }
+  const row = (rest: Partial<CatalogEntry>) => ({ ...entry('a-harissa', rest), updatedAt: T })
+  await sync.keepingStamps([db.catalog], () => db.catalog.add(row({ price: 3, learnedSizes: [jar] })))
+  const phone = await snapshot()
+  await become({})
+  await sync.keepingStamps([db.catalog], () => db.catalog.add(row({ price: 4, learnedSizes: [tube] })))
+  const laptop = await snapshot()
+
+  await become(phone)
+  await sync.sync()
+  const phone1 = await snapshot()
+  await become(laptop)
+  await sync.sync() // the server kept the phone's copy (the incumbent); the laptop adds its tube
+  await sync.sync()
+  const onLaptop = await catalog()
+  await become(phone1)
+  await sync.sync()
+  const onPhone = await catalog()
+
+  assert.deepEqual(onPhone, onLaptop)
+  assert.deepEqual(serverCatalog(), onLaptop)
+  assert.equal(onLaptop[0].price, 3, "the server's copy won the tie")
+  assert.deepEqual(onLaptop[0].learnedSizes?.map((s) => s.packaging), ['jar', 'tube'], 'both sizes kept')
+})
+
+test('malformed learned sizes off the wire are skipped, never thrown on, and the pull goes on', async () => {
+  await reset()
+  await db.catalog.add(entry('a-x', { learnedSizes: [jar] }))
+  const local = (await db.catalog.where('uid').equals('a-x').first())!
+  const r = await sync.applyRemote({
+    records: [
+      { kind: 'catalog', uid: 'a-x', updatedAt: local.updatedAt! + 10,
+        body: { ...entry('a-x'), learnedSizes: [null, 5, 'jar', { size: 1 }, { ...jar, packaging: 'tub' }], learnedGone: 'gone' } },
+      { kind: 'catalog', uid: 'b-y', updatedAt: 900, body: { ...entry('b-y', { canonicalKey: 'dill', displayName: 'Dill' }), learnedSizes: 'nonsense' } },
+      { kind: 'setting', uid: 'mise.area', updatedAt: 900, body: { key: 'mise.area', value: 'Austin, TX' } },
+    ],
+    tombstones: [],
+  })
+  assert.equal(r.failed, 0)
+  const x = (await db.catalog.where('uid').equals('a-x').first())!
+  assert.deepEqual(x.learnedSizes?.map((s) => s.packaging), ['tub', 'jar'], 'the well-formed entries, merged')
+  assert.ok(await db.catalog.where('uid').equals('b-y').first())
+  assert.equal((await db.settings.where('key').equals('mise.area').first())?.value, 'Austin, TX')
+})

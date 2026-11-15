@@ -9,8 +9,9 @@ import { readSetting } from './prefs'
 import { LearnedSizes } from './LearnedSizesSection'
 import {
   lastSyncedAt, setSyncEnabled, sync, syncAvailable, syncEnabled,
-  type Availability, type SyncResult,
+  type Availability,
 } from './sync'
+import { describeSync } from './syncText'
 
 export function SettingsView() {
   const aiOn = useAiEnabled()
@@ -80,23 +81,12 @@ export function SettingsView() {
     }
   }, [])
 
-  const describe = (r: SyncResult): string => {
-    if (!r.ok) return r.message
-    const { added, updated, removed, sent } = r
-    if (!added && !updated && !removed) return `Up to date — ${sent} records checked.`
-    const parts = []
-    if (added) parts.push(`${added} added`)
-    if (updated) parts.push(`${updated} updated`)
-    if (removed) parts.push(`${removed} removed`)
-    return `Synced: ${parts.join(', ')}.`
-  }
-
   const runSync = async () => {
     setSyncBusy(true)
     setSyncMsg('')
     try {
       const r = await sync()
-      setSyncMsg(describe(r))
+      setSyncMsg(describeSync(r))
       setSyncedAt(lastSyncedAt())
     } finally {
       setSyncBusy(false)

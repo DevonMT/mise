@@ -356,8 +356,13 @@ export async function applyRemote(
             // past the delete, so the next push puts it back on the server, and
             // no further: an edit made after the delete still wins (rule 2).
             // Also when a rename has un-folded it since (#684): it is folded again.
-            await table.put({ ...forwarding, updatedAt: deletedAt + 1 } as AnyRow)
-            restored = true
+            try {
+              await table.put({ ...forwarding, updatedAt: deletedAt + 1 } as AnyRow)
+              restored = true
+            } catch (err) {
+              failed++
+              console.warn(`sync: list ${row.uid} not kept as a forwarding address`, err)
+            }
             continue
           }
           try {
@@ -427,9 +432,14 @@ export async function applyRemote(
 
     // Local tombstones the server has now taken responsibility for. Pruned on
     // the same window the server uses, so both sides forget together.
-    const cutoff = Date.now() - TOMBSTONE_DAYS * 86_400_000
-    const stale = await db.tombstones.filter((t) => t.deletedAt < cutoff).toArray()
-    for (const t of stale) if (t.id != null) await db.tombstones.delete(t.id)
+    // Housekeeping: a failure here only keeps an old tombstone a while longer.
+    try {
+      const cutoff = Date.now() - TOMBSTONE_DAYS * 86_400_000
+      const stale = await db.tombstones.filter((t) => t.deletedAt < cutoff).toArray()
+      for (const t of stale) if (t.id != null) await db.tombstones.delete(t.id)
+    } catch (err) {
+      console.warn('sync: old tombstones not pruned', err)
+    }
   } finally {
     applyingRemote = false
   }
@@ -471,15 +481,21 @@ async function applyCatalog(
   const changed = new Set<string>()
   let pushBack = false
   for (const rec of incoming) {
-    const theirs = fromWire(rec, new Map())
-    if (!theirs) continue
-    const cur = next.get(rec.uid)
-    const row = cur ? mergeSameRow(cur, theirs) : theirs
-    if (!row) continue
-    // Stamped past the server's copy: this device holds something it lacks.
-    if (row !== theirs) pushBack = true
-    next.set(rec.uid, row)
-    changed.add(rec.uid)
+    try {
+      const theirs = fromWire(rec, new Map())
+      if (!theirs) continue
+      const cur = next.get(rec.uid)
+      const row = cur ? mergeSameRow(cur, theirs) : theirs
+      if (!row) continue
+      // Stamped past the server's copy: this device holds something it lacks.
+      if (row !== theirs) pushBack = true
+      next.set(rec.uid, row)
+      changed.add(rec.uid)
+    } catch (err) {
+      // A record this merge cannot read is left for the next pull; the rest go on.
+      out.failed++
+      console.warn(`sync: catalog ${rec.uid} not merged`, err)
+    }
   }
 
   // By product. A row with no key is outside the unique index: on its own.
