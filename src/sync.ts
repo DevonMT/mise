@@ -42,6 +42,7 @@ import { hydrateSettings } from './prefs'
 import { filePending } from './list'
 import { asForwarding, foldLegacyLists, rememberFolded } from './fold'
 import { bindAccount, boundAccount } from './account'
+import { mergeDuplicates, sameRow } from './catalogMerge'
 
 /**
  * Sync is a devondoes.dev feature: it needs the platform session cookie, which
@@ -308,10 +309,11 @@ async function localState(): Promise<State> {
  */
 export async function applyRemote(
   state: State,
-): Promise<{ added: number; updated: number; removed: number }> {
+): Promise<{ added: number; updated: number; removed: number; failed: number }> {
   let added = 0
   let updated = 0
   let removed = 0
+  let failed = 0
   let restored = false
 
   applyingRemote = true
@@ -358,8 +360,13 @@ export async function applyRemote(
             restored = true
             continue
           }
-          await table.delete(row.id)
-          removed++
+          try {
+            await table.delete(row.id)
+            removed++
+          } catch (err) {
+            failed++
+            console.warn(`sync: ${kind} ${row.uid} not deleted`, err)
+          }
         }
       }
     }
@@ -368,6 +375,16 @@ export async function applyRemote(
     for (const { kind, table } of TABLES) {
       const incoming = state.records.filter((r) => r.kind === kind)
       if (!incoming.length) continue
+
+      if (kind === 'catalog') {
+        const c = await applyCatalog(table, incoming)
+        added += c.added
+        updated += c.updated
+        removed += c.removed
+        failed += c.failed
+        if (c.retired) restored = true
+        continue
+      }
 
       // Rebuilt per kind: applying the lists above may have created new ones.
       const listIdByUid = new Map<string, number>()
@@ -385,14 +402,22 @@ export async function applyRemote(
         if (local && (local.updatedAt ?? 0) >= rec.updatedAt) continue // ours is newer or the same
         const row = fromWire(rec, listIdByUid)
         if (!row) continue
-        if (local?.id != null) {
-          // put, not update: the server's copy is the whole row, and a partial
-          // update would leave fields the other device cleared still set here.
-          await table.put({ ...row, id: local.id })
-          updated++
-        } else {
-          await table.add(row)
-          added++
+        try {
+          if (local?.id != null) {
+            // put, not update: the server's copy is the whole row, and a partial
+            // update would leave fields the other device cleared still set here.
+            await table.put({ ...row, id: local.id })
+            updated++
+          } else {
+            await table.add(row)
+            added++
+          }
+        } catch (err) {
+          // One record that will not write (a unique index it breaks) must
+          // never stop the rest of the pull (#876): it used to throw here, and
+          // every record after it went unapplied on every sync.
+          failed++
+          console.warn(`sync: ${kind} ${rec.uid} not applied`, err)
         }
       }
     }
@@ -408,11 +433,109 @@ export async function applyRemote(
   } finally {
     applyingRemote = false
   }
-  // The hooks were off, so nothing scheduled a push for a list put back above;
-  // until one goes, the server (and the hub) has no forwarding list.
+  // The hooks were off, so nothing scheduled a push for a list put back above
+  // (until one goes, the server and the hub have no forwarding list), or for a
+  // merged catalog row and the tombstone of the copy it retired.
   if (restored) touched()
 
-  return { added, updated, removed }
+  return { added, updated, removed, failed }
+}
+
+/**
+ * Catalog records, merged by product as well as by uid (#876).
+ *
+ * The catalog is unique on canonicalKey, so a record with a new uid and a key
+ * this device already holds cannot simply be added: two devices that each
+ * priced, starred or learned a size for the same new product before syncing
+ * hold one product under two uids. Each such set becomes one row
+ * (catalogMerge.ts): the smallest uid keeps it on every device, the others'
+ * fields are folded in, and the others are tombstoned at the version folded,
+ * so the server drops them too, and an edit made to one later (an offline
+ * device) is newer than its tombstone, comes back, and is folded in again.
+ *
+ * Each product is written in its own transaction, so a failure leaves that
+ * product as it was and the rest of the pull still lands.
+ */
+async function applyCatalog(
+  table: Dexie.Table<AnyRow, number>,
+  incoming: WireRecord[],
+): Promise<{ added: number; updated: number; removed: number; failed: number; retired: number }> {
+  const out = { added: 0, updated: 0, removed: 0, failed: 0, retired: 0 }
+  const local = await table.toArray()
+  const localByUid = new Map<string, AnyRow>()
+  for (const r of local) if (r.uid) localByUid.set(r.uid, r)
+
+  // What each uid holds after this pull: the newer of ours and the server's.
+  const next = new Map<string, AnyRow>(localByUid)
+  const changed = new Set<string>()
+  for (const rec of incoming) {
+    const cur = next.get(rec.uid)
+    if (cur && (cur.updatedAt ?? 0) >= rec.updatedAt) continue
+    const row = fromWire(rec, new Map())
+    if (!row) continue
+    next.set(rec.uid, row)
+    changed.add(rec.uid)
+  }
+
+  // By product. A row with no key is outside the unique index: on its own.
+  const byKey = new Map<string, AnyRow[]>()
+  for (const r of next.values()) {
+    const k = typeof r.canonicalKey === 'string' ? r.canonicalKey : `\0${r.uid}`
+    byKey.set(k, [...(byKey.get(k) ?? []), r])
+  }
+
+  for (const rows of byKey.values()) {
+    if (rows.length === 1 && !changed.has(rows[0].uid!)) continue
+    try {
+      await db.transaction('rw', db.catalog, db.tombstones, async () => {
+        const { winner, losers } = rows.length > 1 ? mergeDuplicates(rows) : { winner: rows[0], losers: [] }
+        // Losers out first: the key is unique, so the winner cannot land while one holds it.
+        for (const l of losers) {
+          const id = localByUid.get(l.uid!)?.id
+          if (id != null) {
+            await table.delete(id)
+            out.removed++
+          }
+          await retire('catalog', l.uid!, retiredAt(l.updatedAt ?? 0))
+          out.retired++
+        }
+        const mine = localByUid.get(winner.uid!)
+        if (mine?.id != null) {
+          if (mine.updatedAt === winner.updatedAt && sameRow(mine, winner)) return
+          await table.put({ ...winner, id: mine.id })
+          out.updated++
+        } else {
+          const { id: _id, ...row } = winner
+          await table.add(row)
+          out.added++
+        }
+      })
+    } catch (err) {
+      out.failed += rows.filter((r) => changed.has(r.uid!)).length || 1
+      console.warn(`sync: catalog ${String(rows[0].canonicalKey)} not applied`, err)
+    }
+  }
+  return out
+}
+
+/**
+ * The tombstone stamp for a retired catalog copy: the version that was folded
+ * in, so an edit made to it after that still wins and is folded in when it
+ * arrives. Never older than a month, because a tombstone past the 90-day window
+ * is never sent (localState) and the copy would then live on the server for
+ * good; a month of offline edits to a copy is the price, and there are none
+ * in practice (both copies are new when they meet).
+ */
+const retiredAt = (updatedAt: number) => Math.max(updatedAt, Date.now() - 30 * 86_400_000)
+
+/** Write or raise a tombstone directly: the deleting hook is off during a merge. */
+async function retire(kind: Kind, uid: string, deletedAt: number): Promise<void> {
+  const have = await db.tombstones.where('[kind+uid]').equals([kind, uid]).first()
+  if (have?.id != null) {
+    if (have.deletedAt < deletedAt) await db.tombstones.update(have.id, { deletedAt })
+  } else {
+    await db.tombstones.add({ kind, uid, deletedAt })
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -422,6 +545,8 @@ export async function applyRemote(
 export type SyncResult =
   | {
       ok: true; added: number; updated: number; removed: number; sent: number
+      /** Records this pull could not write (logged); the rest landed. */
+      failed?: number
       /** True on the one sync where the account's tier changed, so the app can
        *  say so once rather than silently growing or losing three buttons.
        *  False on the first sync of a session, which merely learns the tier. */
