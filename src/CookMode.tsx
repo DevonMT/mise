@@ -58,12 +58,16 @@ export function CookMode({
   recipe,
   factor,
   includeOptional,
+  onToggleOptional,
   onClose,
 }: {
   recipe: Recipe
   factor: number
   /** Indices into recipe.ingredients of the optional ones chosen on the detail page. */
   includeOptional: Set<number>
+  /** Flips one optional ingredient's include state. The set lives on the detail
+   *  page, so a choice made here is still there when cooking ends (#1000). */
+  onToggleOptional: (i: number) => void
   onClose: () => void
 }) {
   const dialogRef = useDialog(onClose)
@@ -75,13 +79,24 @@ export function CookMode({
   const [at, setAt] = useState(0)
   const [got, setGot] = useState<Set<number>>(new Set())
 
-  const using = recipe.ingredients
-    .map((ing, i) => ({ ing, i }))
-    .filter(({ ing, i }) => !ing.optional || includeOptional.has(i))
+  const indexed = recipe.ingredients.map((ing, i) => ({ ing, i }))
+  const required = indexed.filter(({ ing }) => !ing.optional)
+  const optional = indexed.filter(({ ing }) => ing.optional)
 
   // The recipe's own words, range and all: "2 to 3 soup cans" (#811).
   const amount = (q?: number, unit?: string, quantityMax?: number) =>
     q == null ? '' : recipeAmount({ quantity: q, quantityMax, unit }, factor)
+
+  const ingredientCells = (ing: Recipe['ingredients'][number], ticked: boolean) => (
+    <>
+      <span className="opt-check">{ticked ? '✓' : ''}</span>
+      <span className="cook-amt" title={ing.amountEstimated ? 'Estimated by Mise' : undefined}>
+        {ing.amountEstimated && amount(ing.quantity, ing.unit) ? '≈ ' : ''}
+        {amount(ing.quantity, ing.unit, ing.quantityMax)}
+      </span>
+      <span className="cook-name">{ing.displayName}</span>
+    </>
+  )
 
   const toggle = (i: number) =>
     setGot((s) => {
@@ -117,20 +132,55 @@ export function CookMode({
         {at === 0 ? (
           <>
             <p className="cook-lead">
-              Get these out{factor !== 1 ? ` — amounts are for ${recipe.servings ? kitchenNumber(recipe.servings * factor) + ' servings' : `×${kitchenNumber(factor)}`}` : ''}.
+              Get these out.{factor !== 1 ? ` Amounts are for ${recipe.servings ? kitchenNumber(recipe.servings * factor) + ' servings' : `×${kitchenNumber(factor)}`}.` : ''}
             </p>
             <div className="cook-gather">
-              {using.map(({ ing, i }) => (
+              {required.map(({ ing, i }) => (
                 <button key={i} className={got.has(i) ? 'cook-ing on' : 'cook-ing'} onClick={() => toggle(i)}>
-                  <span className="opt-check">{got.has(i) ? '✓' : ''}</span>
-                  <span className="cook-amt" title={ing.amountEstimated ? 'Estimated by Mise' : undefined}>
-                    {ing.amountEstimated && amount(ing.quantity, ing.unit) ? '≈ ' : ''}
-                    {amount(ing.quantity, ing.unit, ing.quantityMax)}
-                  </span>
-                  <span className="cook-name">{ing.displayName}</span>
+                  {ingredientCells(ing, got.has(i))}
                 </button>
               ))}
             </div>
+            {optional.length > 0 && (
+              <section className="cook-optional" aria-labelledby="cook-opt-head">
+                <h3 className="cook-group" id="cook-opt-head">
+                  Optional
+                </h3>
+                <p className="cook-lead">Tap to include. Included ones get ticked off like the rest.</p>
+                <div className="cook-gather">
+                  {optional.map(({ ing, i }) => {
+                    const on = includeOptional.has(i)
+                    return (
+                      <div key={i} className="cook-wrap">
+                        {on ? (
+                          <button className={got.has(i) ? 'cook-ing on' : 'cook-ing'} onClick={() => toggle(i)}>
+                            {ingredientCells(ing, got.has(i))}
+                          </button>
+                        ) : (
+                          <button
+                            className="cook-ing off"
+                            aria-label={`Include ${ing.displayName}`}
+                            onClick={() => onToggleOptional(i)}
+                          >
+                            {ingredientCells(ing, false)}
+                            <span className="cook-include">Include</span>
+                          </button>
+                        )}
+                        {on && (
+                          <button
+                            className="cook-leave"
+                            aria-label={`Leave out ${ing.displayName}`}
+                            onClick={() => onToggleOptional(i)}
+                          >
+                            Leave Out
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
             {!steps.length && <p className="cook-lead">This recipe has no steps saved.</p>}
           </>
         ) : (

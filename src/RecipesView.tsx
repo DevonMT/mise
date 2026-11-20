@@ -419,7 +419,13 @@ ${url}`)
       )}
       {editing && <RecipeEditor recipe={recipe} onClose={() => setEditing(false)} />}
       {cooking && (
-        <CookMode recipe={recipe} factor={factor} includeOptional={optSel} onClose={() => setCooking(false)} />
+        <CookMode
+          recipe={recipe}
+          factor={factor}
+          includeOptional={optSel}
+          onToggleOptional={toggleOpt}
+          onClose={() => setCooking(false)}
+        />
       )}
 
       {sharing && (

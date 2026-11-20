@@ -3273,6 +3273,56 @@
   background: var(--accent);
   border-color: var(--accent);
 }
+.cook-group {
+  margin: 20px 0 2px;
+  font-size: 1rem;
+}
+.cook-optional .cook-lead {
+  font-size: 0.9rem;
+}
+/* An optional ingredient: the row, and beside it Leave Out once it is in. */
+.cook-wrap {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.cook-wrap:last-child {
+  border-bottom: none;
+}
+.cook-wrap .cook-ing,
+.cook-wrap .cook-ing:last-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  border-bottom: none;
+}
+.cook-ing.off .cook-amt,
+.cook-ing.off .cook-name {
+  color: var(--muted);
+}
+.cook-include,
+.cook-leave {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.cook-include {
+  color: var(--accent);
+}
+.cook-leave {
+  margin-right: 10px;
+  padding: 8px 10px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+}
+.cook-wrap:has(.cook-ing.on) {
+  background: var(--accent-soft);
+}
 .cook-amt {
   flex: 0 0 5.5rem;
   font-weight: 700;
@@ -3346,13 +3396,23 @@
   }
   /* The grid's rows each carry a rule; the last row's falls under the clip. */
   .cook-gather > .cook-ing,
-  .cook-gather > .cook-ing:last-child {
+  .cook-gather > .cook-ing:last-child,
+  .cook-gather > .cook-wrap,
+  .cook-gather > .cook-wrap:last-child {
     margin-bottom: -1px;
     border-bottom: 1px solid var(--line);
+  }
+  .cook-gather > .cook-ing,
+  .cook-gather > .cook-ing:last-child,
+  .cook-wrap .cook-ing {
     padding: 10px 12px;
   }
-  .cook-gather > .cook-ing:nth-child(odd) {
+  .cook-gather > .cook-ing:nth-child(odd),
+  .cook-gather > .cook-wrap:nth-child(odd) {
     border-right: 1px solid var(--line);
+  }
+  .cook-group {
+    margin-top: 12px;
   }
 }
 
