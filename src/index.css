@@ -3332,6 +3332,82 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* Step timers (#1001). */
+.cook-timers {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--line);
+}
+.cook-alarm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+}
+.cook-alarm:not(.running) {
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+}
+.cook-timer-jump {
+  min-width: 0;
+  padding: 8px 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+.cook-timer-btn,
+.cook-timer-start {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+}
+.cook-timer-start {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.cook-timer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 16px;
+}
+.cook-timer.on {
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  background: var(--accent-soft);
+}
+.cook-clock {
+  font-size: 2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.cook-timer-note {
+  flex: 1 1 8rem;
+  min-width: 0;
+  color: var(--muted);
+}
+.cook-timer.on .cook-timer-btn {
+  color: var(--ink);
+}
 .cook-foot {
   display: grid;
   grid-template-columns: 1fr 2fr;
@@ -3413,6 +3489,21 @@
   }
   .cook-group {
     margin-top: 12px;
+  }
+  .cook-timers {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding-block: 4px;
+    padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  }
+  .cook-alarm {
+    flex: 1 1 300px;
+  }
+  .cook-timer {
+    margin-top: 10px;
+  }
+  .cook-clock {
+    font-size: 1.6rem;
   }
 }
 

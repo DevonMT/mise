@@ -6,6 +6,8 @@ import { recipeAmount } from './buy'
 import { Icon } from './Icon'
 import { useDialog } from './ds/useDialog'
 import { useBackLayer } from './back'
+import { findDurations, formatLeft } from './cookTimer'
+import { timerKey, useStepTimers } from './useStepTimers'
 
 /**
  * Cook mode: one step at a time, big, with the screen kept awake.
@@ -73,6 +75,7 @@ export function CookMode({
   const dialogRef = useDialog(onClose)
   useBackLayer(true, onClose)
   useWakeLock()
+  const { timers, now, start, remove } = useStepTimers()
 
   const steps = splitSteps(recipe.instructions)
   const total = steps.length + 1 // step 0 is gathering
@@ -127,6 +130,38 @@ export function CookMode({
           {at === 0 ? 'Gather' : `Step ${at} of ${steps.length}`}
         </span>
       </div>
+
+      {(() => {
+        // Finished timers always show, wherever you are. A running one shows here
+        // while you are on another step, so a step further on never hides it.
+        const shown = timers.filter((t) => t.done || t.step !== at)
+        if (!shown.length) return null
+        return (
+          <div className="cook-timers">
+            {shown.map((t) =>
+              t.done ? (
+                <div key={t.key} className="cook-alarm" role="alert">
+                  <span>
+                    Timer done: step {t.step}, {t.label}
+                  </span>
+                  <button className="cook-timer-btn" onClick={() => remove(t.key)}>
+                    Dismiss
+                  </button>
+                </div>
+              ) : (
+                <div key={t.key} className="cook-alarm running">
+                  <button className="cook-timer-jump" onClick={() => setAt(t.step)}>
+                    Step {t.step}: <b>{formatLeft(t.endsAt - now)}</b> left
+                  </button>
+                  <button className="cook-timer-btn" onClick={() => remove(t.key)}>
+                    Cancel Timer
+                  </button>
+                </div>
+              ),
+            )}
+          </div>
+        )
+      })()}
 
       <div className="fullview-body cook-body">
         {at === 0 ? (
@@ -184,7 +219,32 @@ export function CookMode({
             {!steps.length && <p className="cook-lead">This recipe has no steps saved.</p>}
           </>
         ) : (
-          <p className="cook-step">{steps[at - 1]}</p>
+          <>
+            <p className="cook-step">{steps[at - 1]}</p>
+            {findDurations(steps[at - 1]).map((d) => {
+              const t = timers.find((x) => x.key === timerKey(at, d) && !x.done)
+              return t ? (
+                <div key={t.key} className="cook-timer on">
+                  <span className="cook-clock" role="timer">
+                    {formatLeft(t.endsAt - now)}
+                  </span>
+                  <span className="cook-timer-note">left of {d.label}</span>
+                  <button className="cook-timer-btn" onClick={() => remove(t.key)}>
+                    Cancel Timer
+                  </button>
+                </div>
+              ) : (
+                <div key={d.ms} className="cook-timer">
+                  <button className="cook-timer-start" onClick={() => start(at, d)}>
+                    Start Timer
+                  </button>
+                  <span className="cook-timer-note">
+                    {d.range ? `${d.label}, the low end of ${d.range}` : d.label}
+                  </span>
+                </div>
+              )
+            })}
+          </>
         )}
       </div>
 
