@@ -3217,6 +3217,12 @@
   width: 100%;
   margin-bottom: 10px;
 }
+/* The estate bar is sticky at z-index 50 and sat over this view's head: the
+   close button, title and step count were under it (#999). Cooking is a
+   takeover, so it covers the bar. */
+.fullview.cook-mode {
+  z-index: 60;
+}
 .cook-count {
   margin-left: auto;
   flex: 0 0 auto;
@@ -3274,6 +3280,7 @@
 .cook-name {
   flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 .cook-foot {
   display: grid;
@@ -3283,6 +3290,70 @@
 .cook-foot .ghost,
 .cook-foot .primary {
   margin: 0;
+}
+
+/*
+ * A phone on its side (#999) is ~375px tall. The desktop dialog rule gives the
+ * box 84% of that and the portrait head (67px) and foot (82px) took half of
+ * what was left, so one ingredient and a scrollbar showed. Short landscape
+ * screens get the whole window, slim bars and a two-column gather list. Keyed
+ * on height, not pointer, so a touch phone and a resized desktop both get it.
+ */
+@media (max-height: 520px) and (orientation: landscape) {
+  .fullview.cook-mode {
+    inset: 0;
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .cook-mode .fullview-head {
+    padding-block: 6px;
+    padding-top: max(6px, env(safe-area-inset-top, 0px));
+    padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  }
+  .cook-mode .fullview-body {
+    padding-block: 10px;
+    padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  }
+  .cook-mode .fullview-foot {
+    padding-block: 6px calc(6px + env(safe-area-inset-bottom, 0px));
+    padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  }
+  .cook-foot .ghost,
+  .cook-foot .primary {
+    min-height: 44px;
+    padding-block: 8px;
+  }
+  .cook-body {
+    padding-top: 10px;
+  }
+  .cook-lead {
+    margin-bottom: 8px;
+  }
+  .cook-step {
+    font-size: 1.25rem;
+    line-height: 1.4;
+    margin: 0;
+  }
+  .cook-gather {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    background: var(--surface);
+  }
+  /* The grid's rows each carry a rule; the last row's falls under the clip. */
+  .cook-gather > .cook-ing,
+  .cook-gather > .cook-ing:last-child {
+    margin-bottom: -1px;
+    border-bottom: 1px solid var(--line);
+    padding: 10px 12px;
+  }
+  .cook-gather > .cook-ing:nth-child(odd) {
+    border-right: 1px solid var(--line);
+  }
 }
 
 /* ---- Match My Names (#812): approval cards in recipe detail ---- */

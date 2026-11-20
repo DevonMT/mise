@@ -21,6 +21,16 @@
         "4173"
       ],
       "port": 4173
+    },
+    {
+      "name": "mise-offline",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--config",
+        ".claude/vite.offline.config.ts"
+      ],
+      "port": 5174
     }
   ]
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { Recipe } from './db'
 import { kitchenNumber } from './recipeText'
 import { recipeAmount } from './buy'
@@ -89,7 +90,9 @@ export function CookMode({
       return n
     })
 
-  return (
+  // On the body, not inside the app: the estate bar is a sticky sibling above
+  // everything in `.app`, and it sat over this view's close button (#999).
+  return createPortal(
     <div
       ref={dialogRef}
       role="dialog"
@@ -149,6 +152,7 @@ export function CookMode({
           </button>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
