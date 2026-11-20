@@ -32,6 +32,11 @@ test('reads fractions and compound times', () => {
   assert.equal(one('Mix a 10-minute batch.')?.ms, 600_000)
 })
 
+test('a compound time is one timer, not two', () => {
+  assert.equal(findDurations('Chill 1 hour 30 minutes.').length, 1)
+  assert.equal(findDurations('Roast 1 hour and 15 min, then rest 10 minutes.').length, 2)
+})
+
 test('finds nothing where no length is named', () => {
   assert.deepEqual(findDurations('Chill overnight.'), [])
   assert.deepEqual(findDurations('Cook until golden, a few minutes.'), [])

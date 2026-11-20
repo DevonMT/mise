@@ -72,8 +72,11 @@ export function formatLeft(ms: number): string {
 /** Every time the step names, in reading order, at most three. */
 export function findDurations(step: string): StepDuration[] {
   const found: Array<StepDuration & { at: number }> = []
+  // Where a folded "1 hour 30 minutes" ends, so its minutes aren't found twice.
+  let foldedTo = 0
 
   for (const m of step.matchAll(SINGLE)) {
+    if (m.index < foldedTo) continue
     const low = value(m[1]) * unitMs(m[3])
     const ranged = m[2] != null
     let ms = low
@@ -84,6 +87,7 @@ export function findDurations(step: string): StepDuration[] {
       if (tail) {
         ms += value(tail[1]) * 60_000
         text += tail[0]
+        foldedTo = m.index + text.length
       }
     }
     if (ms < MIN_MS || !Number.isFinite(ms)) continue
